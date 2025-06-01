@@ -1,0 +1,158 @@
+services:
+  vpn:
+    image: qmcgaw/gluetun:latest
+    restart: "unless-stopped"
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      jellyfin_network:
+    ports:
+      # qbittorrent ports
+      - 5080:5080
+      - 6881:6881
+      - 6881:6881/udp
+      # prowlarr ports
+      - 9696:9696
+    environment:
+      - VPN_SERVICE_PROVIDER
+      - VPN_TYPE
+      - WIREGUARD_PRIVATE_KEY
+      - SERVER_COUNTRIES
+      - OPENVPN_USER
+      - OPENVPN_PASSWORD
+      - OPENVPN_PROTOCOL
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    restart: "unless-stopped"
+    depends_on:
+      vpn:
+        condition: service_healthy
+    network_mode: service:vpn
+    volumes:
+      - /media/qbittorrent:/config
+      - /media/downloads:/downloads
+    environment:
+      - WEBUI_PORT=5080
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    restart: "unless-stopped"
+    depends_on:
+      vpn:
+        condition: service_healthy
+    network_mode: service:vpn
+    volumes:
+      - /media/prowlarr:/config
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    restart: "unless-stopped"
+    networks:
+      jellyfin_network:
+        ipv4_address: ${RADARR_STATIC_CONTAINER_IP} # E.g. 172.50.0.1
+    ports:
+      - 7878:7878
+    volumes:
+      - /media/radarr:/config
+      - /media/downloads:/downloads
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    restart: "unless-stopped"
+    networks:
+      jellyfin_network:
+        ipv4_address: ${SONARR_STATIC_CONTAINER_IP} # E.g. 172.50.0.2
+    ports:
+      - 8989:8989
+    volumes:
+      - /media/sonarr:/config
+      - /media/downloads:/downloads
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    restart: "unless-stopped"
+    networks:
+      jellyfin_network:
+        ipv4_address: ${BAZARR_STATIC_CONTAINER_IP} # E.g. 172.50.0.3
+    ports:
+      - 6767:6767
+    volumes:
+      - /media/bazarr:/config
+      - /media/downloads:/downloads
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+
+  readarr:
+    image: lscr.io/linuxserver/readarr:develop
+    restart: "unless-stopped"
+    networks:
+      jellyfin_network:
+        ipv4_address: ${READARR_STATIC_CONTAINER_IP} # E.g. 172.50.0.4
+    ports:
+      - 8787:8787
+    volumes:
+      - /media/readarr:/config
+      - /media/downloads:/downloads
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    restart: "unless-stopped"
+    networks:
+      jellyfin_network:
+    ports:
+      - 5055:5055
+    volumes:
+      - /media/jellyseerr:/app/config
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    restart: "unless-stopped"
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    networks:
+      jellyfin_network:
+    ports:
+      - 8096:8096
+      - 7359:7359/udp
+      - 8920:8920
+    volumes:
+      - /media/jellyfin:/config
+      - /media/downloads:/downloads
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+
+# create network: sudo docker network create --subnet 172.50.0.0/16 jellyfin_network
+networks:
+  jellyfin_network:
+    external: true
+    
