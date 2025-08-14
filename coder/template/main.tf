@@ -160,7 +160,8 @@ module "code-server" {
     "gruntfuggly.todo-tree",
     "pflannery.vscode-versionlens",
     "ms-vsliveshare.vsliveshare",
-    "hashicorp.terraform"
+    "hashicorp.terraform",
+    "saoudrizwan.claude-dev"
   ]
   settings = {
     "files.autoSave": "off",
