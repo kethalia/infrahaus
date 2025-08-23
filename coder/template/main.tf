@@ -150,7 +150,6 @@ module "code-server" {
     "prisma.prisma",
     "graphql.vscode-graphql",
     "graphql.vscode-graphql-syntax",
-    "zarifprogrammer.tailwind-snippets",
     "bradlc.vscode-tailwindcss",
     "tintinweb.vscode-solidity-language",
     "nomicfoundation.hardhat-solidity",
