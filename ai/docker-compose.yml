@@ -1,0 +1,69 @@
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    depends_on:
+      - ollama
+      - kokoro-web
+    ports:
+      - ${OPEN_WEBUI_PORT:-8080}:8080
+    volumes:
+      - ./data/open-webui:/app/backend/data
+    env_file:
+      - .env
+    environment:
+      - WEBUI_SECRET_KEY
+      - OLLAMA_BASE_URL
+      - AUDIO_TTS_OPENAI_API_BASE_URL
+      - AUDIO_TTS_OPENAI_API_KEY
+      - AUDIO_TTS_ENGINE
+      - AUDIO_TTS_MODEL
+      - AUDIO_TTS_VOICE
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - ${OLLAMA_PORT:-11434}:11434
+    volumes:
+      - ./data/ollama:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
+
+  kokoro-web:
+    image: ghcr.io/eduardolat/kokoro-web:latest
+    restart: unless-stopped
+    ports:
+      - ${KOKORO_PORT:-3000}:3000
+    volumes:
+      - ./data/kokoro:/kokoro/cache
+    environment:
+      - KW_SECRET_API_KEY
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
+
+  comfy-ui:
+    build: ./comfy-ui
+    restart: unless-stopped
+    ports:
+      - ${COMFY_UI_PORT:-8188}:8188
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
