@@ -1,22 +1,31 @@
 services:
-  sunshine:
-    build: .
+  sunshine-steam:
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
-    ipc: host
+    user: "${USER_ID}:${GROUP_ID}"  # ← Dynamic! Uses env vars
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor=unconfined
     volumes:
-      - ${CONFIG_PATH-/mnt/sunshine}:/config
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - $HOME/.steam:/home/lizard/.local/share/Steam:rw
+      - /run/user/${USER_ID}:/run/user/${USER_ID}:rw  # ← Dynamic UID!
+    devices:
+      - /dev/dri:/dev/dri:rw
+      - /dev/snd:/dev/snd:rw
     environment:
-      - PUID=1001
-      - PGID=1001
+      - DISPLAY=:0
+      - XDG_RUNTIME_DIR=/run/user/${USER_ID}
       - TZ=UTC
+      - USERID=${USER_ID}
+      - GROUPID=${GROUP_ID}
     ports:
       - "47984-47990:47984-47990/tcp"
-      - "48010:48010"
+      - "48010:48010/tcp"
       - "47998-48000:47998-48000/udp"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    privileged: true
+    entrypoint:
+      - /entrypoint.sh

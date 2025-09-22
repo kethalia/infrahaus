@@ -1,15 +1,48 @@
-ARG SUNSHINE_VERSION=latest
-ARG SUNSHINE_OS=archlinux
-FROM lizardbyte/sunshine:${SUNSHINE_VERSION}-${SUNSHINE_OS}
+FROM lizardbyte/sunshine:latest-archlinux
 
-# install Steam, Wayland, etc.
+# Switch to root for setup
 USER root
-# RUN sed -i 's/#\[multilib\]/\[multilib\]/g' /etc/pacman.conf && \
-#     sed -i 's/#Include = \/etc\/pacman\.d\/mirrorlist/Include = \/etc\/pacman\.d\/mirrorlist/g' /etc/pacman.conf
-RUN echo "[multilib]" >> /etc/pacman.conf &&\
-    echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
-RUN pacman -Syu --noconfirm
-RUN pacman -S --noconfirm nvidia nvidia-utils lib32-nvidia-utils vulkan-icd-loader lib32-vulkan-icd-loader nvidia-settings steam
-USER ${UNAME}
 
-ENTRYPOINT steam && sunshine
+# Append [multilib] section to pacman.conf
+RUN echo -e "\n[multilib]\nInclude = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
+
+# Update package database
+RUN pacman -Syu --noconfirm
+
+# Install Steam + GUI dependencies (32-bit via multilib)
+RUN pacman -Syu --noconfirm \
+    sudo \
+    steam \
+    wayland \
+    mesa \
+    vulkan-intel \
+    vulkan-radeon \
+    xorg-server-xwayland \
+    dbus \
+    pulseaudio \
+    libpulse \
+    libx11 \
+    libxrandr \
+    libxcursor \
+    libxss \
+    libxcomposite \
+    libxdamage \
+    libxext \
+    libxi \
+    libxtst \
+    libdrm \
+    libva \
+    gst-plugins-base \
+    gstreamer
+
+# Set up runtime directory (dynamic UID)
+RUN mkdir -p /run/user/${USER_ID} && chown lizard:lizard /run/user/${USER_ID}
+
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Switch to non-root user (lizard, but with dynamic UID context)
+USER lizard
+
+ENTRYPOINT ["/entrypoint.sh"]
