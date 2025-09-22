@@ -6,10 +6,7 @@ services:
       - ${KOKORO_PORT:-3000}:8880
     deploy:
       resources:
-        limits:
-          memory: 1G
         reservations:
-          memory: 512M
           devices:
             - driver: nvidia
               count: 1
