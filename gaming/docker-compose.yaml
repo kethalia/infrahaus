@@ -4,28 +4,19 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    user: "${USER_ID}:${GROUP_ID}"  # ← Dynamic! Uses env vars
-    cap_add:
-      - SYS_ADMIN
-    security_opt:
-      - apparmor=unconfined
+    user: "${USER_ID}:${GROUP_ID}"
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - $HOME/.steam:/home/lizard/.local/share/Steam:rw
-      - /run/user/${USER_ID}:/run/user/${USER_ID}:rw  # ← Dynamic UID!
+      - /mnt/steam/data:/home/lizard/.local/share/Steam:rw
+      - /run/user/${USER_ID}:/run/user/${USER_ID}:rw
+      - /mnt/games:/mnt/games       
     devices:
-      - /dev/dri:/dev/dri:rw
-      - /dev/snd:/dev/snd:rw
-    environment:
-      - DISPLAY=:0
-      - XDG_RUNTIME_DIR=/run/user/${USER_ID}
-      - TZ=UTC
-      - USERID=${USER_ID}
-      - GROUPID=${GROUP_ID}
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
+      - /dev/nvidia-caps:/dev/nvidia-caps
     ports:
-      - "47984-47990:47984-47990/tcp"
-      - "48010:48010/tcp"
-      - "47998-48000:47998-48000/udp"
-    privileged: true
-    entrypoint:
-      - /entrypoint.sh
+      - 47984-47990:47984-47990/tcp
+      - 48010:48010/tcp
+      - 47998-48000:47998-48000/udp
