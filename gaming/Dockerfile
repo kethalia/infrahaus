@@ -1,26 +1,8 @@
-FROM lizardbyte/sunshine:latest-archlinux
+# Use sunshine base image
+FROM lizardbyte/sunshine:latest-ubuntu-24.04
 
-# Switch to root for setup
-USER root
+# Update and install Steam + dependencies
+RUN sudo apt update && apt install -y steam 
 
-# Append [multilib] section to pacman.conf
-RUN echo -e "\n[multilib]\nInclude = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
-
-# Update package database
-RUN pacman -Syu --noconfirm
-
-# Install Steam + GUI dependencies (32-bit via multilib)
-RUN pacman -Syu --noconfirm \
-    nvidia-open \
-    steam \
-    pulseaudio \
-    libpulse
-
-# Copy entrypoint script
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-# Switch to non-root user (lizard, but with dynamic UID context)
-USER lizard
-
-ENTRYPOINT ["/entrypoint.sh"]
+# Start Sunshine (default entrypoint)
+ENTRYPOINT ["/usr/bin/sunshine"]
