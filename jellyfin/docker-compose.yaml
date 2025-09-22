@@ -37,7 +37,7 @@ services:
     environment:
       - WEBUI_PORT=5080
       - PUID=1000
-      - PGID=1001
+      - PGID=1000
       - TZ=UTC
 
   prowlarr:
@@ -51,7 +51,7 @@ services:
       - ${ROOT_DIR-/mnt/media}/prowlarr:/config
     environment:
       - PUID=1000
-      - PGID=1001
+      - PGID=1000
       - TZ=UTC
 
   radarr:
@@ -67,7 +67,7 @@ services:
       - ${ROOT_DIR-/mnt/media}/downloads:/downloads
     environment:
       - PUID=1000
-      - PGID=1001
+      - PGID=1000
       - TZ=UTC
 
   sonarr:
@@ -83,7 +83,7 @@ services:
       - ${ROOT_DIR-/mnt/media}/downloads:/downloads
     environment:
       - PUID=1000
-      - PGID=1001
+      - PGID=1000
       - TZ=UTC
 
   bazarr:
@@ -99,7 +99,7 @@ services:
       - ${ROOT_DIR-/mnt/media}/downloads:/downloads
     environment:
       - PUID=1000
-      - PGID=1001
+      - PGID=1000
       - TZ=UTC
 
   jellyfin:
@@ -114,7 +114,7 @@ services:
       - ${ROOT_DIR-/mnt/media}/downloads:/downloads
     environment:
       - PUID=1000
-      - PGID=1001
+      - PGID=1000
       - TZ=UTC
     devices:
       - /dev/nvidia0:/dev/nvidia0
