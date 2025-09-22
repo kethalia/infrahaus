@@ -2,7 +2,9 @@
 FROM lizardbyte/sunshine:latest-ubuntu-24.04
 
 # Update and install Steam + dependencies
-RUN sudo apt update && apt install -y steam 
+USER root
+RUN apt update && apt install -y steam 
+USER lizard
 
 # Start Sunshine (default entrypoint)
 ENTRYPOINT ["/usr/bin/sunshine"]
