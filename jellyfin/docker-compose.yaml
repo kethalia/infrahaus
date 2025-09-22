@@ -27,7 +27,6 @@ services:
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     restart: unless-stopped
-    user: root
     depends_on:
       vpn:
         condition: service_healthy
@@ -37,22 +36,27 @@ services:
       - ${ROOT_DIR-/mnt/media}/downloads:/downloads
     environment:
       - WEBUI_PORT=5080
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     restart: unless-stopped
-    user: root
     depends_on:
       vpn:
         condition: service_healthy
     network_mode: service:vpn
     volumes:
       - ${ROOT_DIR-/mnt/media}/prowlarr:/config
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
     restart: unless-stopped
-    user: root
     networks:
       jellyfin_network:
         ipv4_address: ${RADARR_STATIC_CONTAINER_IP} # E.g. 172.50.0.1
@@ -61,11 +65,14 @@ services:
     volumes:
       - ${ROOT_DIR-/mnt/media}/radarr:/config
       - ${ROOT_DIR-/mnt/media}/downloads:/downloads
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
 
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     restart: unless-stopped
-    user: root
     networks:
       jellyfin_network:
         ipv4_address: ${SONARR_STATIC_CONTAINER_IP} # E.g. 172.50.0.2
@@ -74,11 +81,14 @@ services:
     volumes:
       - ${ROOT_DIR-/mnt/media}/sonarr:/config
       - ${ROOT_DIR-/mnt/media}/downloads:/downloads
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
     restart: unless-stopped
-    user: root
     networks:
       jellyfin_network:
         ipv4_address: ${BAZARR_STATIC_CONTAINER_IP} # E.g. 172.50.0.3
@@ -87,11 +97,14 @@ services:
     volumes:
       - ${ROOT_DIR-/mnt/media}/bazarr:/config
       - ${ROOT_DIR-/mnt/media}/downloads:/downloads
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
 
   jellyfin:
     image: lscr.io/linuxserver/jellyfin:latest
     restart: unless-stopped
-    user: root
     ports:
       - 8096:8096
       - 7359:7359/udp
@@ -99,6 +112,10 @@ services:
     volumes:
       - ${ROOT_DIR-/mnt/media}/jellyfin:/config
       - ${ROOT_DIR-/mnt/media}/downloads:/downloads
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
     devices:
       - /dev/nvidia0:/dev/nvidia0
       - /dev/nvidiactl:/dev/nvidiactl
