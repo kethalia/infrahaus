@@ -12,7 +12,9 @@ RUN pacman -Syu --noconfirm
 # Install Steam + GUI dependencies (32-bit via multilib)
 RUN pacman -Syu --noconfirm \
     nvidia-open \
-    steam
+    steam \
+    pulseaudio \
+    libpulse
 
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh
