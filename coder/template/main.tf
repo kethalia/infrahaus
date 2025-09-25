@@ -199,6 +199,30 @@ module "jetbrains_gateway" {
   order      = 2
 }
 
+# See https://registry.coder.com/modules/coder/cursor
+module "cursor" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/cursor/coder"
+  version  = "1.3.2"
+  agent_id = coder_agent.main.id
+}
+
+# See https://registry.coder.com/modules/coder/zed
+module "zed" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/zed/coder"
+  version  = "1.1.0"
+  agent_id = coder_agent.main.id
+}
+
+# See https://registry.coder.com/modules/coder/filebrowser
+module "filebrowser" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/filebrowser/coder"
+  version  = "1.1.2"
+  agent_id = coder_agent.main.id
+}
+
 # See https://registry.coder.com/modules/coder/github-upload-public-key
 module "github-upload-public-key" {
   count    = data.coder_workspace.me.start_count
@@ -517,21 +541,5 @@ resource "docker_container" "workspace" {
   labels {
     label = "coder.workspace_name"
     value = data.coder_workspace.me.name
-  }
-}
-
-resource "coder_app" "nextjs" {
-  agent_id     = coder_agent.main.id
-  slug         = "nextjs"
-  display_name = "NextJS"
-  url          = "http://localhost:3000"
-  icon         = "https://s3.chillwhales.dev/icons/nextjs.svg"
-  subdomain    = false
-  share        = "owner"
-
-  healthcheck {
-    url       = "http://localhost:3000/api/heartbeat"
-    interval  = 5
-    threshold = 6
   }
 }
