@@ -327,10 +327,10 @@ module "code-server" {
   settings = {
     # Solidity
     "[solidity]" : {
-      "editor.defaultFormatter" : "NomicFoundation.hardhat-solidity"
+      "editor.defaultFormatter" : "esbenp.prettier-vscode",
+      "editor.formatOnSave" : true
     },
     "solidity.telemetry" : false,
-    "solidity.formatter" : "forge",
 
     # Editor
     "editor.defaultFormatter" : "esbenp.prettier-vscode",
