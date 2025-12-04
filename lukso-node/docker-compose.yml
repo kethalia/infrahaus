@@ -45,7 +45,7 @@ services:
       - 30303:30303/udp
     volumes:
       - ${DATA_DIR:-/mnt/lukso-node}/geth:/geth
-      - ${DATA_DIR:-/mnt/lukso-node}/configs:/configs:ro
+      - ./configs:/configs:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8545"]
       interval: 30s
@@ -88,7 +88,7 @@ services:
       - 127.0.0.1:5052:5052
     volumes:
       - ${DATA_DIR:-/mnt/lukso-node}/lighthouse:/data
-      - ${DATA_DIR:-/mnt/lukso-node}/configs:/configs:ro
+      - ./configs:/configs:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:5052/eth/v1/node/health"]
       interval: 30s

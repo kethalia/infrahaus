@@ -3,55 +3,54 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"
+CONFIGS_DIR="$REPO_DIR/configs"
+
 echo "🔷 LUKSO Docker Node Setup"
 echo ""
 
 # Check for .env
-if [ ! -f .env ]; then
+if [ ! -f "$REPO_DIR/.env" ]; then
   echo "Creating .env from .env.example..."
-  cp .env.example .env
+  cp "$REPO_DIR/.env.example" "$REPO_DIR/.env"
   echo "⚠️  Please edit .env and set GRAFANA_ADMIN_PASSWORD"
   echo ""
 fi
 
 # Load config
-export $(grep -v '^#' .env | xargs)
+export $(grep -v '^#' "$REPO_DIR/.env" | xargs)
 DATA_DIR="${DATA_DIR:-/mnt/lukso-node}"
 
 echo "Data directory: $DATA_DIR"
+echo "Configs directory: $CONFIGS_DIR"
 echo ""
 
-# Create directories
+# Create data directories
 echo "Creating data directories..."
-sudo mkdir -p "$DATA_DIR"/{geth,lighthouse,configs}
+sudo mkdir -p "$DATA_DIR"/{geth,lighthouse}
 
-# Check for network configs
-if [ ! -f "$DATA_DIR/configs/genesis.json" ]; then
-  echo ""
-  echo "⚠️  Network configuration files not found!"
-  echo ""
-  read -p "Download official LUKSO mainnet configs? (Y/n) " -n 1 -r
-  echo
-  
-  if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-    echo "Downloading network configs..."
-    TEMP_DIR=$(mktemp -d)
-    git clone --depth 1 https://github.com/lukso-network/network-configs.git "$TEMP_DIR/network-configs"
-    sudo cp -r "$TEMP_DIR/network-configs/mainnet/shared/"* "$DATA_DIR/configs/"
-    rm -rf "$TEMP_DIR"
-    echo "✅ Network configs installed"
-  fi
+# Download genesis.ssz if not present
+if [ ! -f "$CONFIGS_DIR/genesis.ssz" ]; then
+  echo "Downloading genesis.ssz..."
+  wget -q -O "$CONFIGS_DIR/genesis.ssz" \
+    https://raw.githubusercontent.com/lukso-network/network-configs/main/mainnet/shared/genesis.ssz
+  echo "✅ genesis.ssz downloaded"
+else
+  echo "✅ genesis.ssz already exists"
 fi
 
-# Check for JWT
-if [ ! -f "$DATA_DIR/configs/jwt.hex" ]; then
+# Generate JWT if not present
+if [ ! -f "$CONFIGS_DIR/jwt.hex" ]; then
   echo "Generating JWT secret..."
-  openssl rand -hex 32 | sudo tee "$DATA_DIR/configs/jwt.hex" > /dev/null
+  openssl rand -hex 32 > "$CONFIGS_DIR/jwt.hex"
   echo "✅ JWT secret generated"
+else
+  echo "✅ jwt.hex already exists"
 fi
 
 # Make scripts executable
-chmod +x scripts/*.sh
+chmod +x "$SCRIPT_DIR"/*.sh
 
 echo ""
 echo "✅ Setup complete!"
