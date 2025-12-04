@@ -1,0 +1,130 @@
+services:
+  geth:
+    image: ethereum/client-go:${GETH_VERSION:-v1.16.1}
+    restart: unless-stopped
+    stop_grace_period: 5m
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        if [ ! -d /geth/geth/chaindata ]; then
+          echo "Initializing genesis..."
+          geth --datadir=/geth init /configs/genesis.json
+        fi
+        exec geth \
+          --datadir=/geth \
+          --networkid=${LUKSO_NETWORK_ID:-42} \
+          --syncmode=snap \
+          --bootnodes=${EXECUTION_BOOTSTRAP_NODE_1},${EXECUTION_BOOTSTRAP_NODE_2} \
+          --maxpeers=${GETH_MAX_PEERS:-50} \
+          --nat=extip:$$(wget -qO- ifconfig.me) \
+          --authrpc.addr=0.0.0.0 \
+          --authrpc.port=8551 \
+          --authrpc.jwtsecret=/configs/jwt.hex \
+          --authrpc.vhosts=* \
+          --http \
+          --http.addr=0.0.0.0 \
+          --http.api=eth,net,web3,txpool \
+          --http.corsdomain=* \
+          --http.vhosts=* \
+          --ws \
+          --ws.addr=0.0.0.0 \
+          --ws.api=eth,net,web3,txpool \
+          --ws.origins=* \
+          --graphql \
+          --graphql.corsdomain=* \
+          --graphql.vhosts=* \
+          --verbosity=${GETH_VERBOSITY:-3} \
+          --metrics \
+          --metrics.addr=0.0.0.0
+    ports:
+      - 8545:8545     # HTTP RPC
+      - 8546:8546     # WebSocket
+      - 8547:8547     # GraphQL
+      - 30303:30303   # P2P TCP
+      - 30303:30303/udp
+    volumes:
+      - ${DATA_DIR:-/mnt/lukso-node}/geth:/geth
+      - ${DATA_DIR:-/mnt/lukso-node}/configs:/configs:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8545"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  lighthouse:
+    image: sigp/lighthouse:${LIGHTHOUSE_VERSION:-v7.0.1}
+    restart: unless-stopped
+    stop_grace_period: 5m
+    depends_on:
+      geth:
+        condition: service_healthy
+    command:
+      - lighthouse
+      - bn
+      - --testnet-dir=/configs
+      - --datadir=/data
+      - --execution-endpoint=http://geth:8551
+      - --execution-jwt=/configs/jwt.hex
+      - --checkpoint-sync-url=${CHECKPOINT_SYNC_URL}
+      - --http
+      - --http-address=0.0.0.0
+      - --http-port=5052
+      - --http-allow-origin=*
+      - --listen-address=0.0.0.0
+      - --port=9000
+      - --discovery-port=9000
+      - --enr-udp-port=9000
+      - --enr-tcp-port=9000
+      - --target-peers=${LIGHTHOUSE_TARGET_PEERS:-100}
+      - --boot-nodes=${CONSENSUS_BOOTSTRAP_NODE_1},${CONSENSUS_BOOTSTRAP_NODE_2}
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-port=5054
+      - --metrics-allow-origin=*
+    ports:
+      - 9000:9000/tcp
+      - 9000:9000/udp
+      - 127.0.0.1:5052:5052
+    volumes:
+      - ${DATA_DIR:-/mnt/lukso-node}/lighthouse:/data
+      - ${DATA_DIR:-/mnt/lukso-node}/configs:/configs:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5052/eth/v1/node/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}
+      - --web.enable-lifecycle
+    ports:
+      - 127.0.0.1:9090:9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+    ports:
+      - ${GRAFANA_PORT:-3000}:3000
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:
