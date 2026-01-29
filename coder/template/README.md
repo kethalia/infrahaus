@@ -1,6 +1,6 @@
 # Web3 Full-Stack Development - Coder Template
 
-A production-ready Coder template for modern Web3 and full-stack development. Features Docker, PostgreSQL, Node.js, Foundry, and comprehensive tooling - all auto-configured and optimized for fast startup.
+A production-ready Coder template for modern Web3 and full-stack development. Features Docker, Node.js, Foundry, and comprehensive tooling - all auto-configured and optimized for fast startup.
 
 [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/yourusername/coder-template)
 [![Coder](https://img.shields.io/badge/coder-v2.x-purple.svg)](https://coder.com)
@@ -10,7 +10,6 @@ A production-ready Coder template for modern Web3 and full-stack development. Fe
 
 ### Development Environment
 - ✅ **Docker** - Full Docker + Compose + act (run GitHub Actions locally)
-- ✅ **PostgreSQL 16** - Auto-configured database with user ready to use
 - ✅ **Node.js** - Multiple versions (18, 20, 22, 24) with PNPM
 - ✅ **Foundry** - Complete Ethereum development toolkit (forge, cast, anvil, chisel)
 - ✅ **Git** - Latest version with productivity aliases
@@ -19,7 +18,7 @@ A production-ready Coder template for modern Web3 and full-stack development. Fe
 ### VS Code Integration
 - 21 curated extensions including:
   - Solidity (Hardhat + language support)
-  - Docker & PostgreSQL clients
+  - Docker client
   - Tailwind CSS, GraphQL, Prisma
   - GitLens, Error Lens, Prettier
   - Code spell checker & TODO highlights
@@ -59,7 +58,7 @@ coder templates push web3-dev-workspace
 4. Configure metadata:
    - Name: `web3-dev-workspace`
    - Display Name: `Web3 Full-Stack Development`
-   - Description: `Complete dev environment: Docker, PostgreSQL 16, Node.js 24, Foundry, act. Auto-configured, ready in 60 seconds.`
+   - Description: `Complete dev environment: Docker, Node.js 24, Foundry, act. Auto-configured, ready in 60 seconds.`
 
 ### Create Your First Workspace
 
@@ -72,7 +71,6 @@ coder ssh my-workspace
 
 # Verify everything works
 docker ps
-psql -l
 node --version
 forge --version
 ```
@@ -84,7 +82,6 @@ forge --version
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Docker | Latest | Container runtime + Compose |
-| PostgreSQL | 16 | Database with auto-config |
 | Node.js | 18, 20, 22, 24 | JavaScript runtime |
 | PNPM | Latest | Fast package manager |
 | Foundry | Latest | Ethereum development |
@@ -155,7 +152,6 @@ Adjust these in `main.tf` or via Coder UI parameters.
 
 ✅ **Full-Stack Web Development**
 - Node.js backend services
-- PostgreSQL databases
 - Docker-based microservices
 
 ✅ **DevOps & CI/CD**
@@ -257,7 +253,6 @@ RUN apt-get update && apt-get install -y \
 │                                     │
 │  ┌──────────────────────────────┐   │
 │  │  Services                    │   │
-│  │  - PostgreSQL 16             │   │
 │  │  - VS Code Server            │   │
 │  └──────────────────────────────┘   │
 │                                     │
@@ -285,11 +280,6 @@ Workspace Start
     │   ├─► Setup Git aliases
     │   ├─► Clone dotfiles (if configured)
     │   └─► Generate README.md
-    │
-    ├─► Start PostgreSQL
-    │   ├─► Create database 'coder'
-    │   ├─► Create user 'coder'
-    │   └─► Set permissions
     │
     ├─► Run Development Tools Script
     │   ├─► Install Oh My Zsh (if needed)
@@ -372,9 +362,6 @@ coder ssh test-workspace
 docker ps                    # Should work
 docker run hello-world       # Should pull and run
 
-psql -l                      # Should list databases
-psql -c "SELECT version();"  # Should show PostgreSQL 16
-
 node --version               # Should show Node 24.x
 pnpm --version              # Should show PNPM version
 
@@ -413,18 +400,6 @@ groups | grep docker
 
 # Test Docker
 docker info
-```
-
-**PostgreSQL won't start**
-```bash
-# Check service status
-sudo service postgresql status
-
-# View logs
-sudo tail -f /var/log/postgresql/postgresql-16-main.log
-
-# Restart service
-sudo service postgresql restart
 ```
 
 **Tools not installing**
@@ -504,7 +479,6 @@ coder templates push test-template
 
 ### v2.0.0 (Current)
 - ✨ Full Docker support via socket mount
-- ✨ PostgreSQL auto-configuration
 - ✨ Smart tool installation with caching
 - ✨ Resource limits (memory & CPU)
 - ✨ Auto-generated workspace README

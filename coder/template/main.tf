@@ -73,7 +73,6 @@ resource "coder_agent" "main" {
 - **PNPM**: Latest version
 - **Docker & Docker Compose**: Latest
 - **Foundry**: Ethereum development toolkit
-- **PostgreSQL**: v16
 - **act**: Run GitHub Actions locally
 - **Python Tools**: poetry, black, ruff, pre-commit
 
@@ -110,12 +109,6 @@ forge build                  # Build contracts
 forge test                   # Run tests
 \`\`\`
 
-#### Database
-\`\`\`bash
-psql                         # Connect to PostgreSQL (auto-configured)
-psql -l                      # List databases
-\`\`\`
-
 #### Git
 \`\`\`bash
 gs                           # git status
@@ -146,12 +139,10 @@ git lg                       # Pretty log
 - [Coder Docs](https://coder.com/docs)
 - [Foundry Book](https://book.getfoundry.sh/)
 - [Node.js Docs](https://nodejs.org/docs/)
-- [PostgreSQL Docs](https://www.postgresql.org/docs/)
 
 ### 💡 Tips
 - Use \`Ctrl/Cmd + Shift + P\` in VS Code to access the command palette
 - Docker socket is mounted - you have full Docker access
-- PostgreSQL starts automatically on workspace boot
 - All environment variables are pre-configured for development
 
 Happy coding! 🎉
@@ -165,24 +156,6 @@ EOFREADME
     
     # Per-start initialization
     echo "🔄 Starting workspace services..."
-    
-    # Start PostgreSQL
-    if command -v pg_ctlcluster &> /dev/null; then
-      echo "🐘 Starting PostgreSQL..."
-      sudo service postgresql start || true
-      sleep 2
-      
-      # Create user database if it doesn't exist
-      if ! sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw coder; then
-        echo "📊 Creating PostgreSQL database..."
-        sudo -u postgres createdb coder || true
-        sudo -u postgres psql -c "CREATE USER coder WITH PASSWORD 'coder';" || true
-        sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE coder TO coder;" || true
-        echo "✅ PostgreSQL database 'coder' created"
-      else
-        echo "✅ PostgreSQL database already exists"
-      fi
-    fi
     
     # Verify Docker access
     if docker info &> /dev/null; then
@@ -207,12 +180,6 @@ EOFREADME
     GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
     
     EXTENSIONS_GALLERY = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
-    
-    # PostgreSQL environment variables
-    PGHOST     = "localhost"
-    PGUSER     = "coder"
-    PGDATABASE = "coder"
-    PGPASSWORD = "coder"
   }
 
   metadata {
@@ -315,14 +282,11 @@ module "code-server" {
     "pflannery.vscode-versionlens",
     "ms-vsliveshare.vsliveshare",
     "hashicorp.terraform",
-    "saoudrizwan.claude-dev",
-    "anthropic.claude-code",
     "ms-azuretools.vscode-docker",
     "cweijan.vscode-postgresql-client2",
     "usernamehw.errorlens",
     "streetsidesoftware.code-spell-checker",
     "wayou.vscode-todo-highlight",
-    "sst-dev.opencode",
   ]
 
   settings = {
@@ -380,6 +344,29 @@ module "code-server" {
     # Docker
     "docker.showStartPage" : false,
   }
+}
+
+module "opencode" {
+  source              = "registry.coder.com/coder-labs/opencode/coder"
+  version             = "0.1.1"
+  agent_id            = coder_agent.main.id
+  workdir             = "/home/coder"
+  report_tasks        = false
+  cli_app             = true
+  post_install_script = <<-EOT
+    #!/bin/bash
+    opencode serve --port 62748
+  EOT
+}
+
+resource "coder_app" "opencode_ui" {
+  agent_id     = coder_agent.main.id
+  slug         = "opencode-ui"
+  display_name = "Opencode UI"
+  url          = "http://localhost:62748"
+  icon         = "/icon/opencode.svg"
+  subdomain    = true
+  share        = "owner"
 }
 
 module "filebrowser" {
@@ -514,11 +501,6 @@ resource "coder_script" "development_tools" {
       sudo apt-get install gh -y
     '
 
-    # Install opencode CLI
-    install_if_missing "opencode" "opencode" "" '
-      curl -fsSL https://opencode.ai/install | bash
-    '
-
     # Configure GitHub CLI authentication using Coder external auth token
     if command_exists gh && [ -n "${data.coder_external_auth.github.access_token}" ]; then
       if ! gh auth status &>/dev/null; then
@@ -536,35 +518,6 @@ resource "coder_script" "development_tools" {
     echo ""
     printf "$${GREEN}🎉 All development tools are ready!$${RESET}\n"
     echo ""
-  EOT
-}
-
-resource "coder_script" "db_seed" {
-  agent_id     = coder_agent.main.id
-  display_name = "Database Seed"
-  icon         = "/icon/database.svg"
-  run_on_start = true
-
-  script = <<EOT
-    #!/bin/bash
-    
-    # Only seed once per workspace lifetime
-    if [ ! -f ~/.db_seeded ] && [ -f ~/seed.sql ]; then
-      echo "🌱 Seeding database (first time)..."
-      PGPASSWORD=coder psql -U coder -d coder -f ~/seed.sql
-      
-      if [ $? -eq 0 ]; then
-        touch ~/.db_seeded
-        echo "✅ Database seeded successfully"
-      else
-        echo "❌ Database seeding failed"
-      fi
-    elif [ -f ~/.db_seeded ]; then
-      echo "ℹ️  Database already seeded (delete ~/.db_seeded to re-seed)"
-    else
-      echo "ℹ️  No ~/seed.sql found - skipping seeding"
-      echo "💡 Create ~/seed.sql to seed your database"
-    fi
   EOT
 }
 
