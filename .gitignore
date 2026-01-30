@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# next.js
+.next/
+out/
+
+# turbo
+.turbo/
+
+# build
+dist/
+*.tsbuildinfo
+
+# env files
+.env
+.env.local
+.env.*.local
+
+# vercel
+.vercel/
