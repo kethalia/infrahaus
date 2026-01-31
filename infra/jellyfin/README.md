@@ -2,7 +2,7 @@
 
 Jellyfin media server with Gluetun VPN, qBittorrent, Radarr, Sonarr, Prowlarr, and Bazarr.
 
-Setup inspired from [source](https://github.com/navilg/media-stack/blob/main/README.md) with small changes.
+Setup inspired by [source](https://github.com/navilg/media-stack/blob/main/README.md) with small changes.
 
 ## Services
 

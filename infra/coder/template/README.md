@@ -150,6 +150,69 @@ RUN apt-get update && apt-get install -y \
 
 Add your dotfiles repository URL when creating the workspace. Your dotfiles repo should include an `install.sh` script.
 
+## Architecture
+
+```
+┌─────────────────────────────────────┐
+│   Coder Workspace Container         │
+│                                     │
+│  ┌──────────────────────────────┐   │
+│  │  User Environment            │   │
+│  │  - ZSH + Oh My Zsh           │   │
+│  │  - Node.js + PNPM            │   │
+│  │  - Foundry + Solidity        │   │
+│  └──────────────────────────────┘   │
+│                                     │
+│  ┌──────────────────────────────┐   │
+│  │  Services                    │   │
+│  │  - VS Code Server            │   │
+│  └──────────────────────────────┘   │
+│                                     │
+│  ┌──────────────────────────────┐   │
+│  │  Docker Socket (mounted)     │   │
+│  │  /var/run/docker.sock        │   │
+│  └──────────────────────────────┘   │
+└─────────────────────────────────────┘
+           │
+           ▼
+    ┌──────────────┐
+    │  Host Docker  │
+    │  Daemon       │
+    └──────────────┘
+```
+
+## Performance
+
+### Startup Times
+- **First boot**: 3-5 minutes (one-time tool installation)
+- **Subsequent boots**: 30-60 seconds (services only)
+
+### Resource Usage
+- **Image size**: ~3.6GB
+- **Idle workspace**: ~500MB RAM, <5% CPU
+- **Active development**: 2-4GB RAM, 10-50% CPU
+- **Maximum**: 8GB RAM, 4 CPUs (configurable)
+
+## Verification
+
+After deploying the template:
+
+```bash
+# Create test workspace
+coder create --template web3-dev-workspace test-workspace
+
+# SSH into workspace
+coder ssh test-workspace
+
+# Verify tools
+docker ps                    # Should work
+docker run hello-world       # Should pull and run
+node --version               # Should show Node 24.x
+pnpm --version               # Should show PNPM version
+forge --version              # Should show Foundry version
+act --version                # Should show act version
+```
+
 ## Security Considerations
 
 ### Docker Socket Access
