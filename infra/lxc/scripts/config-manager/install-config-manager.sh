@@ -159,6 +159,11 @@ install_files() {
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+    # Validate source files exist
+    for file in config-sync.sh config-manager.service; do
+        [[ -f "${script_dir}/${file}" ]] || die "Missing required file: ${script_dir}/${file}"
+    done
+
     # Copy sync script
     info "Installing config-sync.sh -> /usr/local/bin/config-sync.sh ..."
     cp "${script_dir}/config-sync.sh" /usr/local/bin/config-sync.sh
@@ -169,7 +174,7 @@ install_files() {
     cp "${script_dir}/config-manager.service" /etc/systemd/system/config-manager.service
     chmod 644 /etc/systemd/system/config-manager.service
 
-    systemctl daemon-reload
+    systemctl daemon-reload || die "Failed to reload systemd daemon."
     info "Files installed."
 }
 
@@ -178,12 +183,15 @@ install_files() {
 # ---------------------------------------------------------------------------
 enable_service() {
     info "Enabling config-manager service ..."
-    systemctl enable config-manager.service
+    systemctl enable config-manager.service || die "Failed to enable config-manager service."
 
     if [[ "$RUN_NOW" == true ]]; then
         info "Running config-manager service now ..."
-        systemctl start config-manager.service
-        info "Service completed. Check logs: journalctl -u config-manager"
+        if systemctl start config-manager.service; then
+            info "Service completed. Check logs: journalctl -u config-manager"
+        else
+            warn "Service run finished with errors. Check logs: journalctl -u config-manager"
+        fi
     fi
 }
 

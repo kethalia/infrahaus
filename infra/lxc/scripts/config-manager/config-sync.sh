@@ -18,7 +18,7 @@ set -euo pipefail
 # Constants
 # ---------------------------------------------------------------------------
 readonly CONFIG_FILE="/etc/config-manager/config.env"
-readonly LOCK_FILE="/var/run/config-manager.lock"
+readonly LOCK_FILE="/run/config-manager/config-manager.lock"
 readonly LOG_DIR="/var/log/config-manager"
 readonly LOG_FILE="${LOG_DIR}/sync.log"
 readonly REPO_DIR="/opt/config-manager/repo"
@@ -71,6 +71,13 @@ load_config() {
         return 3
     fi
 
+    # Warn if config file has overly permissive permissions
+    local file_perms
+    file_perms="$(stat -c %a "$CONFIG_FILE" 2>/dev/null || true)"
+    if [ -n "$file_perms" ] && [ "$file_perms" != "600" ]; then
+        log_warn "Config file permissions are $file_perms — expected 600. Consider: chmod 600 $CONFIG_FILE"
+    fi
+
     # Source the config — expected variables:
     #   CONFIG_REPO_URL   — git clone URL
     #   CONFIG_BRANCH     — branch to track (default: main)
@@ -81,6 +88,12 @@ load_config() {
     # Validate required variables
     if [ -z "${CONFIG_REPO_URL:-}" ]; then
         log_error "CONFIG_REPO_URL is not set in $CONFIG_FILE"
+        return 3
+    fi
+
+    # Validate repository URL format
+    if [[ ! "$CONFIG_REPO_URL" =~ ^(https?://|git@) ]]; then
+        log_error "CONFIG_REPO_URL must be an HTTP(S) or SSH URL: $CONFIG_REPO_URL"
         return 3
     fi
 
