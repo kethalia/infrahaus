@@ -71,10 +71,11 @@ load_snapshot_config() {
     # Load from config file if present and values not already in environment
     if [[ -f "$CONFIG_FILE" ]]; then
         # Only source variables we care about — avoid clobbering existing env
+        # Strip quotes to handle both SNAPSHOT_ENABLED=auto and SNAPSHOT_ENABLED="auto"
         local _enabled _retention _backend
-        _enabled="$(grep -E '^SNAPSHOT_ENABLED=' "$CONFIG_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)" || true
-        _retention="$(grep -E '^SNAPSHOT_RETENTION_DAYS=' "$CONFIG_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)" || true
-        _backend="$(grep -E '^SNAPSHOT_BACKEND=' "$CONFIG_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)" || true
+        _enabled="$(grep -E '^SNAPSHOT_ENABLED=' "$CONFIG_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"'"'")" || true
+        _retention="$(grep -E '^SNAPSHOT_RETENTION_DAYS=' "$CONFIG_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"'"'")" || true
+        _backend="$(grep -E '^SNAPSHOT_BACKEND=' "$CONFIG_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"'"'")" || true
 
         [[ -n "$_enabled" ]]   && SNAPSHOT_ENABLED="$_enabled"
         [[ -n "$_retention" ]] && SNAPSHOT_RETENTION_DAYS="$_retention"
@@ -247,6 +248,11 @@ check_enabled() {
             # With 'auto' and no backend, file-level fallback is used
             return 0
             ;;
+        *)
+            # Should never reach here if load_snapshot_config validated correctly
+            log_error "Invalid SNAPSHOT_ENABLED value: '$SNAPSHOT_ENABLED'"
+            return 1
+            ;;
     esac
 }
 
@@ -257,11 +263,12 @@ zfs_create() {
     local name="$1"
     local snap="${ZFS_DATASET}@${name}"
     log_info "Creating ZFS snapshot: $snap"
-    if zfs snapshot "$snap" &>/dev/null; then
+    local err
+    if err="$(zfs snapshot "$snap" 2>&1)"; then
         log_info "ZFS snapshot created: $snap"
         return 0
     else
-        log_error "Failed to create ZFS snapshot: $snap"
+        log_error "Failed to create ZFS snapshot: $snap — $err"
         return 3
     fi
 }
@@ -307,11 +314,12 @@ zfs_rollback() {
 
     log_warn "Rolling back ZFS to snapshot: $snap"
     log_warn "This will discard all changes made after the snapshot."
-    if zfs rollback -r "$snap" &>/dev/null; then
+    local err
+    if err="$(zfs rollback -r "$snap" 2>&1)"; then
         log_info "ZFS rollback complete: $snap"
         return 0
     else
-        log_error "ZFS rollback failed: $snap"
+        log_error "ZFS rollback failed: $snap — $err"
         return 3
     fi
 }
@@ -335,11 +343,12 @@ lvm_create() {
     local snap_size="${LVM_SNAPSHOT_SIZE:-1G}"
 
     log_info "Creating LVM snapshot: $name (source: $lv_path, size: $snap_size)"
-    if lvcreate --snapshot --size "$snap_size" --name "$name" "$lv_path" &>/dev/null; then
+    local err
+    if err="$(lvcreate --snapshot --size "$snap_size" --name "$name" "$lv_path" 2>&1)"; then
         log_info "LVM snapshot created: $name"
         return 0
     else
-        log_error "Failed to create LVM snapshot: $name"
+        log_error "Failed to create LVM snapshot: $name — $err"
         return 3
     fi
 }
@@ -399,11 +408,12 @@ lvm_rollback() {
 
     log_warn "Merging LVM snapshot: $snap_path"
     log_warn "The merge will complete on next reboot/activation."
-    if lvconvert --merge "$snap_path" &>/dev/null; then
+    local err
+    if err="$(lvconvert --merge "$snap_path" 2>&1)"; then
         log_info "LVM merge scheduled: $snap_path (will complete on next LV activation)"
         return 0
     else
-        log_error "LVM merge failed: $snap_path"
+        log_error "LVM merge failed: $snap_path — $err"
         return 3
     fi
 }
@@ -420,11 +430,12 @@ btrfs_create() {
     mkdir -p "$BTRFS_SNAP_DIR"
 
     log_info "Creating BTRFS snapshot: $snap_path"
-    if btrfs subvolume snapshot -r / "$snap_path" &>/dev/null; then
+    local err
+    if err="$(btrfs subvolume snapshot -r / "$snap_path" 2>&1)"; then
         log_info "BTRFS snapshot created: $snap_path"
         return 0
     else
-        log_error "Failed to create BTRFS snapshot: $snap_path"
+        log_error "Failed to create BTRFS snapshot: $snap_path — $err"
         return 3
     fi
 }
@@ -500,7 +511,8 @@ btrfs_rollback() {
     # Create a writable copy of the read-only snapshot for restoration
     # (the original snapshot was created with -r flag, making it read-only)
     local restore_path="${BTRFS_SNAP_DIR}/${name}-restore"
-    if btrfs subvolume snapshot "$snap_path" "$restore_path" &>/dev/null; then
+    local err
+    if err="$(btrfs subvolume snapshot "$snap_path" "$restore_path" 2>&1)"; then
         log_info "BTRFS writable restore snapshot created at: $restore_path"
         log_warn "Manual steps required to complete BTRFS rollback:"
         log_warn "  1. Boot into a recovery environment (live USB/CD)"
@@ -511,7 +523,7 @@ btrfs_rollback() {
         log_warn "For assistance: https://btrfs.readthedocs.io/en/latest/Subvolumes.html"
         return 0
     else
-        log_error "BTRFS rollback failed: could not create restore snapshot"
+        log_error "BTRFS rollback failed: could not create restore snapshot — $err"
         return 3
     fi
 }
