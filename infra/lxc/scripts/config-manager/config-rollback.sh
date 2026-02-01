@@ -40,6 +40,23 @@ readonly LOG_FILE="${LOG_DIR}/rollback.log"
 readonly SNAPSHOT_PREFIX="config-manager"
 
 # ---------------------------------------------------------------------------
+# Snapshot name validation (security: prevent path traversal)
+# ---------------------------------------------------------------------------
+validate_snapshot_name() {
+    local name="$1"
+    
+    # Snapshot names must match: config-manager-YYYYMMDD-HHMMSS
+    # or config-manager-YYYYMMDD-HHMMSS:good (for tagged snapshots)
+    if [[ ! "$name" =~ ^config-manager-[0-9]{8}-[0-9]{6}(:good)?$ ]]; then
+        error "Invalid snapshot name format: $name"
+        error "Expected format: config-manager-YYYYMMDD-HHMMSS"
+        return 1
+    fi
+    
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # Colours (disabled if not a terminal)
 # ---------------------------------------------------------------------------
 if [[ -t 1 ]]; then
@@ -204,6 +221,9 @@ cmd_show() {
         error "Usage: config-rollback show <snapshot>"
         return 2
     fi
+    
+    # Validate snapshot name to prevent path traversal
+    validate_snapshot_name "$snapshot_name" || return 2
 
     detect_snapshot_backend
 
@@ -211,7 +231,11 @@ cmd_show() {
 
     case "$DETECTED_BACKEND" in
         zfs)
-            local dataset="${ZFS_DATASET:-}@${snapshot_name}"
+            if [[ -z "${ZFS_DATASET:-}" ]]; then
+                error "ZFS dataset not detected. Cannot show snapshot diff."
+                return 3
+            fi
+            local dataset="${ZFS_DATASET}@${snapshot_name}"
             if ! zfs list -t snapshot "$dataset" &>/dev/null 2>&1; then
                 error "ZFS snapshot not found: $dataset"
                 return 4
@@ -331,6 +355,9 @@ cmd_restore() {
         error "Usage: config-rollback restore <snapshot>"
         return 2
     fi
+    
+    # Validate snapshot name to prevent path traversal attacks
+    validate_snapshot_name "$snapshot_name" || return 2
 
     # Root check
     if [[ $EUID -ne 0 ]]; then
@@ -444,7 +471,21 @@ _inline_fallback_restore() {
             fi
         elif [[ "$entry" == "state/" ]]; then
             if [[ -d "${backup_path}/state" ]]; then
+                # Preserve current checksums.prev to avoid overwriting with stale data
+                local _saved_checksums=""
+                if [[ -f "${CHECKSUMS_PREV}" ]]; then
+                    _saved_checksums="$(mktemp)"
+                    cp -a "${CHECKSUMS_PREV}" "${_saved_checksums}" 2>/dev/null || true
+                fi
+
                 cp -a "${backup_path}/state" "${STATE_DIR}/state" 2>/dev/null || true
+
+                # Restore preserved checksums.prev if it existed
+                if [[ -n "${_saved_checksums}" && -f "${_saved_checksums}" ]]; then
+                    cp -a "${_saved_checksums}" "${CHECKSUMS_PREV}" 2>/dev/null || true
+                    rm -f "${_saved_checksums}" 2>/dev/null || true
+                fi
+
                 printf "  ${GREEN}[restored]${RESET} config-manager state\n"
                 (( restored++ )) || true
             fi
@@ -606,14 +647,16 @@ EOF
 main() {
     local command="${1:-}"
     shift 2>/dev/null || true
+    
+    local rc=0
 
     case "$command" in
-        list)      cmd_list              ;;
-        show)      cmd_show "$@"         ;;
-        restore)   cmd_restore "$@"      ;;
-        status)    cmd_status            ;;
-        resolve)   cmd_resolve           ;;
-        -h|--help) usage                 ;;
+        list)      cmd_list || rc=$?              ;;
+        show)      cmd_show "$@" || rc=$?         ;;
+        restore)   cmd_restore "$@" || rc=$?      ;;
+        status)    cmd_status || rc=$?            ;;
+        resolve)   cmd_resolve || rc=$?           ;;
+        -h|--help) usage                          ;;
         -v|--version) echo "config-rollback v${VERSION}" ;;
         "")
             error "No command specified."
@@ -626,6 +669,8 @@ main() {
             exit 2
             ;;
     esac
+    
+    exit $rc
 }
 
 main "$@"

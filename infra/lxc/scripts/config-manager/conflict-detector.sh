@@ -236,8 +236,9 @@ detect_conflicts() {
 
         # Check condition: file modified locally?
         # Compare what's on disk now vs what we last deployed (prev target checksum)
+        # This includes deletions (current_target == "MISSING" but prev_target != "MISSING")
         local locally_modified=false
-        if [[ "$current_target" != "$prev_target" ]] && [[ "$current_target" != "MISSING" ]]; then
+        if [[ "$current_target" != "$prev_target" ]]; then
             locally_modified=true
         fi
 
@@ -398,6 +399,9 @@ clear_conflicts() {
     if [[ -n "${REPO_DIR:-}" ]] && [[ -n "${CONFIG_PATH:-}" ]]; then
         log_info "Updating checksums to reflect resolved state..."
         compute_checksums "$CHECKSUMS_PREV"
+    else
+        log_warn "Cannot update checksums (REPO_DIR or CONFIG_PATH not set)."
+        log_warn "Run the next config-sync to update checksums automatically."
     fi
 
     log_info "Conflict resolved. Next sync will proceed normally."
