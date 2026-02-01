@@ -70,14 +70,16 @@ _log() {
     fi
 }
 
-log_info()  { _log INFO    "$@"; }
-log_warn()  { _log WARNING "$@"; }
-log_error() { _log ERROR   "$@"; }
+# Logging functions that write to both log file AND terminal
+# These are used by sourced scripts (snapshot-manager.sh) for visibility
+log_info()  { _log INFO    "$@"; printf "${BLUE}[INFO]${RESET}  %s\n" "$*"; }
+log_warn()  { _log WARNING "$@"; printf "${YELLOW}[WARN]${RESET}  %s\n" "$*"; }
+log_error() { _log ERROR   "$@"; printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; }
 
-# Terminal output helpers
-info()  { printf "${BLUE}[INFO]${RESET}  %s\n" "$*"; log_info "$@"; }
-warn()  { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*"; log_warn "$@"; }
-error() { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; log_error "$@"; }
+# Terminal output helpers (kept for backwards compatibility)
+info()  { log_info "$@"; }
+warn()  { log_warn "$@"; }
+error() { log_error "$@"; }
 
 # ---------------------------------------------------------------------------
 # Snapshot backend detection (simplified from snapshot-manager.sh)
@@ -304,7 +306,7 @@ _show_file_diffs() {
         return 0
     fi
 
-    while IFS=' ' read -r target_path _prev_target _prev_source; do
+    while IFS=$'\t' read -r target_path _prev_target _prev_source; do
         [[ -z "$target_path" ]] && continue
         [[ -f "$target_path" ]] || continue
 
@@ -385,11 +387,6 @@ cmd_restore() {
             rm -f "$CONFLICT_MARKER"
             info "Conflict marker cleared after restore."
             printf "${GREEN}Conflict marker cleared.${RESET}\n"
-        fi
-
-        # Update checksums to reflect restored state
-        if [[ -n "${REPO_DIR:-}" ]] && [[ -n "${CONFIG_PATH:-}" ]]; then
-            info "Updating checksums to reflect restored state..."
         fi
     else
         printf "\n${RED}Restore failed (exit code: %d).${RESET}\n" "$rc"

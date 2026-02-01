@@ -63,14 +63,14 @@ _conflict_checksum() {
 }
 
 # ---------------------------------------------------------------------------
-# compute_current_checksums — record checksums of all managed files at targets
+# compute_checksums — record checksums of all managed files at targets
 #
 # Reads the file triplets from the repo's files/ directory and computes
 # checksums for each target path (the deployed location on disk).
 # Also computes checksums of the source files in the git repo.
 #
 # Output format (one line per file):
-#   <target_path> <target_checksum> <source_checksum>
+#   <target_path>\t<target_checksum>\t<source_checksum>
 #
 # If a target file doesn't exist yet, its checksum is recorded as "MISSING".
 # ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ compute_checksums() {
             target_hash="$(_conflict_checksum "$target_file")"
         fi
 
-        printf '%s %s %s\n' "$target_file" "$target_hash" "$source_hash" >> "$output_file"
+        printf '%s\t%s\t%s\n' "$target_file" "$target_hash" "$source_hash" >> "$output_file"
         (( count++ )) || true
     done
 
@@ -177,7 +177,7 @@ detect_conflicts() {
     declare -A prev_target_checksums
     declare -A prev_source_checksums
 
-    while IFS=' ' read -r path target_hash source_hash; do
+    while IFS=$'\t' read -r path target_hash source_hash; do
         [[ -z "$path" ]] && continue
         prev_target_checksums["$path"]="$target_hash"
         prev_source_checksums["$path"]="$source_hash"
@@ -185,7 +185,7 @@ detect_conflicts() {
 
     declare -A current_target_checksums
 
-    while IFS=' ' read -r path target_hash _source_hash; do
+    while IFS=$'\t' read -r path target_hash _source_hash; do
         [[ -z "$path" ]] && continue
         current_target_checksums["$path"]="$target_hash"
     done < "$CHECKSUMS_CURRENT"
