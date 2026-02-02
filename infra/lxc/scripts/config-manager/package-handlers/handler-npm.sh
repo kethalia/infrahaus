@@ -58,8 +58,9 @@ npm_is_pkg_installed() {
 
     # Check if the package is in the global install list
     # npm list -g --depth=0 returns exit code 0 even if the package is not found,
-    # so we need to check the output
-    if npm list -g --depth=0 "$pkg" 2>/dev/null | grep -q "$pkg@"; then
+    # so we need to check the output. Use tree structure pattern to avoid false
+    # positives (e.g., "react" matching "react-dom").
+    if npm list -g --depth=0 "$pkg" 2>/dev/null | grep -qE "^[├└]──\\s+${pkg}@"; then
         return 0
     else
         return 1
