@@ -207,6 +207,27 @@ install_files() {
         fi
     done
 
+    # Copy package-handlers directory
+    if [[ -d "${script_dir}/package-handlers" ]]; then
+        info "Installing package handlers to ${lib_dir}/package-handlers/ ..."
+        mkdir -p "${lib_dir}/package-handlers"
+        
+        local -a handler_files=()
+        while IFS= read -r -d '' f; do
+            handler_files+=("$f")
+        done < <(find "${script_dir}/package-handlers" -maxdepth 1 -name "*.sh" -type f -print0 2>/dev/null)
+        
+        if [[ ${#handler_files[@]} -gt 0 ]]; then
+            cp "${handler_files[@]}" "${lib_dir}/package-handlers/"
+            chmod 755 "${lib_dir}/package-handlers"/*.sh
+            info "  -> ${#handler_files[@]} package handler(s) installed"
+        else
+            warn "No package handler scripts found in ${script_dir}/package-handlers/"
+        fi
+    else
+        warn "package-handlers directory not found — package management will not be available."
+    fi
+
     # Copy config-rollback CLI tool
     if [[ -f "${script_dir}/config-rollback.sh" ]]; then
         info "Installing config-rollback -> /usr/local/bin/config-rollback ..."
