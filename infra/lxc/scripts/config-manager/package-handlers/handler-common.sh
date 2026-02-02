@@ -22,22 +22,16 @@
 readonly _HANDLER_COMMON_LOADED=1
 
 # ---------------------------------------------------------------------------
-# Logging — provide stubs when not sourced from config-sync.sh
-# ---------------------------------------------------------------------------
-if ! declare -f log_info &>/dev/null; then
-    _log() {
-        local level="$1"; shift
-        printf '[%s] [%-7s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$level" "$*"
-    }
-    log_info()  { _log INFO    "$@"; }
-    log_warn()  { _log WARNING "$@"; }
-    log_error() { _log ERROR   "$@"; }
-fi
-
-# ---------------------------------------------------------------------------
 # Package handler directory — co-located with this script
 # ---------------------------------------------------------------------------
 readonly _HANDLER_DIR="${_HANDLER_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+
+# ---------------------------------------------------------------------------
+# Logging — source shared logging utilities
+# ---------------------------------------------------------------------------
+# shellcheck source=/dev/null
+[[ -f "${_HANDLER_DIR}/handler-logging.sh" ]] && source "${_HANDLER_DIR}/handler-logging.sh"
+source_logging_stubs
 
 # ---------------------------------------------------------------------------
 # Counters for summary reporting
@@ -87,6 +81,35 @@ parse_package_file() {
         line="${line%"${line##*[![:space:]]}"}"
         # Skip empty lines
         [[ -z "$line" ]] && continue
+        
+        # Validate package name format
+        # Allow: alphanumeric, @, /, _, ., :, ~, +, =, -, *, >, <
+        # This covers:
+        #   - apt: nodejs=24.*, docker-ce=5:20.*
+        #   - npm: @babel/core, typescript
+        #   - pip: package>=1.0, requests<3.0
+        local valid_pkg_pattern='^[a-zA-Z0-9@/_.:~+=*<>-]+$'
+        if [[ ! "$line" =~ $valid_pkg_pattern ]]; then
+            log_warn "Invalid characters in package name: '$line' in $(basename "$file") (skipping)"
+            continue
+        fi
+        
+        # Validate version specifiers (if present)
+        if [[ "$line" =~ ^([^=]+)=(.+)$ ]]; then
+            local pkg_name="${BASH_REMATCH[1]}"
+            local version="${BASH_REMATCH[2]}"
+            
+            # Warn about suspicious patterns
+            if [[ "$version" =~ [[:space:]] ]]; then
+                log_warn "Suspicious whitespace in version for '$pkg_name' in $(basename "$file")"
+            fi
+            
+            # Warn about double/triple equals (common typo)
+            if [[ "$version" =~ ^= ]]; then
+                log_warn "Multiple equals detected in '$pkg_name=$version' in $(basename "$file")"
+            fi
+        fi
+        
         printf '%s\n' "$line"
     done < "$file"
 }
@@ -148,7 +171,18 @@ _process_native_packages() {
     if declare -f "$update_fn" &>/dev/null; then
         log_info "Updating package index for ${ext}..."
         if ! "$update_fn"; then
-            log_warn "Package index update failed — installations may fail."
+            log_error "Package index update failed for ${ext} — cannot safely proceed."
+            log_error "Please check network connectivity and repository configuration."
+            log_error "Skipping all .${ext} package files to prevent installing stale packages."
+            # Count all packages in all files as failed
+            for pkg_file in "${pkg_files[@]}"; do
+                local -a count_packages=()
+                while IFS= read -r pkg; do
+                    count_packages+=("$pkg")
+                done < <(parse_package_file "$pkg_file")
+                (( _PKG_FAILED += ${#count_packages[@]} )) || true
+            done
+            return 1
         fi
     fi
 
@@ -352,6 +386,7 @@ install_packages() {
 
     if [[ $_PKG_FAILED -gt 0 ]]; then
         log_warn "${_PKG_FAILED} package(s) failed to install. Review the log for details."
+        return 1  # Signal partial failure to caller
     fi
 
     return 0

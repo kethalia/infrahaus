@@ -73,11 +73,25 @@ eslint
 
 | Manager | Update Index | Check Installed | Batch Install |
 |---------|-------------|-----------------|---------------|
-| **apt** | `apt-get update` | `dpkg-query -W` | `apt-get install -y` |
+| **apt** | `apt-get update` | `dpkg-query -W -f='${Status}'` | `apt-get install -y` |
 | **apk** | `apk update` | `apk info -e` | `apk add` |
 | **dnf** | `dnf makecache` | `rpm -q` | `dnf install -y` |
-| **npm** | — | `npm list -g` | `npm install -g` |
+| **npm** | — | `npm list -g --json` (fallback: tree) | `npm install -g` |
 | **pip** | — | `pip show` | `pip install` |
+
+## Version Pinning Syntax
+
+Different package managers support different version specification formats:
+
+| Manager | Syntax | Example | Notes |
+|---------|--------|---------|-------|
+| **apt** | `package=version` | `nodejs=24.*` | Supports glob patterns (`*`, `?`) |
+| **apk** | `package=version` | `nodejs=24.0.0-r0` | Exact version with release suffix |
+| **dnf** | `package-version` | `nodejs-24.0.0` | Use dash separator (not equals) |
+| **npm** | `package@version` | `typescript@5.0.0` | Semver ranges supported |
+| **pip** | `package==version` or `package>=version` | `requests>=2.28.0` | PEP 440 version specifiers |
+
+**Note:** Invalid version syntax will be logged as a warning and the package may fail to install.
 
 ## Best Practices
 

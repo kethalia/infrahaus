@@ -295,7 +295,10 @@ phase_install_packages() {
     log_info "[Phase: Packages] Processing packages from ${packages_dir}"
 
     if declare -f install_packages &>/dev/null; then
-        install_packages "$packages_dir"
+        if ! install_packages "$packages_dir"; then
+            log_warn "[Phase: Packages] Package installation completed with failures."
+            # Don't abort sync - continue with remaining phases (fail-safe at phase level)
+        fi
     else
         log_error "[Phase: Packages] install_packages function not found — skipping."
     fi

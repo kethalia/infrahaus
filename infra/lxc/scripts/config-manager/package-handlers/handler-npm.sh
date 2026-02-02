@@ -16,17 +16,12 @@
 readonly _HANDLER_NPM_LOADED=1
 
 # ---------------------------------------------------------------------------
-# Logging — provide stubs when not sourced from handler-common.sh
+# Logging — source shared logging utilities
 # ---------------------------------------------------------------------------
-if ! declare -f log_info &>/dev/null; then
-    _log() {
-        local level="$1"; shift
-        printf '[%s] [%-7s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$level" "$*"
-    }
-    log_info()  { _log INFO    "$@"; }
-    log_warn()  { _log WARNING "$@"; }
-    log_error() { _log ERROR   "$@"; }
-fi
+readonly _HANDLER_DIR="${_HANDLER_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+# shellcheck source=/dev/null
+[[ -f "${_HANDLER_DIR}/handler-logging.sh" ]] && source "${_HANDLER_DIR}/handler-logging.sh"
+source_logging_stubs
 
 # ---------------------------------------------------------------------------
 # npm_is_available — check if npm is available on the system
@@ -56,15 +51,24 @@ npm_is_pkg_installed() {
         return 1
     fi
 
-    # Check if the package is in the global install list
+    # Strategy 1: Try JSON output (more reliable, requires jq)
+    # This is more stable across npm versions than parsing tree output
+    if command -v jq &>/dev/null; then
+        if npm list -g --depth=0 --json 2>/dev/null | \
+           jq -e ".dependencies[\"$pkg\"] != null" &>/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    
+    # Strategy 2: Fallback to tree pattern matching
     # npm list -g --depth=0 returns exit code 0 even if the package is not found,
     # so we need to check the output. Use tree structure pattern to avoid false
     # positives (e.g., "react" matching "react-dom").
     if npm list -g --depth=0 "$pkg" 2>/dev/null | grep -qE "^[├└]──\\s+${pkg}@"; then
         return 0
-    else
-        return 1
     fi
+    
+    return 1
 }
 
 # ---------------------------------------------------------------------------

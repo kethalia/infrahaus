@@ -215,7 +215,7 @@ install_files() {
         local -a handler_files=()
         while IFS= read -r -d '' f; do
             handler_files+=("$f")
-        done < <(find "${script_dir}/package-handlers" -name "*.sh" -type f -print0 2>/dev/null)
+        done < <(find "${script_dir}/package-handlers" -maxdepth 1 -name "*.sh" -type f -print0 2>/dev/null)
         
         if [[ ${#handler_files[@]} -gt 0 ]]; then
             cp "${handler_files[@]}" "${lib_dir}/package-handlers/"

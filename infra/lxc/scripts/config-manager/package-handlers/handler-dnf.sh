@@ -16,17 +16,12 @@
 readonly _HANDLER_DNF_LOADED=1
 
 # ---------------------------------------------------------------------------
-# Logging — provide stubs when not sourced from handler-common.sh
+# Logging — source shared logging utilities
 # ---------------------------------------------------------------------------
-if ! declare -f log_info &>/dev/null; then
-    _log() {
-        local level="$1"; shift
-        printf '[%s] [%-7s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$level" "$*"
-    }
-    log_info()  { _log INFO    "$@"; }
-    log_warn()  { _log WARNING "$@"; }
-    log_error() { _log ERROR   "$@"; }
-fi
+readonly _HANDLER_DIR="${_HANDLER_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+# shellcheck source=/dev/null
+[[ -f "${_HANDLER_DIR}/handler-logging.sh" ]] && source "${_HANDLER_DIR}/handler-logging.sh"
+source_logging_stubs
 
 # ---------------------------------------------------------------------------
 # Detect which tool to use (dnf or yum)
