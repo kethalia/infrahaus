@@ -2,6 +2,8 @@ node_modules
 .next
 .source
 pnpm-lock.yaml
-*.md
-*.sh
-*.custom
+
+# LXC infrastructure - shell scripts and custom package files
+infra/lxc/**/*.sh
+infra/lxc/**/*.custom
+infra/lxc/**/*.md
