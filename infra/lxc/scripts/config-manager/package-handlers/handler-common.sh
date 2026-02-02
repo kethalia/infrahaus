@@ -49,7 +49,7 @@ _PKG_FAILED=0
 # ---------------------------------------------------------------------------
 # Native package manager → file extension mapping
 # ---------------------------------------------------------------------------
-declare -A _NATIVE_EXTENSIONS=(
+declare -rA _NATIVE_EXTENSIONS=(
     [apt]="apt"
     [apk]="apk"
     [dnf]="dnf"
@@ -157,9 +157,9 @@ _process_native_packages() {
     local install_fn="${ext}_install_packages"
 
     for pkg_file in "${pkg_files[@]}"; do
-        local basename
-        basename="$(basename "$pkg_file")"
-        log_info "Processing package file: ${basename}"
+        local pkg_file_name
+        pkg_file_name="$(basename "$pkg_file")"
+        log_info "Processing package file: ${pkg_file_name}"
 
         # Parse packages from file
         local -a all_packages=()
@@ -168,7 +168,7 @@ _process_native_packages() {
         done < <(parse_package_file "$pkg_file")
 
         if [[ ${#all_packages[@]} -eq 0 ]]; then
-            log_info "  No packages listed in ${basename} — skipping."
+            log_info "  No packages listed in ${pkg_file_name} — skipping."
             continue
         fi
 
@@ -184,22 +184,22 @@ _process_native_packages() {
         done
 
         if [[ ${#missing_packages[@]} -eq 0 ]]; then
-            log_info "  All packages from ${basename} are already installed."
+            log_info "  All packages from ${pkg_file_name} are already installed."
             continue
         fi
 
         # Batch install missing packages
-        log_info "  Installing ${#missing_packages[@]} package(s) from ${basename}: ${missing_packages[*]}"
+        log_info "  Installing ${#missing_packages[@]} package(s) from ${pkg_file_name}: ${missing_packages[*]}"
         if declare -f "$install_fn" &>/dev/null; then
             if "$install_fn" "${missing_packages[@]}"; then
                 (( _PKG_INSTALLED += ${#missing_packages[@]} )) || true
-                log_info "  [OK] ${#missing_packages[@]} package(s) installed from ${basename}"
+                log_info "  [OK] ${#missing_packages[@]} package(s) installed from ${pkg_file_name}"
             else
                 (( _PKG_FAILED += ${#missing_packages[@]} )) || true
-                log_error "  [FAIL] Batch install failed for ${basename}"
+                log_error "  [FAIL] Batch install failed for ${pkg_file_name} — up to ${#missing_packages[@]} package(s) affected"
             fi
         else
-            log_error "  Install function '${install_fn}' not found — skipping ${basename}"
+            log_error "  Install function '${install_fn}' not found — skipping ${pkg_file_name}"
             (( _PKG_FAILED += ${#missing_packages[@]} )) || true
         fi
     done
@@ -243,9 +243,9 @@ _process_cross_distro_packages() {
     local install_fn="${ext}_install_packages"
 
     for pkg_file in "${pkg_files[@]}"; do
-        local basename
-        basename="$(basename "$pkg_file")"
-        log_info "Processing cross-distro package file: ${basename}"
+        local pkg_file_name
+        pkg_file_name="$(basename "$pkg_file")"
+        log_info "Processing cross-distro package file: ${pkg_file_name}"
 
         # Parse packages
         local -a all_packages=()
@@ -254,7 +254,7 @@ _process_cross_distro_packages() {
         done < <(parse_package_file "$pkg_file")
 
         if [[ ${#all_packages[@]} -eq 0 ]]; then
-            log_info "  No packages listed in ${basename} — skipping."
+            log_info "  No packages listed in ${pkg_file_name} — skipping."
             continue
         fi
 
@@ -270,22 +270,22 @@ _process_cross_distro_packages() {
         done
 
         if [[ ${#missing_packages[@]} -eq 0 ]]; then
-            log_info "  All packages from ${basename} are already installed."
+            log_info "  All packages from ${pkg_file_name} are already installed."
             continue
         fi
 
         # Batch install
-        log_info "  Installing ${#missing_packages[@]} package(s) from ${basename}: ${missing_packages[*]}"
+        log_info "  Installing ${#missing_packages[@]} package(s) from ${pkg_file_name}: ${missing_packages[*]}"
         if declare -f "$install_fn" &>/dev/null; then
             if "$install_fn" "${missing_packages[@]}"; then
                 (( _PKG_INSTALLED += ${#missing_packages[@]} )) || true
-                log_info "  [OK] ${#missing_packages[@]} package(s) installed from ${basename}"
+                log_info "  [OK] ${#missing_packages[@]} package(s) installed from ${pkg_file_name}"
             else
                 (( _PKG_FAILED += ${#missing_packages[@]} )) || true
-                log_error "  [FAIL] Batch install failed for ${basename}"
+                log_error "  [FAIL] Batch install failed for ${pkg_file_name} — up to ${#missing_packages[@]} package(s) affected"
             fi
         else
-            log_error "  Install function '${install_fn}' not found — skipping ${basename}"
+            log_error "  Install function '${install_fn}' not found — skipping ${pkg_file_name}"
             (( _PKG_FAILED += ${#missing_packages[@]} )) || true
         fi
     done

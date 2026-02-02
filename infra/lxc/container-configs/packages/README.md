@@ -73,7 +73,7 @@ eslint
 
 | Manager | Update Index | Check Installed | Batch Install |
 |---------|-------------|-----------------|---------------|
-| **apt** | `apt-get update` | `dpkg -l \| grep` | `apt-get install -y` |
+| **apt** | `apt-get update` | `dpkg-query -W` | `apt-get install -y` |
 | **apk** | `apk update` | `apk info -e` | `apk add` |
 | **dnf** | `dnf makecache` | `rpm -q` | `dnf install -y` |
 | **npm** | — | `npm list -g` | `npm install -g` |

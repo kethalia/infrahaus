@@ -211,12 +211,19 @@ install_files() {
     if [[ -d "${script_dir}/package-handlers" ]]; then
         info "Installing package handlers to ${lib_dir}/package-handlers/ ..."
         mkdir -p "${lib_dir}/package-handlers"
-        cp "${script_dir}/package-handlers"/*.sh "${lib_dir}/package-handlers/" 2>/dev/null || true
-        chmod 755 "${lib_dir}/package-handlers"/*.sh 2>/dev/null || true
         
-        local handler_count
-        handler_count=$(find "${lib_dir}/package-handlers" -name "*.sh" -type f 2>/dev/null | wc -l)
-        info "  -> ${handler_count} package handler(s) installed"
+        local -a handler_files=()
+        while IFS= read -r -d '' f; do
+            handler_files+=("$f")
+        done < <(find "${script_dir}/package-handlers" -name "*.sh" -type f -print0 2>/dev/null)
+        
+        if [[ ${#handler_files[@]} -gt 0 ]]; then
+            cp "${handler_files[@]}" "${lib_dir}/package-handlers/"
+            chmod 755 "${lib_dir}/package-handlers"/*.sh
+            info "  -> ${#handler_files[@]} package handler(s) installed"
+        else
+            warn "No package handler scripts found in ${script_dir}/package-handlers/"
+        fi
     else
         warn "package-handlers directory not found — package management will not be available."
     fi

@@ -93,7 +93,18 @@ pip_install_packages() {
     }
 
     # Install with minimal output
-    "$pip_cmd" install --quiet "$@" 2>&1 | while IFS= read -r line; do
+    # PEP 668: On systems with externally-managed Python (Ubuntu 24.04+),
+    # pip refuses system-wide installs unless explicitly permitted.
+    local -a pip_args=(install --quiet)
+    
+    if [[ -z "${VIRTUAL_ENV:-}" ]]; then
+        # Check if --break-system-packages is supported and required
+        if "$pip_cmd" install --help 2>/dev/null | grep -q -- '--break-system-packages'; then
+            pip_args+=(--break-system-packages)
+        fi
+    fi
+    
+    "$pip_cmd" "${pip_args[@]}" "$@" 2>&1 | while IFS= read -r line; do
         [[ -n "$line" ]] && log_info "  [pip] $line"
     done
 
