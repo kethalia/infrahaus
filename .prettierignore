@@ -2,5 +2,3 @@ node_modules
 .next
 .source
 pnpm-lock.yaml
-*.sh
-*.custom
