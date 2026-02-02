@@ -6,22 +6,22 @@ This directory holds managed configuration files using the **file triplet** conv
 
 For each managed file `<name>`, create three files:
 
-| File | Purpose | Example |
-|------|---------|---------|
-| `<name>` | The actual configuration file | `.bashrc` |
-| `<name>.path` | Single line: target directory | `/home/coder` |
-| `<name>.policy` | Single line: deployment policy | `default` |
+| File            | Purpose                        | Example       |
+| --------------- | ------------------------------ | ------------- |
+| `<name>`        | The actual configuration file  | `.bashrc`     |
+| `<name>.path`   | Single line: target directory  | `/home/coder` |
+| `<name>.policy` | Single line: deployment policy | `default`     |
 
 ## Policies
 
-| Policy | Target exists? | Action |
-|--------|---------------|--------|
-| `replace` | Yes | Overwrite target |
-| `replace` | No | Copy to target |
-| `default` | Yes | **Skip** (preserve user changes) |
-| `default` | No | Copy to target |
-| `backup` | Yes | Move existing to `<name>.backup-YYYYMMDD-HHMMSS`, then copy |
-| `backup` | No | Copy to target |
+| Policy    | Target exists? | Action                                                      |
+| --------- | -------------- | ----------------------------------------------------------- |
+| `replace` | Yes            | Overwrite target                                            |
+| `replace` | No             | Copy to target                                              |
+| `default` | Yes            | **Skip** (preserve user changes)                            |
+| `default` | No             | Copy to target                                              |
+| `backup`  | Yes            | Move existing to `<name>.backup-YYYYMMDD-HHMMSS`, then copy |
+| `backup`  | No             | Copy to target                                              |
 
 ## Example
 

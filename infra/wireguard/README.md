@@ -7,13 +7,14 @@
 You can bootstrap an LXC container in proxmox using [this helper script](https://community-scripts.github.io/ProxmoxVE/scripts?id=nginxproxymanager)
 
 Run on the host:
+
 ```shell
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/nginxproxymanager.sh)"
 ```
 
 Default login credentials:
 **Username:** *admin@example.com*
-**Password:** *changeme*
+**Password:** _changeme_
 
 ### With docker
 

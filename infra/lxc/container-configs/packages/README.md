@@ -6,13 +6,13 @@ This directory contains declarative package list files that are automatically pr
 
 Package files use the extension to indicate the target package manager:
 
-| Extension | Package Manager | Distributions |
-|-----------|----------------|---------------|
-| `.apt` | APT | Debian, Ubuntu |
-| `.apk` | APK | Alpine Linux |
-| `.dnf` | DNF/YUM | Fedora, RHEL, CentOS, Rocky, AlmaLinux |
-| `.npm` | NPM (global) | Cross-distribution (requires Node.js) |
-| `.pip` | PIP | Cross-distribution (requires Python) |
+| Extension | Package Manager   | Distributions                                           |
+| --------- | ----------------- | ------------------------------------------------------- |
+| `.apt`    | APT               | Debian, Ubuntu                                          |
+| `.apk`    | APK               | Alpine Linux                                            |
+| `.dnf`    | DNF/YUM           | Fedora, RHEL, CentOS, Rocky, AlmaLinux                  |
+| `.npm`    | NPM (global)      | Cross-distribution (requires Node.js)                   |
+| `.pip`    | PIP               | Cross-distribution (requires Python)                    |
 | `.custom` | Custom installers | Cross-distribution (curl/wget-based, build-from-source) |
 
 ## File Format
@@ -72,25 +72,25 @@ eslint
 
 ## Package Manager Operations
 
-| Manager | Update Index | Check Installed | Batch Install |
-|---------|-------------|-----------------|---------------|
-| **apt** | `apt-get update` | `dpkg-query -W -f='${Status}'` | `apt-get install -y` |
-| **apk** | `apk update` | `apk info -e` | `apk add` |
-| **dnf** | `dnf makecache` | `rpm -q` | `dnf install -y` |
-| **npm** | — | `npm list -g --json` (fallback: tree) | `npm install -g` |
-| **pip** | — | `pip show` | `pip install` |
+| Manager | Update Index     | Check Installed                       | Batch Install        |
+| ------- | ---------------- | ------------------------------------- | -------------------- |
+| **apt** | `apt-get update` | `dpkg-query -W -f='${Status}'`        | `apt-get install -y` |
+| **apk** | `apk update`     | `apk info -e`                         | `apk add`            |
+| **dnf** | `dnf makecache`  | `rpm -q`                              | `dnf install -y`     |
+| **npm** | —                | `npm list -g --json` (fallback: tree) | `npm install -g`     |
+| **pip** | —                | `pip show`                            | `pip install`        |
 
 ## Version Pinning Syntax
 
 Different package managers support different version specification formats:
 
-| Manager | Syntax | Example | Notes |
-|---------|--------|---------|-------|
-| **apt** | `package=version` | `nodejs=24.*` | Supports glob patterns (`*`, `?`) |
-| **apk** | `package=version` | `nodejs=24.0.0-r0` | Exact version with release suffix |
-| **dnf** | `package-version` | `nodejs-24.0.0` | Use dash separator (not equals) |
-| **npm** | `package@version` | `typescript@5.0.0` | Semver ranges supported |
-| **pip** | `package==version` or `package>=version` | `requests>=2.28.0` | PEP 440 version specifiers |
+| Manager | Syntax                                   | Example            | Notes                             |
+| ------- | ---------------------------------------- | ------------------ | --------------------------------- |
+| **apt** | `package=version`                        | `nodejs=24.*`      | Supports glob patterns (`*`, `?`) |
+| **apk** | `package=version`                        | `nodejs=24.0.0-r0` | Exact version with release suffix |
+| **dnf** | `package-version`                        | `nodejs-24.0.0`    | Use dash separator (not equals)   |
+| **npm** | `package@version`                        | `typescript@5.0.0` | Semver ranges supported           |
+| **pip** | `package==version` or `package>=version` | `requests>=2.28.0` | PEP 440 version specifiers        |
 
 **Note:** Invalid version syntax will be logged as a warning and the package may fail to install.
 
@@ -135,18 +135,21 @@ gh-cli|command -v gh|curl -fsSL https://cli.github.com/packages/githubcli-archiv
 ### Example Files
 
 **`web3.custom`:**
+
 ```bash
 # Web3 development tools
 foundry|command -v forge|curl -L https://foundry.paradigm.xyz | bash && foundryup|600
 ```
 
 **`cli.custom`:**
+
 ```bash
 # CLI tools
 act|command -v act|curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bash
 ```
 
 **`node.custom`:**
+
 ```bash
 # Node.js ecosystem
 nvm|[ -d "$HOME/.nvm" ]|curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash|240
@@ -165,12 +168,14 @@ pnpm|command -v pnpm|npm install -g pnpm
 ### Security Considerations
 
 **✓ Safe Practices:**
+
 - Scripts come from trusted git repository (version controlled)
 - All commands are logged before execution
 - Timeouts prevent hanging installations
 - Failed installations don't abort entire sync
 
 **⚠️ Important Notes:**
+
 - Only add install commands from **trusted sources** (official documentation, verified install scripts)
 - Review curl/wget URLs carefully — ensure they point to official repositories
 - Use HTTPS URLs when possible for security
@@ -186,6 +191,7 @@ Default timeout is **5 minutes (300 seconds)** per tool. Adjust for:
 - **Long timeouts (600-900s)**: Build-from-source, large downloads (Foundry, Rust toolchains)
 
 Example:
+
 ```bash
 # Quick npm install (30 seconds)
 pnpm|command -v pnpm|npm install -g pnpm|30

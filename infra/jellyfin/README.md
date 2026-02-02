@@ -6,15 +6,15 @@ Setup inspired by [source](https://github.com/navilg/media-stack/blob/main/READM
 
 ## Services
 
-| Service | Description |
-|---|---|
-| **Jellyfin** | Media server with NVIDIA GPU-accelerated transcoding |
-| **Gluetun** | VPN client container (routes torrent traffic) |
-| **qBittorrent** | Torrent client (runs through VPN) |
-| **Radarr** | Movie collection manager |
-| **Sonarr** | TV series collection manager |
-| **Prowlarr** | Indexer manager (runs through VPN) |
-| **Bazarr** | Subtitle manager |
+| Service         | Description                                          |
+| --------------- | ---------------------------------------------------- |
+| **Jellyfin**    | Media server with NVIDIA GPU-accelerated transcoding |
+| **Gluetun**     | VPN client container (routes torrent traffic)        |
+| **qBittorrent** | Torrent client (runs through VPN)                    |
+| **Radarr**      | Movie collection manager                             |
+| **Sonarr**      | TV series collection manager                         |
+| **Prowlarr**    | Indexer manager (runs through VPN)                   |
+| **Bazarr**      | Subtitle manager                                     |
 
 ## Dependencies
 
