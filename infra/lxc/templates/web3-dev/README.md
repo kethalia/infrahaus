@@ -51,6 +51,10 @@ REPO_BRANCH="develop" \
 - **Features:** Nesting, Keyctl, FUSE enabled
 - **Tags:** web3, development, nodejs, docker
 - **User:** `coder` (UID 1000)
+- **Exposed Ports:**
+  - 8080: VS Code Server
+  - 8081: FileBrowser
+  - 8082: OpenCode
 
 ### Customizable via Environment Variables
 
@@ -95,6 +99,20 @@ Automatically installed from `container-configs/packages/`:
 - **Node.js:** Latest LTS with npm and pnpm
 - **Web3 Tools:** Foundry (forge, cast, anvil, chisel)
 - **CLI Tools:** GitHub CLI (gh), Act (local GitHub Actions)
+
+### Browser-Based Development Tools
+
+- **code-server:** VS Code in the browser (port 8080)
+  - Pre-configured with extensions (ESLint, Prettier, Solidity, Copilot, GitLens, Docker)
+  - Auto-save enabled, format on save
+  - Default Dark+ theme
+- **FileBrowser:** Web-based file manager (port 8081)
+  - Browse and manage files through browser
+  - Upload/download files
+  - Edit files directly
+- **OpenCode:** Alternative web-based code editor (port 8082)
+  - Lightweight alternative to code-server
+  - Modern web-based editing experience
 
 ## Configuration Management
 
@@ -145,6 +163,8 @@ config-rollback <hash>    # Rollback to specific snapshot
 
 ### Access Methods
 
+#### Terminal Access
+
 ```bash
 # SSH access (after container is created)
 ssh coder@<container-ip>
@@ -152,6 +172,36 @@ ssh coder@<container-ip>
 # Console access (from ProxmoxVE host)
 pct enter <container-id>
 ```
+
+#### Browser-Based Development
+
+Access your development environment through the browser:
+
+```
+VS Code Server:   http://<container-ip>:8080
+                  Password: coder
+
+FileBrowser:      http://<container-ip>:8081
+                  Username: admin
+                  Password: coder
+
+OpenCode:         http://<container-ip>:8082
+```
+
+**Features:**
+
+- Full VS Code experience in the browser
+- Pre-installed extensions (Solidity, Docker, GitLens, Copilot)
+- File management and uploads via FileBrowser
+- Auto-save and format-on-save enabled
+- Git integration with GitLens
+
+**First Time Setup:**
+
+1. Open `http://<container-ip>:8080` in your browser
+2. Enter password: `coder`
+3. Open folder: `/home/coder`
+4. Start coding!
 
 ### Updates
 
@@ -316,6 +366,38 @@ pct reboot <container-id>
 sudo reboot
 ```
 
+### Web Services Issues
+
+```bash
+# Check if services are running
+systemctl status code-server@coder
+systemctl status filebrowser
+systemctl status opencode@coder
+
+# Restart services
+sudo systemctl restart code-server@coder
+sudo systemctl restart filebrowser
+sudo systemctl restart opencode@coder
+
+# Check service logs
+journalctl -u code-server@coder -n 50
+journalctl -u filebrowser -n 50
+journalctl -u opencode@coder -n 50
+
+# Verify ports are listening
+ss -tlnp | grep ':808'
+
+# Check firewall (if enabled)
+ufw status
+```
+
+**Common Issues:**
+
+- **Can't access port 8080:** Check if code-server is running: `systemctl status code-server@coder`
+- **Wrong password:** Default password is `coder` for all services
+- **Port conflicts:** Ensure ports 8080-8082 are not already in use
+- **VS Code extensions not loading:** Restart code-server service
+
 ## Security Considerations
 
 ### Sudo Access
@@ -334,11 +416,40 @@ All other sudo commands require password authentication.
 
 This template creates a **privileged** LXC container to support Docker-in-Docker. Privileged containers have root access to the host system. Use appropriate network isolation and security policies.
 
+### Web Service Security
+
+The container exposes web services on ports 8080-8082 for browser-based development:
+
+- **code-server (8080):** Protected with password authentication (default: `coder`)
+- **filebrowser (8081):** Protected with username/password (admin/coder)
+- **opencode (8082):** No authentication (bind to localhost or use reverse proxy)
+
+**Security Recommendations:**
+
+1. **Change default passwords** after first login
+2. **Use reverse proxy** (nginx/traefik) with HTTPS for production
+3. **Firewall rules:** Restrict access to trusted networks only
+4. **VPN access:** Consider accessing web services through VPN
+5. **Container isolation:** Run in isolated network or VLAN
+
+**ProxmoxVE Firewall Example:**
+
+```bash
+# From ProxmoxVE host
+pct set <container-id> -net0 name=eth0,bridge=vmbr0,firewall=1,ip=dhcp
+
+# Add firewall rules in ProxmoxVE web UI:
+# - Allow 8080-8082 from specific IP ranges only
+# - Block all other incoming connections
+```
+
 ### Download Security
 
 - **build.func:** Pinned to immutable tag `2026-02-02`
 - **Starship:** Downloaded as prebuilt binary from GitHub releases
 - **Config-manager:** Downloaded with validation and verification
+- **code-server:** Official installation script from code-server.dev
+- **filebrowser:** Official installation script from filebrowser.org
 
 ## Contributing
 
