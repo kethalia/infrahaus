@@ -81,9 +81,10 @@ load_config() {
     fi
 
     # Source the config — expected variables:
-    #   CONFIG_REPO_URL   — git clone URL
-    #   CONFIG_BRANCH     — branch to track (default: main)
-    #   CONFIG_PATH       — sub-path inside repo for container configs
+    #   CONFIG_REPO_URL     — git clone URL
+    #   CONFIG_BRANCH       — branch to track (default: main)
+    #   CONFIG_PATH         — sub-path inside repo for container configs
+    #   CONFIG_HELPER_PATH  — path to helper scripts (default: infra/lxc/scripts/config-manager)
     # shellcheck source=/dev/null
     source "$CONFIG_FILE"
 
@@ -101,6 +102,7 @@ load_config() {
 
     CONFIG_BRANCH="${CONFIG_BRANCH:-main}"
     CONFIG_PATH="${CONFIG_PATH:-infra/lxc/container-configs}"
+    CONFIG_HELPER_PATH="${CONFIG_HELPER_PATH:-infra/lxc/scripts/config-manager}"
 
     log_info "Configuration loaded — repo: $CONFIG_REPO_URL (branch: $CONFIG_BRANCH)"
 }
@@ -149,20 +151,20 @@ ensure_helpers() {
         "${LIB_DIR}/conflict-detector.sh"
     )
 
-    local missing_helpers=false
+    local missing_helpers="false"
     for helper in "${required_helpers[@]}"; do
         if [[ ! -f "$helper" ]]; then
-            missing_helpers=true
+            missing_helpers="true"
             break
         fi
     done
 
     # Check if package handlers exist
     if [[ ! -d "${LIB_DIR}/package-handlers" ]] || [[ -z "$(ls -A "${LIB_DIR}/package-handlers" 2>/dev/null)" ]]; then
-        missing_helpers=true
+        missing_helpers="true"
     fi
 
-    if [[ "$missing_helpers" == false ]]; then
+    if [[ "$missing_helpers" == "false" ]]; then
         log_info "All helper scripts are already installed."
         return 0
     fi
@@ -184,10 +186,16 @@ ensure_helpers() {
     # Create lib directory if it doesn't exist
     mkdir -p "${LIB_DIR}/package-handlers"
 
-    # Copy helper scripts
-    local helper_source_dir="${temp_helper_dir}/infra/lxc/scripts/config-manager"
+    # Copy helper scripts using configured path
+    local helper_source_dir="${temp_helper_dir}/${CONFIG_HELPER_PATH}"
     
-    log_info "Installing helper scripts..."
+    if [[ ! -d "$helper_source_dir" ]]; then
+        log_error "Helper source directory not found: ${CONFIG_HELPER_PATH}"
+        log_error "Check CONFIG_HELPER_PATH in /etc/config-manager/config.env"
+        return 1
+    fi
+    
+    log_info "Installing helper scripts from ${CONFIG_HELPER_PATH}..."
     for helper in "${required_helpers[@]}"; do
         local helper_name
         helper_name="$(basename "$helper")"
@@ -202,9 +210,16 @@ ensure_helpers() {
 
     # Copy package handlers
     if [[ -d "${helper_source_dir}/package-handlers" ]]; then
-        cp "${helper_source_dir}/package-handlers"/*.sh "${LIB_DIR}/package-handlers/" 2>/dev/null || true
-        chmod 755 "${LIB_DIR}/package-handlers"/*.sh 2>/dev/null || true
-        log_info "  → Installed package handlers"
+        local handler_count=0
+        if cp "${helper_source_dir}/package-handlers"/*.sh "${LIB_DIR}/package-handlers/" 2>/dev/null; then
+            chmod 755 "${LIB_DIR}/package-handlers"/*.sh 2>/dev/null || true
+            handler_count=$(find "${LIB_DIR}/package-handlers" -name "*.sh" -type f | wc -l)
+            log_info "  → Installed ${handler_count} package handler(s)"
+        else
+            log_warn "  → No package handlers found or copy failed"
+        fi
+    else
+        log_warn "  → Package handlers directory not found"
     fi
 
     # Copy config-rollback CLI if it exists

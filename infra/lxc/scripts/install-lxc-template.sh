@@ -52,6 +52,9 @@ CONFIG_BRANCH="${REPO_BRANCH}"
 # Sub-path inside the repository where container configs live
 CONFIG_PATH="${CONFIG_PATH}"
 
+# Path to helper scripts inside the repository (relative to repo root)
+CONFIG_HELPER_PATH="${CONFIG_HELPER_PATH:-infra/lxc/scripts/config-manager}"
+
 # --- Snapshot configuration ---
 # Enable snapshots: auto (enable if backend available), yes, or no
 SNAPSHOT_ENABLED=auto
@@ -75,6 +78,17 @@ if ! curl -fsSL --max-time 60 -A "ProxmoxVE-Script/1.0" \
   exit 1
 fi
 
+# Verify download
+if [[ ! -s /usr/local/bin/config-sync.sh ]]; then
+  msg_error "Downloaded config-sync.sh is empty"
+  exit 1
+fi
+
+if ! head -1 /usr/local/bin/config-sync.sh | grep -q '^#!/'; then
+  msg_error "Downloaded config-sync.sh is invalid (missing shebang)"
+  exit 1
+fi
+
 chmod 755 /usr/local/bin/config-sync.sh
 msg_ok "Config-sync script installed"
 
@@ -84,6 +98,17 @@ if ! curl -fsSL --max-time 60 -A "ProxmoxVE-Script/1.0" \
     "https://raw.githubusercontent.com/kethalia/pve-home-lab/${REPO_BRANCH}/infra/lxc/scripts/config-manager/config-manager.service" \
     -o /etc/systemd/system/config-manager.service; then
   msg_error "Failed to download config-manager.service"
+  exit 1
+fi
+
+# Verify download
+if [[ ! -s /etc/systemd/system/config-manager.service ]]; then
+  msg_error "Downloaded config-manager.service is empty"
+  exit 1
+fi
+
+if ! grep -q '^\[Unit\]' /etc/systemd/system/config-manager.service; then
+  msg_error "Downloaded config-manager.service is invalid (not a systemd unit file)"
   exit 1
 fi
 
@@ -104,13 +129,13 @@ systemctl enable config-manager.service || {
 
 # Start the service to perform initial sync
 msg_info "Running initial configuration sync"
-if systemctl start config-manager.service; then
-  msg_ok "Config-manager service started successfully"
-else
-  msg_warn "Initial sync encountered issues. Check logs: journalctl -u config-manager"
+if ! systemctl start config-manager.service; then
+  msg_error "Initial sync failed. Check logs: journalctl -u config-manager"
+  msg_error "Container may not be fully configured"
+  exit 1
 fi
 
-msg_ok "Config-manager installed and configured"
+msg_ok "Config-manager installed and configured successfully"
 
 # ProxmoxVE standard finalizations
 msg_info "Configuring SSH access"
