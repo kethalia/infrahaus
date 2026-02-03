@@ -233,9 +233,11 @@ When a container created from a template starts for the first time:
 
 1. **Systemd starts config-manager.service** — The service is enabled during installation
 2. **Lock acquisition** — Ensures only one sync runs at a time
-3. **Initial git clone** — Downloads your configuration repository to `/opt/config-manager/repo`
-4. **No snapshot created** — First run skips snapshot (nothing to backup yet)
-5. **Script execution** — Runs all `*.sh` files in `container-configs/scripts/` in alphabetical order
+3. **Ensure git is installed** — Auto-installs git if missing (using apt/dnf/apk)
+4. **Ensure helper scripts available** — Auto-downloads helper scripts if missing
+5. **Initial git clone** — Downloads your configuration repository to `/opt/config-manager/repo`
+6. **No snapshot created** — First run skips snapshot (nothing to backup yet)
+7. **Script execution** — Runs all `*.sh` files in `container-configs/scripts/` in alphabetical order
    - `00-pre-checks.sh` — Validates environment
    - `01-setup-user.sh` — Creates `coder` user with UID 1000
    - `02-docker-install.sh` — Installs Docker CE
@@ -244,13 +246,13 @@ When a container created from a template starts for the first time:
    - `05-shell-setup.sh` — Configures Starship prompt
    - `50-vscode-server.sh` — Installs VS Code Server
    - `99-post-setup.sh` — Final cleanup and verification
-6. **File processing** — Deploys configuration files to target locations
+8. **File processing** — Deploys configuration files to target locations
    - `.bashrc` → `/home/coder/.bashrc`
    - `aliases.sh` → `/home/coder/.bash_aliases`
    - `.gitconfig` → `/home/coder/.gitconfig`
-7. **Package installation** — Installs packages from `container-configs/packages/`
-8. **Snapshot tagging** — First successful sync is marked as `:good`
-9. **Service completion** — Container is ready to use
+9. **Package installation** — Installs packages from `container-configs/packages/`
+10. **Snapshot tagging** — First successful sync is marked as `:good`
+11. **Service completion** — Container is ready to use
 
 **Duration**: First boot takes 5-15 minutes depending on:
 
@@ -278,6 +280,8 @@ tail -f /var/log/config-manager/sync.log
 
 ```
 [INFO] Starting configuration sync...
+[INFO] git is already installed.
+[INFO] All helper scripts are already installed.
 [INFO] Cloning repository...
 [INFO] Executing script: 00-pre-checks.sh
 [INFO] Executing script: 01-setup-user.sh

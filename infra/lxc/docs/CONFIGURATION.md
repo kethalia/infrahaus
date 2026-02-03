@@ -109,40 +109,44 @@ When a container starts, config-manager executes this sequence:
    ↓
 3. Read configuration (/etc/config-manager/config.env)
    ↓
-4. Create pre-sync snapshot (ZFS/LVM/BTRFS/file-level)
+4. Ensure git is installed (auto-install if missing)
    ↓
-5. Compute checksums of managed files (conflict detection)
+5. Ensure helper scripts are available (auto-download if missing)
    ↓
-6. Git sync (clone or pull from CONFIG_REPO_URL)
+6. Create pre-sync snapshot (ZFS/LVM/BTRFS/file-level)
    ↓
-7. Compare checksums (detect conflicts)
+7. Compute checksums of managed files (conflict detection)
+   ↓
+8. Git sync (clone or pull from CONFIG_REPO_URL)
+   ↓
+9. Compare checksums (detect conflicts)
    ├─ Conflicts detected → ABORT (exit 5)
    └─ No conflicts → PROCEED
    ↓
-8. Execute scripts (alphabetical order)
-   00-pre-checks.sh
-   01-setup-user.sh
-   02-docker-install.sh
-   ...
-   99-post-setup.sh
+10. Execute scripts (alphabetical order)
+    00-pre-checks.sh
+    01-setup-user.sh
+    02-docker-install.sh
+    ...
+    99-post-setup.sh
    ↓
-9. Process files (deploy with policies)
-   bashrc → /home/coder/.bashrc (policy: default)
-   gitconfig → /home/coder/.gitconfig (policy: replace)
-   ...
+11. Process files (deploy with policies)
+    bashrc → /home/coder/.bashrc (policy: default)
+    gitconfig → /home/coder/.gitconfig (policy: replace)
+    ...
    ↓
-10. Install packages (batch by package manager)
+12. Install packages (batch by package manager)
     apt: 42 packages
     npm: 8 packages
     custom: 3 installers
    ↓
-11. Tag snapshot as :good (successful sync)
+13. Tag snapshot as :good (successful sync)
    ↓
-12. Cleanup old snapshots (retention policy)
+14. Cleanup old snapshots (retention policy)
    ↓
-13. Release lock
+15. Release lock
    ↓
-14. Service exits (exit 0)
+16. Service exits (exit 0)
 ```
 
 **Duration**: Typical sync takes 10-60 seconds after first boot (first boot: 5-15 minutes for package installation).
@@ -195,6 +199,7 @@ This file controls all aspects of config-manager behavior. It's created during i
 CONFIG_REPO_URL="https://github.com/kethalia/pve-home-lab.git"
 CONFIG_BRANCH="main"
 CONFIG_PATH="infra/lxc/templates/web3-dev/container-configs"
+CONFIG_HELPER_PATH="infra/lxc/scripts/config-manager"
 CONFIG_CONTAINER_USER="coder"
 SNAPSHOT_ENABLED="auto"
 SNAPSHOT_RETENTION_DAYS="7"
@@ -277,6 +282,51 @@ $CONFIG_REPO_URL/$CONFIG_PATH/
 ├── scripts/
 ├── files/
 └── packages/
+```
+
+#### CONFIG_HELPER_PATH
+
+**Required**: No  
+**Default**: `infra/lxc/scripts/config-manager`  
+**Description**: Relative path within the repository to helper scripts  
+**Example**:
+
+```bash
+# Default location (recommended)
+CONFIG_HELPER_PATH="infra/lxc/scripts/config-manager"
+
+# Custom location
+CONFIG_HELPER_PATH="my-scripts/config-manager"
+```
+
+**Purpose**: Config-manager uses this path to locate and download helper scripts on first boot or when they're missing. The service automatically downloads:
+
+- `config-manager-helpers.sh` - Shared utility functions
+- `execute-scripts.sh` - Script execution engine
+- `process-files.sh` - File deployment engine
+- `snapshot-manager.sh` - Snapshot system
+- `conflict-detector.sh` - Conflict detection
+- `package-handlers/` - Package manager handlers (apt, npm, pip, custom, etc.)
+
+**Self-healing**: If helper scripts are missing or corrupted, config-manager automatically re-downloads them from the configured repository path on next sync.
+
+**Directory structure expected**:
+
+```
+$CONFIG_REPO_URL/$CONFIG_HELPER_PATH/
+├── config-manager-helpers.sh
+├── execute-scripts.sh
+├── process-files.sh
+├── snapshot-manager.sh
+├── conflict-detector.sh
+└── package-handlers/
+    ├── handler-common.sh
+    ├── handler-apt.sh
+    ├── handler-apk.sh
+    ├── handler-dnf.sh
+    ├── handler-npm.sh
+    ├── handler-pip.sh
+    └── handler-custom.sh
 ```
 
 ### Snapshot Settings
