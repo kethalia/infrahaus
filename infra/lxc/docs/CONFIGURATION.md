@@ -535,30 +535,44 @@ container-configs/
 
 #### Sequential Execution
 
-Scripts run one at a time in order. If a script exits with non-zero code, execution stops.
+Scripts run one at a time in order. Each script is **sourced** (not executed) in a subshell, which means:
+
+- Scripts inherit all environment variables and helper functions
+- Use `return` instead of `exit` to terminate with error codes
+- Changes to the current directory or variables affect only the subshell
+- All exported environment variables persist for subsequent scripts
 
 ```bash
-# execute-scripts.sh logic
+# execute-scripts.sh logic (simplified)
 for script in $(ls *.sh | LC_ALL=C sort); do
-    if ! bash "$script"; then
+    if ! (source "$script"); then
         log_error "Script $script failed (exit $?)"
         exit 1
     fi
 done
 ```
 
-**Implication**: Design scripts to be independent but assume prior scripts have succeeded.
+**Implication**:
+
+- Scripts can use `return 0` for success, `return 1` for failure
+- Helper functions (`is_installed`, `log_info`, etc.) are directly available
+- Scripts don't need shebangs, but can include them for standalone testing
+- Design scripts to be independent but assume prior scripts have succeeded
 
 #### Auto-Executable
 
-Scripts are automatically made executable before running:
+Scripts are automatically made executable if missing the +x bit:
 
 ```bash
 chmod +x "$script"
-bash "$script"
+source "$script"
 ```
 
-**Best practice**: Still set executable bit in git (`git add --chmod=+x script.sh`) for clarity.
+**Best practice**:
+
+- Set executable bit in git (`git add --chmod=+x script.sh`) for clarity
+- Include shebang (`#!/usr/bin/env bash`) for standalone testing
+- Use `return` instead of `exit` to avoid terminating the parent shell
 
 #### Idempotency
 
@@ -830,24 +844,26 @@ For each file you want to manage, create **three files**:
 
 ```
 container-configs/files/
-├── bashrc           # Content: PS1, aliases, exports
-├── bashrc.path      # Target: /home/coder
-└── bashrc.policy    # Policy: default
+├── .bashrc          # Content: PS1, aliases, exports
+├── .bashrc.path     # Target: /home/coder
+└── .bashrc.policy   # Policy: default
 ```
 
-**Content of `bashrc.path`**:
+**Content of `.bashrc.path`**:
 
 ```
 /home/coder
 ```
 
-**Content of `bashrc.policy`**:
+**Content of `.bashrc.policy`**:
 
 ```
 default
 ```
 
-**Result**: File deploys to `/home/coder/.bashrc` (leading dot auto-added if basename starts with a letter).
+**Result**: File deploys to `/home/coder/.bashrc`.
+
+**Important**: The deployed filename matches the source filename exactly (no automatic renaming or dot-prefixing). To deploy a dotfile like `.bashrc`, name the source file `.bashrc` in your repository.
 
 ### Policies
 

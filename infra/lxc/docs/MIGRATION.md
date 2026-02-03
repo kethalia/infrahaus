@@ -953,7 +953,7 @@ bash -c "$(curl -fsSL https://...)"
 
 # SSH into container
 ssh coder@lxc-ip
-````
+```
 
 ## Troubleshooting
 
@@ -990,7 +990,7 @@ git add .
 git commit -m "Add missing package: <package-name>"
 git push
 systemctl restart config-manager
-````
+```
 
 ### Issue: Dotfiles Not Applied
 

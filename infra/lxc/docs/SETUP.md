@@ -236,7 +236,7 @@ When a container created from a template starts for the first time:
 3. **Ensure git is installed** — Auto-installs git if missing (using apt/dnf/apk)
 4. **Ensure helper scripts available** — Auto-downloads helper scripts if missing
 5. **Initial git clone** — Downloads your configuration repository to `/opt/config-manager/repo`
-6. **No snapshot created** — First run skips snapshot (nothing to backup yet)
+6. **Pre-sync snapshot attempt** — A pre-sync snapshot is attempted on every run; when no snapshot backend is detected, config-manager falls back to file-level backup
 7. **Script execution** — Runs all `*.sh` files in `container-configs/scripts/` in alphabetical order
    - `00-pre-checks.sh` — Validates environment
    - `01-setup-user.sh` — Creates `coder` user with UID 1000
@@ -247,9 +247,10 @@ When a container created from a template starts for the first time:
    - `50-vscode-server.sh` — Installs VS Code Server
    - `99-post-setup.sh` — Final cleanup and verification
 8. **File processing** — Deploys configuration files to target locations
-   - `.bashrc` → `/home/coder/.bashrc`
-   - `aliases.sh` → `/home/coder/.bash_aliases`
-   - `.gitconfig` → `/home/coder/.gitconfig`
+   - The deployed filename matches the source filename exactly (no automatic renaming)
+   - `.bashrc` (in repo) → `/home/coder/.bashrc`
+   - `.bash_aliases` (in repo) → `/home/coder/.bash_aliases`
+   - `.gitconfig` (in repo) → `/home/coder/.gitconfig`
 9. **Package installation** — Installs packages from `container-configs/packages/`
 10. **Snapshot tagging** — First successful sync is marked as `:good`
 11. **Service completion** — Container is ready to use
@@ -302,7 +303,8 @@ After first boot completes:
 ```bash
 # 1. Check service status
 systemctl status config-manager
-# Should show: Active: active (exited) and "Succeeded"
+# Should show: Active: inactive (dead) with exit code 0/SUCCESS
+# (Type=oneshot with RemainAfterExit=no means "inactive" after successful completion)
 
 # 2. Verify user creation
 id coder

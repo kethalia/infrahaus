@@ -1048,18 +1048,32 @@ ls -la ~/.bashrc
 
 #### Cause
 
-Process-files.sh should set ownership to match parent directory, but it's not working.
+Ownership mismatches usually indicate a configuration or environment issue rather than a bug in `process-files.sh`.
+
+Common causes include:
+
+- The target directory is owned by `root` (or another user), so the deployed file is correctly `chown`ed to that owner
+- The `.path` unit or target path is not what you expect (e.g., pointing to `/root` instead of your home directory)
+- Manual edits or previous deployments left files with unexpected ownership
 
 #### Diagnosis
 
 ```bash
-# Check parent directory ownership
+# 1. Check parent directory ownership
 ls -lad ~
 # drwxr-xr-x 10 coder coder 4096 Feb  3 14:30 /home/coder
 
-# Check deployed file ownership
+# 2. Check deployed file ownership
 ls -la ~/.bashrc
-# Should match parent (coder:coder), but shows root:root
+# If shows root:root but parent is coder:coder, investigate further
+
+# 3. Verify .path file points to correct location
+cat /opt/config-manager/repo/<CONFIG_PATH>/files/.bashrc.path
+# Should show /home/coder, not /root
+
+# 4. Check if target directory has correct owner
+stat -c '%U:%G' /home/coder
+# Should show coder:coder
 ```
 
 #### Solutions
@@ -1075,9 +1089,9 @@ ls -la ~/.bashrc
 # -rw-r--r-- 1 coder coder 220 Feb  3 14:30 .bashrc
 ```
 
-**Solution 5.2B: Fix in Config-Manager**
+**Solution 5.2B: Add Post-Processing Script**
 
-This is a bug in process-files.sh. Report it and apply workaround:
+If ownership issues persist across multiple files, add a script to fix ownership after file deployment:
 
 ```bash
 # Add post-processing script
@@ -1085,9 +1099,9 @@ cat > container-configs/scripts/98-fix-ownership.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Fix ownership for user home directory
+# Fix ownership for user home directory after file deployment
 if [[ -n "${CONTAINER_USER:-}" ]]; then
-    sudo chown -R "$CONTAINER_USER:$CONTAINER_USER" "/home/$CONTAINER_USER" || true
+    chown -R "$CONTAINER_USER:$CONTAINER_USER" "/home/$CONTAINER_USER" || true
     log_info "Fixed ownership for /home/$CONTAINER_USER"
 fi
 EOF
@@ -1098,6 +1112,8 @@ git push
 
 sudo systemctl restart config-manager
 ```
+
+**Note**: This workaround is only needed if the `.path` file or target directory configuration is causing systematic ownership issues.
 
 ---
 
@@ -1116,16 +1132,18 @@ But you haven't edited the file manually.
 
 #### Causes
 
-- Timestamp changed but content is identical
 - Newline differences (LF vs CRLF)
-- Whitespace differences
+- Whitespace differences (tabs vs spaces, trailing whitespace)
+- Encoding differences (UTF-8 vs ISO-8859-1)
 
 #### Diagnosis
 
 ```bash
 # Check actual file differences
 cd /opt/config-manager/repo
-git diff <CONFIG_PATH>/files/bashrc /home/coder/.bashrc
+git diff --no-index <CONFIG_PATH>/files/.bashrc /home/coder/.bashrc
+# Or use regular diff:
+# diff <CONFIG_PATH>/files/.bashrc /home/coder/.bashrc
 
 # Check checksums
 sha256sum <CONFIG_PATH>/files/bashrc
