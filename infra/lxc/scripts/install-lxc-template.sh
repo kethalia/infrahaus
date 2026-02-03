@@ -20,10 +20,15 @@ setting_up_container
 network_check
 update_os
 
-# Configuration (can be overridden via environment variables)
+# Configuration (must be provided via environment variables by container.sh)
 REPO_URL="${REPO_URL:-https://github.com/kethalia/pve-home-lab.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
-CONFIG_PATH="${CONFIG_PATH:-infra/lxc/templates/web3-dev/container-configs}"
+
+# CONFIG_PATH must be set by the calling container.sh script
+if [[ -z "${CONFIG_PATH}" ]]; then
+  msg_error "CONFIG_PATH environment variable is required but not set"
+  exit 1
+fi
 
 msg_info "Installing config-manager service"
 INSTALL_SCRIPT="$(mktemp -t install-config-manager.XXXXXX.sh)"

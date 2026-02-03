@@ -9,12 +9,15 @@ This template is completely self-contained:
 ```
 web3-dev/
 ├── container.sh          # ProxmoxVE container creation script
-├── install.sh            # Installation script (runs inside container)
+├── template.conf         # Template metadata and defaults
 ├── README.md             # This documentation
 └── container-configs/    # Web3-specific configuration
     ├── packages/         # Package lists (Docker, Node.js, Web3 tools)
     ├── scripts/          # Boot-time scripts
     └── files/            # Managed configuration files
+
+Note: install.sh is now shared across all templates at:
+      infra/lxc/scripts/install-lxc-template.sh
 ```
 
 ## Quick Start
@@ -72,12 +75,14 @@ var_keyctl=<0|1>             # Enable keyctl (default: 1)
 var_fuse=<0|1>               # Enable FUSE (default: 1)
 ```
 
-#### Configuration Management (`install.sh`)
+#### Configuration Management
 
 ```bash
 REPO_URL=<git-url>           # Configuration repository (default: this repo)
 REPO_BRANCH=<branch>         # Repository branch (default: main)
-CONFIG_PATH=<path>           # Config path in repo (default: infra/lxc/templates/web3-dev/container-configs)
+
+# Note: CONFIG_PATH is automatically set by template.conf
+# and points to this template's container-configs directory
 ```
 
 **Note:** This template includes its own `container-configs/` directory with web3-specific packages. You can customize this template's packages or point to a different config path entirely.
@@ -236,29 +241,47 @@ systemctl restart config-manager
 
 ## Creating Custom Templates
 
-This template can be customized for different use cases:
+Templates use a **shared generic installer** with template-specific configuration. Creating new templates is simple:
 
-### Option 1: Fork and Modify
+### Template Architecture
 
-1. Fork this repository
-2. Modify `container.sh` for different resources/tags
-3. Modify `install.sh` for different base packages
-4. Update `REPO_URL` to point to your fork
-5. Customize `container-configs/` with your packages
+```
+templates/my-template/
+├── container.sh          # Sources template.conf, uses shared installer
+├── template.conf         # Template metadata (APP name, tags, defaults)
+└── container-configs/    # Template-specific configuration
+    ├── packages/         # Your package lists
+    ├── scripts/          # Your boot scripts
+    └── files/            # Your config files
 
-### Option 2: Create New Template
+Shared across all templates:
+└── scripts/install-lxc-template.sh  # Generic installer (DRY principle)
+```
+
+### Creating a New Template
 
 ```bash
-# Copy entire template directory (completely self-contained)
+# 1. Copy entire template directory
 cp -r infra/lxc/templates/web3-dev infra/lxc/templates/my-template
 
-# Customize for your needs:
-# 1. Edit container.sh: Change APP name, resources, tags
-# 2. Edit install.sh: Modify base packages, user setup
-# 3. Edit container-configs/packages/: Replace web3 packages with yours
-# 4. Update README.md: Document your template
+# 2. Edit template.conf (metadata only)
+vim infra/lxc/templates/my-template/template.conf
+# Change: TEMPLATE_APP, TEMPLATE_TAGS, TEMPLATE_CONFIG_PATH
+# Adjust: TEMPLATE_CPU, TEMPLATE_RAM, etc.
 
-# Each template is self-contained with its own container-configs/
+# 3. Update container.sh (usually just the script URL)
+vim infra/lxc/templates/my-template/container.sh
+# Only if you want to change the deployment URL in comments
+
+# 4. Customize container-configs/ (your packages and scripts)
+cd infra/lxc/templates/my-template/container-configs/packages/
+# Remove web3 packages, add your packages
+# Update scripts/ and files/ as needed
+
+# 5. Update README.md
+# Document your template
+
+# That's it! install.sh is shared, container.sh is generic
 ```
 
 ### Example: Python Data Science Template
@@ -267,23 +290,36 @@ cp -r infra/lxc/templates/web3-dev infra/lxc/templates/my-template
 # 1. Copy web3-dev template
 cp -r infra/lxc/templates/web3-dev infra/lxc/templates/datascience
 
-# 2. Edit container.sh
-APP="Data Science Container"
-var_tags="${var_tags:-python;datascience;jupyter;ml}"
-var_cpu="${var_cpu:-8}"
-var_ram="${var_ram:-16384}"
+# 2. Edit template.conf
+cat > infra/lxc/templates/datascience/template.conf << 'EOF'
+#!/usr/bin/env bash
+TEMPLATE_APP="Data Science Container"
+TEMPLATE_TAGS="python;datascience;jupyter;ml"
+TEMPLATE_DESCRIPTION="Python data science environment with Jupyter"
+TEMPLATE_CONFIG_PATH="infra/lxc/templates/datascience/container-configs"
+TEMPLATE_CPU="${TEMPLATE_CPU:-8}"
+TEMPLATE_RAM="${TEMPLATE_RAM:-16384}"
+TEMPLATE_DISK="${TEMPLATE_DISK:-30}"
+TEMPLATE_OS="${TEMPLATE_OS:-ubuntu}"
+TEMPLATE_VERSION="${TEMPLATE_VERSION:-24.04}"
+TEMPLATE_PRIVILEGED="${TEMPLATE_PRIVILEGED:-1}"  # Unprivileged
+TEMPLATE_NESTING="${TEMPLATE_NESTING:-0}"
+TEMPLATE_KEYCTL="${TEMPLATE_KEYCTL:-0}"
+TEMPLATE_FUSE="${TEMPLATE_FUSE:-0}"
+EOF
 
-# 3. Edit install.sh
-CONFIG_PATH="${CONFIG_PATH:-infra/lxc/templates/datascience/container-configs}"
+# 3. Replace packages in datascience/container-configs/packages/
+cd infra/lxc/templates/datascience/container-configs/packages/
+rm -f {cli,node,web3,web-tools}.custom
+echo "python3 python3-pip python3-venv jupyter-notebook" > python.apt
+cat > ml.custom << 'EOF'
+#!/bin/bash
+pip3 install pandas numpy matplotlib scikit-learn tensorflow
+EOF
+chmod +x ml.custom
 
-# 4. Replace packages in datascience/container-configs/packages/
-rm -f container-configs/packages/{cli,node,web3}.custom
-echo "python3 python3-pip python3-venv" > container-configs/packages/python.apt
-echo "#!/bin/bash
-pip3 install jupyter pandas numpy matplotlib scikit-learn tensorflow" > container-configs/packages/ml.custom
-chmod +x container-configs/packages/ml.custom
-
-# Each template is completely independent with its own packages!
+# Done! container.sh automatically uses the shared installer
+# Each template is completely independent!
 ```
 
 ## Architecture Benefits

@@ -10,18 +10,38 @@ source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxV
 # License: MIT | https://github.com/kethalia/pve-home-lab/raw/main/LICENSE
 # Source: https://github.com/kethalia/pve-home-lab
 
-APP="Web3 Dev Container"
-var_tags="${var_tags:-web3;development;nodejs;docker}"
-var_cpu="${var_cpu:-4}"
-var_ram="${var_ram:-8192}"
-var_disk="${var_disk:-20}"
-var_os="${var_os:-ubuntu}"
-var_version="${var_version:-24.04}"
-var_unprivileged="${var_unprivileged:-0}"  # Privileged for Docker-in-Docker
-var_install="${var_install:-https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/install.sh}"
-var_nesting="${var_nesting:-1}"
-var_keyctl="${var_keyctl:-1}"
-var_fuse="${var_fuse:-1}"
+# Source template configuration
+# Works both when run locally and via curl from ProxmoxVE
+if [[ -f "$(dirname "${BASH_SOURCE[0]}")/template.conf" ]]; then
+  # Local execution
+  source "$(dirname "${BASH_SOURCE[0]}")/template.conf"
+else
+  # Remote execution via curl
+  source <(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/template.conf)
+fi
+
+# Template metadata
+APP="${TEMPLATE_APP}"
+var_tags="${var_tags:-${TEMPLATE_TAGS}}"
+
+# Container resources (user can override via var_* environment variables)
+var_cpu="${var_cpu:-${TEMPLATE_CPU}}"
+var_ram="${var_ram:-${TEMPLATE_RAM}}"
+var_disk="${var_disk:-${TEMPLATE_DISK}}"
+var_os="${var_os:-${TEMPLATE_OS}}"
+var_version="${var_version:-${TEMPLATE_VERSION}}"
+
+# Container features
+var_unprivileged="${var_unprivileged:-${TEMPLATE_PRIVILEGED}}"
+var_nesting="${var_nesting:-${TEMPLATE_NESTING}}"
+var_keyctl="${var_keyctl:-${TEMPLATE_KEYCTL}}"
+var_fuse="${var_fuse:-${TEMPLATE_FUSE}}"
+
+# Use shared generic installer
+var_install="${var_install:-https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/scripts/install-lxc-template.sh}"
+
+# Export CONFIG_PATH for installer
+export CONFIG_PATH="${TEMPLATE_CONFIG_PATH}"
 
 header_info "$APP"
 variables
