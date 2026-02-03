@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1090,SC2034,SC2154
+# SC1090: Dynamic sourcing required for ProxmoxVE framework
+# SC2034: ProxmoxVE framework variables used externally
+# SC2154: ProxmoxVE framework provides these variables
+
 source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func)
 # Copyright (c) 2026 kethalia
 # Author: kethalia

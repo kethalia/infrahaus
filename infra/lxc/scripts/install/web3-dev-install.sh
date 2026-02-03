@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1090,SC2034,SC2154
+# SC1090: Dynamic sourcing required for ProxmoxVE framework
+# SC2034: ProxmoxVE framework variables used externally
+# SC2154: ProxmoxVE framework provides these variables
 
 # Copyright (c) 2026 kethalia  
 # Author: kethalia
@@ -12,6 +16,11 @@ catch_errors
 setting_up_container
 network_check
 update_os
+
+# Configuration (can be overridden via environment variables)
+REPO_URL="${REPO_URL:-https://github.com/kethalia/pve-home-lab.git}"
+REPO_BRANCH="${REPO_BRANCH:-main}"
+CONFIG_PATH="${CONFIG_PATH:-infra/lxc/container-configs}"
 
 msg_info "Installing base system packages"
 $STD apt-get install -y \
@@ -28,50 +37,123 @@ $STD apt-get install -y \
 msg_ok "Installed base system packages"
 
 msg_info "Creating coder user (UID 1000)"
-useradd -m -u 1000 -s /bin/bash -G sudo coder
-echo "coder ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder
-chmod 0440 /etc/sudoers.d/coder
+if ! useradd -m -u 1000 -s /bin/bash -G sudo coder; then
+  msg_error "Failed to create coder user"
+  exit 1
+fi
+
+# Configure sudo access via group membership (more secure than NOPASSWD:ALL)
+# The user is already in the sudo group, which requires password by default
+# For development containers, we enable NOPASSWD for common operations
+cat > /etc/sudoers.d/coder <<'EOF'
+# Allow coder user passwordless sudo for development operations
+coder ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/docker, /usr/bin/git, /usr/local/bin/config-sync.sh, /usr/local/bin/config-rollback
+# Allow full sudo with password for other operations
+coder ALL=(ALL:ALL) ALL
+EOF
+
+if ! chmod 0440 /etc/sudoers.d/coder; then
+  msg_error "Failed to set permissions on sudoers file"
+  exit 1
+fi
+
+# Validate sudoers file syntax
+if ! visudo -c -f /etc/sudoers.d/coder; then
+  msg_error "Invalid sudoers configuration"
+  rm -f /etc/sudoers.d/coder
+  exit 1
+fi
+
 msg_ok "Created coder user"
 
 msg_info "Installing Starship prompt"
-$STD curl -sS https://starship.rs/install.sh | sh -s -- --yes
+# Download installer to temporary file for security
+STARSHIP_INSTALLER="$(mktemp -t starship-installer.XXXXXX.sh)"
+
+if ! curl -fsSL --max-time 30 -A "ProxmoxVE-Script/1.0" \
+    "https://starship.rs/install.sh" -o "${STARSHIP_INSTALLER}"; then
+  msg_error "Failed to download Starship installer"
+  rm -f "${STARSHIP_INSTALLER}"
+  exit 1
+fi
+
+# Execute installer
+if ! sh "${STARSHIP_INSTALLER}" --yes; then
+  msg_error "Starship installation failed"
+  rm -f "${STARSHIP_INSTALLER}"
+  exit 1
+fi
+
+rm -f "${STARSHIP_INSTALLER}"
+
 # Configure for coder user
-sudo -u coder bash -c 'echo "eval \"\$(starship init bash)\"" >> ~/.bashrc'
+if ! sudo -u coder bash -c 'echo "eval \"\$(starship init bash)\"" >> ~/.bashrc'; then
+  msg_warn "Failed to configure Starship for coder user"
+fi
+
 # Configure for root user as well
-echo 'eval "$(starship init bash)"' >> /root/.bashrc
+if ! echo 'eval "$(starship init bash)"' >> /root/.bashrc; then
+  msg_warn "Failed to configure Starship for root user"
+fi
+
 msg_ok "Installed Starship prompt"
 
 msg_info "Installing config-manager service"
 # Determine the path to the install script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_SCRIPT="/tmp/install-config-manager.sh"
+INSTALL_SCRIPT="$(mktemp -t install-config-manager.XXXXXX.sh)"
 
 # Copy from local repository if available, otherwise download
 if [[ -f "${SCRIPT_DIR}/../config-manager/install-config-manager.sh" ]]; then
   msg_info "Using local config-manager installer"
-  cp "${SCRIPT_DIR}/../config-manager/install-config-manager.sh" "$INSTALL_SCRIPT"
+  if ! cp "${SCRIPT_DIR}/../config-manager/install-config-manager.sh" "${INSTALL_SCRIPT}"; then
+    msg_error "Failed to copy local config-manager installer"
+    rm -f "${INSTALL_SCRIPT}"
+    exit 1
+  fi
 else
   msg_info "Downloading config-manager installer"
-  $STD curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/scripts/config-manager/install-config-manager.sh \
-    -o "$INSTALL_SCRIPT"
+  if ! curl -fsSL --max-time 60 -A "ProxmoxVE-Script/1.0" \
+      "https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/scripts/config-manager/install-config-manager.sh" \
+      -o "${INSTALL_SCRIPT}"; then
+    msg_error "Failed to download config-manager installer"
+    rm -f "${INSTALL_SCRIPT}"
+    exit 1
+  fi
 fi
 
-chmod +x "$INSTALL_SCRIPT"
+if ! chmod +x "${INSTALL_SCRIPT}"; then
+  msg_error "Failed to make installer executable"
+  rm -f "${INSTALL_SCRIPT}"
+  exit 1
+fi
 
 # Install and run config-manager with the pve-home-lab repository
-$STD bash "$INSTALL_SCRIPT" \
-  --repo-url "https://github.com/kethalia/pve-home-lab.git" \
-  --branch "main" \
-  --config-path "infra/lxc/container-configs" \
-  --run
+if ! bash "${INSTALL_SCRIPT}" \
+  --repo-url "${REPO_URL}" \
+  --branch "${REPO_BRANCH}" \
+  --config-path "${CONFIG_PATH}" \
+  --run; then
+  msg_error "Config-manager installation failed"
+  rm -f "${INSTALL_SCRIPT}"
+  exit 1
+fi
 
-rm -f "$INSTALL_SCRIPT"
+rm -f "${INSTALL_SCRIPT}"
 msg_ok "Installed config-manager service"
 
 msg_info "Ensuring coder user permissions"
 # Add coder to docker group (if docker gets installed by config-manager)
 # This is idempotent - the group may not exist yet
-usermod -aG docker coder 2>/dev/null || true
+if getent group docker >/dev/null 2>&1; then
+  if usermod -aG docker coder; then
+    msg_info "Added coder to docker group"
+  else
+    msg_warn "Failed to add coder to docker group"
+  fi
+else
+  msg_info "Docker group not found yet - will be added post-installation by config-manager"
+fi
 msg_ok "Updated coder user permissions"
 
 # ProxmoxVE standard finalizations
