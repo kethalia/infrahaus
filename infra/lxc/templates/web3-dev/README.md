@@ -4,9 +4,18 @@ This template provides a complete ProxmoxVE LXC container setup for Web3 develop
 
 ## Template Contents
 
-- **`container.sh`** - Main ProxmoxVE container creation script
-- **`install.sh`** - Installation script that runs inside the container
-- **`README.md`** - This documentation
+This template is completely self-contained:
+
+```
+web3-dev/
+├── container.sh          # ProxmoxVE container creation script
+├── install.sh            # Installation script (runs inside container)
+├── README.md             # This documentation
+└── container-configs/    # Web3-specific configuration
+    ├── packages/         # Package lists (Docker, Node.js, Web3 tools)
+    ├── scripts/          # Boot-time scripts
+    └── files/            # Managed configuration files
+```
 
 ## Quick Start
 
@@ -64,8 +73,10 @@ var_fuse=<0|1>               # Enable FUSE (default: 1)
 ```bash
 REPO_URL=<git-url>           # Configuration repository (default: this repo)
 REPO_BRANCH=<branch>         # Repository branch (default: main)
-CONFIG_PATH=<path>           # Config path in repo (default: infra/lxc/container-configs)
+CONFIG_PATH=<path>           # Config path in repo (default: infra/lxc/templates/web3-dev/container-configs)
 ```
+
+**Note:** This template includes its own `container-configs/` directory with web3-specific packages. You can customize this template's packages or point to a different config path entirely.
 
 ## What Gets Installed
 
@@ -98,8 +109,10 @@ The container uses a git-based configuration management system that:
 
 ### Configuration Structure
 
+This template includes its own configuration in `container-configs/`:
+
 ```
-infra/lxc/container-configs/
+web3-dev/container-configs/
 ├── packages/           # Package installation lists
 │   ├── cli.custom     # Custom CLI tools (gh, act)
 │   ├── node.custom    # Node.js ecosystem (npm, pnpm)
@@ -107,6 +120,8 @@ infra/lxc/container-configs/
 ├── scripts/           # Boot-time scripts (run alphabetically)
 └── files/             # Managed configuration files
 ```
+
+**Self-Contained:** All web3-specific packages are defined within this template, making it easy to customize or fork.
 
 ### Manual Configuration Management
 
@@ -184,31 +199,41 @@ This template can be customized for different use cases:
 ### Option 2: Create New Template
 
 ```bash
-# Copy template directory
+# Copy entire template directory (completely self-contained)
 cp -r infra/lxc/templates/web3-dev infra/lxc/templates/my-template
 
-# Customize for your needs
-# - Edit container.sh: Change APP name, resources, tags
-# - Edit install.sh: Modify base packages, user setup
-# - Point to different container-configs path
+# Customize for your needs:
+# 1. Edit container.sh: Change APP name, resources, tags
+# 2. Edit install.sh: Modify base packages, user setup
+# 3. Edit container-configs/packages/: Replace web3 packages with yours
+# 4. Update README.md: Document your template
+
+# Each template is self-contained with its own container-configs/
 ```
 
 ### Example: Python Data Science Template
 
 ```bash
-# container.sh changes
+# 1. Copy web3-dev template
+cp -r infra/lxc/templates/web3-dev infra/lxc/templates/datascience
+
+# 2. Edit container.sh
 APP="Data Science Container"
 var_tags="${var_tags:-python;datascience;jupyter;ml}"
 var_cpu="${var_cpu:-8}"
 var_ram="${var_ram:-16384}"
 
-# install.sh changes
-CONFIG_PATH="${CONFIG_PATH:-infra/lxc/container-configs-datascience}"
+# 3. Edit install.sh
+CONFIG_PATH="${CONFIG_PATH:-infra/lxc/templates/datascience/container-configs}"
 
-# Create custom packages in container-configs-datascience/packages/
-# - python.custom: python3, pip, venv
-# - ml.custom: tensorflow, pytorch, jupyter
-# - data.custom: pandas, numpy, matplotlib
+# 4. Replace packages in datascience/container-configs/packages/
+rm -f container-configs/packages/{cli,node,web3}.custom
+echo "python3 python3-pip python3-venv" > container-configs/packages/python.apt
+echo "#!/bin/bash
+pip3 install jupyter pandas numpy matplotlib scikit-learn tensorflow" > container-configs/packages/ml.custom
+chmod +x container-configs/packages/ml.custom
+
+# Each template is completely independent with its own packages!
 ```
 
 ## Architecture Benefits

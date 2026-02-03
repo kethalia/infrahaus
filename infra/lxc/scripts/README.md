@@ -8,21 +8,29 @@ This directory contains the configuration management system and supporting scrip
 infra/lxc/
 ├── scripts/
 │   ├── README.md                    # This file
-│   └── config-manager/              # Configuration management system
+│   └── config-manager/              # Shared configuration management system
 │       ├── install-config-manager.sh
 │       ├── config-sync.sh
 │       ├── config-rollback
 │       └── ...
-├── templates/
+│
+├── templates/                       # Self-contained container templates
 │   └── web3-dev/                    # Web3 development template
 │       ├── container.sh             # ProxmoxVE creation script
 │       ├── install.sh               # Container setup script
-│       └── README.md                # Template documentation
-└── container-configs/               # Git-synced configuration
-    ├── packages/                    # Package installation lists
-    ├── scripts/                     # Boot-time scripts
-    └── files/                       # Managed configuration files
+│       ├── README.md                # Template documentation
+│       └── container-configs/       # Web3-specific configuration
+│           ├── packages/            # Docker, Node.js, Web3 tools
+│           ├── scripts/             # Boot-time scripts
+│           └── files/               # Config files
+│
+└── container-configs/               # Shared/default configuration (fallback)
+    ├── packages/                    # Default package lists
+    ├── scripts/                     # Default scripts
+    └── files/                       # Default files
 ```
+
+**Key Point:** Each template is **self-contained** with its own `container-configs/` directory. The global `container-configs/` serves as a fallback or shared resource.
 
 ## Configuration Management System
 

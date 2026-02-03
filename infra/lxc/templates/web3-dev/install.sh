@@ -20,7 +20,7 @@ update_os
 # Configuration (can be overridden via environment variables)
 REPO_URL="${REPO_URL:-https://github.com/kethalia/pve-home-lab.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
-CONFIG_PATH="${CONFIG_PATH:-infra/lxc/container-configs}"
+CONFIG_PATH="${CONFIG_PATH:-infra/lxc/templates/web3-dev/container-configs}"
 
 msg_info "Installing base system packages"
 $STD apt-get install -y \
