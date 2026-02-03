@@ -42,9 +42,9 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/ma
 - Container automatically syncs configuration on every boot
 - Manual updates can be triggered via `update_script()` function
 
-### `install/web3-dev-install.sh` - Container Installation Script
+### `../templates/web3-dev-install.sh` - Container Installation Template
 
-The installation script that runs inside the LXC container during initial setup.
+The installation template that runs inside the LXC container during initial setup. Located in `infra/lxc/templates/` for reusability and customization.
 
 **What it installs:**
 
@@ -194,16 +194,21 @@ systemctl restart config-manager
 ## Directory Structure
 
 ```
-infra/lxc/scripts/
-├── README.md                           # This documentation
-├── web3-dev-container.sh               # Main ProxmoxVE script
-├── install/
-│   └── web3-dev-install.sh             # Container installation script
-└── config-manager/                     # Configuration management system
-    ├── install-config-manager.sh       # Service installer
-    ├── config-sync.sh                  # Main sync script
-    ├── config-manager.service          # Systemd service
-    └── ...                             # Other config-manager components
+infra/lxc/
+├── scripts/
+│   ├── README.md                       # This documentation
+│   ├── web3-dev-container.sh           # Main ProxmoxVE script
+│   └── config-manager/                 # Configuration management system
+│       ├── install-config-manager.sh   # Service installer
+│       ├── config-sync.sh              # Main sync script
+│       ├── config-manager.service      # Systemd service
+│       └── ...                         # Other config-manager components
+├── templates/
+│   └── web3-dev-install.sh             # Container installation template
+└── container-configs/                  # Git-synced configuration
+    ├── packages/                       # Package installation lists
+    ├── scripts/                        # Boot-time scripts
+    └── files/                          # Managed configuration files
 ```
 
 ## Requirements
