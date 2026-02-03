@@ -2,6 +2,7 @@
   "pages": [
     "index",
     "getting-started",
+    "infrastructure",
     "ai",
     "development",
     "deployment",

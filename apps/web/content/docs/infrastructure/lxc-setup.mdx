@@ -1,0 +1,165 @@
+---
+title: LXC Setup
+description: Installation, quick start, and template customization for LXC containers with git-based configuration management.
+---
+
+## Overview
+
+The LXC template system provides a declarative, git-based approach to creating and managing ProxmoxVE LXC containers. Each template is completely self-contained and includes automated container provisioning, configuration management, and pre-configured packages.
+
+### Why Use LXC Templates?
+
+- **Infrastructure as Code**: Everything defined in git, version-controlled and auditable
+- **Reproducibility**: Create identical environments on-demand
+- **Resource Efficiency**: LXC containers are lighter than VMs (10-20% overhead vs 100%+)
+- **Automatic Updates**: Config-manager syncs your setup from git on every boot
+- **Snapshot/Rollback**: Built-in backup system with automatic pre-sync snapshots
+
+## Quick Start
+
+### One-Command Deployment
+
+From your ProxmoxVE host shell:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/container.sh)"
+```
+
+**Duration**: 5-10 minutes
+
+### Custom Configuration
+
+```bash
+# Custom resources: 2 CPU, 4GB RAM, 30GB disk
+var_cpu=2 var_ram=4096 var_disk=30 \
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/container.sh)"
+
+# Custom repository and branch
+REPO_URL="https://github.com/yourusername/your-fork.git" \
+REPO_BRANCH="develop" \
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/container.sh)"
+```
+
+## Resource Requirements
+
+| Specification | Minimum | Recommended           | High-Performance |
+| ------------- | ------- | --------------------- | ---------------- |
+| **CPU**       | 2 cores | 4 cores               | 8+ cores         |
+| **RAM**       | 2 GB    | 8 GB                  | 16+ GB           |
+| **Disk**      | 10 GB   | 20 GB                 | 50+ GB           |
+| **Network**   | DHCP    | Static IP/reservation | Dedicated VLAN   |
+
+## Installation
+
+### Prerequisites
+
+- ProxmoxVE 7.0+ installed and accessible
+- Root or sudo access to ProxmoxVE host
+- Internet connection
+- Available storage for container creation
+
+### Method 1: ProxmoxVE Pattern (Recommended)
+
+```bash
+# SSH into ProxmoxVE host
+ssh root@proxmox-host
+
+# Run template script
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/container.sh)"
+```
+
+### Method 2: Manual Installation
+
+```bash
+# Clone repository
+git clone https://github.com/kethalia/pve-home-lab.git
+cd pve-home-lab/infra/lxc/templates/web3-dev
+
+# Review template.conf (optional)
+cat template.conf
+
+# Run installation
+bash container.sh
+```
+
+## First Boot
+
+### What Happens
+
+1. Systemd starts config-manager.service
+2. Git clone downloads configuration repository
+3. Scripts execute (Docker, Node.js, tools installation)
+4. Files deployed (bashrc, gitconfig, aliases)
+5. Packages installed (apt, npm, custom installers)
+6. Snapshot created and tagged as `:good`
+
+**Duration**: First boot takes 5-15 minutes for package installation.
+
+### Watching Progress
+
+```bash
+# Enter container
+pct enter <container-id>
+
+# Watch logs in real-time
+journalctl -u config-manager -f
+```
+
+## Accessing Your Environment
+
+### SSH Access
+
+```bash
+# From ProxmoxVE host
+pct enter <container-id>
+
+# Or direct SSH (if openssh-server installed)
+ssh coder@<container-ip>
+```
+
+### Port Mappings
+
+| Port | Service        | Access                       |
+| ---- | -------------- | ---------------------------- |
+| 8080 | VS Code Server | `http://<container-ip>:8080` |
+| 8081 | FileBrowser    | `http://<container-ip>:8081` |
+| 8082 | OpenCode       | `http://<container-ip>:8082` |
+
+## Customization
+
+### Adjusting Resources
+
+```bash
+# Stop container
+pct stop <container-id>
+
+# Update resources
+pct set <container-id> -cores 6 -memory 12288 -rootfs local-lvm:30
+
+# Start container
+pct start <container-id>
+```
+
+### Using Your Own Repository
+
+```bash
+REPO_URL="https://github.com/yourusername/your-configs.git" \
+REPO_BRANCH="main" \
+  bash -c "$(curl -fsSL ...)"
+```
+
+### Creating Custom Templates
+
+See the [full setup documentation](https://github.com/kethalia/pve-home-lab/blob/main/infra/lxc/docs/SETUP.md#creating-custom-templates) for detailed instructions on creating your own templates.
+
+## Next Steps
+
+- **[LXC Configuration](/docs/infrastructure/lxc-configuration)** — Deep dive into config-manager features
+- **[LXC Migration](/docs/infrastructure/lxc-migration)** — Moving from other development setups
+- **[LXC Troubleshooting](/docs/infrastructure/lxc-troubleshooting)** — Common issues and solutions
+
+## Full Documentation
+
+For the complete setup guide including detailed examples, customization options, and advanced topics, see:
+
+**[infra/lxc/docs/SETUP.md](https://github.com/kethalia/pve-home-lab/blob/main/infra/lxc/docs/SETUP.md)**

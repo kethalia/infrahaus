@@ -1,0 +1,10 @@
+{
+  "title": "Infrastructure",
+  "pages": [
+    "index",
+    "lxc-setup",
+    "lxc-configuration",
+    "lxc-migration",
+    "lxc-troubleshooting"
+  ]
+}
