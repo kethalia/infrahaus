@@ -24,15 +24,15 @@ Only `*.sh` files are executed; all other files are ignored.
 
 Every script has access to the following exported variables:
 
-| Variable | Example | Description |
-|----------|---------|-------------|
-| `CONFIG_MANAGER_VERSION` | `0.3.0` | Config manager version |
-| `CONFIG_MANAGER_ROOT` | `/opt/config-manager/repo` | Path to cloned repository |
-| `CONFIG_MANAGER_LOG` | `/var/log/config-manager/sync.log` | Sync log path |
-| `CONFIG_MANAGER_FIRST_RUN` | `true` or `false` | Whether this is the first sync |
-| `CONTAINER_OS` | `ubuntu` | Detected OS (`ubuntu`, `debian`, `alpine`, `fedora`, ...) |
-| `CONTAINER_OS_VERSION` | `24.04` | Detected OS version |
-| `CONTAINER_USER` | `coder` | Primary non-root user |
+| Variable                   | Example                            | Description                                               |
+| -------------------------- | ---------------------------------- | --------------------------------------------------------- |
+| `CONFIG_MANAGER_VERSION`   | `0.3.0`                            | Config manager version                                    |
+| `CONFIG_MANAGER_ROOT`      | `/opt/config-manager/repo`         | Path to cloned repository                                 |
+| `CONFIG_MANAGER_LOG`       | `/var/log/config-manager/sync.log` | Sync log path                                             |
+| `CONFIG_MANAGER_FIRST_RUN` | `true` or `false`                  | Whether this is the first sync                            |
+| `CONTAINER_OS`             | `ubuntu`                           | Detected OS (`ubuntu`, `debian`, `alpine`, `fedora`, ...) |
+| `CONTAINER_OS_VERSION`     | `24.04`                            | Detected OS version                                       |
+| `CONTAINER_USER`           | `coder`                            | Primary non-root user                                     |
 
 ## Helper Functions
 

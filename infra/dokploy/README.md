@@ -24,7 +24,7 @@ For more information check [this documentation page](https://docs.dokploy.com/do
 There are some issues with the above setup in a LXC container, therefore we will setup a manual installation.
 
 ```shell
-mkdir /app 
+mkdir /app
 ```
 
 Copy the `docker-compose.yaml` and `install.sh` to the `/app` directory.
@@ -42,4 +42,3 @@ nano /app/install.sh
 ```shell
 (cd /app/ ; sh install.sh)
 ```
- 

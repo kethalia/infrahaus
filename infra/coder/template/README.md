@@ -5,6 +5,7 @@ A production-ready Coder template for modern Web3 and full-stack development. Fe
 ## Features
 
 ### Development Environment
+
 - **Docker** - Full Docker + Compose + act (run GitHub Actions locally)
 - **Node.js** - Multiple versions (18, 20, 22, 24) with PNPM
 - **Foundry** - Complete Ethereum development toolkit (forge, cast, anvil, chisel)
@@ -12,6 +13,7 @@ A production-ready Coder template for modern Web3 and full-stack development. Fe
 - **ZSH** - Oh My Zsh with Powerlevel10k and plugins
 
 ### VS Code Integration
+
 - 20 curated extensions including:
   - Solidity (Hardhat + language support)
   - Docker client
@@ -20,6 +22,7 @@ A production-ready Coder template for modern Web3 and full-stack development. Fe
   - Code spell checker & TODO highlights
 
 ### Performance & Reliability
+
 - **Fast startup** - 30-60 seconds after first boot (3-5 min initial)
 - **Resource limits** - Configurable memory and CPU
 - **Health checks** - Automatic container health monitoring
@@ -28,6 +31,7 @@ A production-ready Coder template for modern Web3 and full-stack development. Fe
 ## Quick Start
 
 ### Prerequisites
+
 - Coder v2.x deployed and running
 - Docker available on Coder host
 - Coder CLI installed (optional but recommended)
@@ -68,18 +72,19 @@ forge --version
 
 ### Core Technologies
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Docker | Latest | Container runtime + Compose |
-| Node.js | 18, 20, 22, 24 | JavaScript runtime |
-| PNPM | Latest | Fast package manager |
-| Foundry | Latest | Ethereum development |
-| Git | Latest | Version control |
-| ZSH | Latest | Shell with Oh My Zsh |
+| Tool    | Version        | Purpose                     |
+| ------- | -------------- | --------------------------- |
+| Docker  | Latest         | Container runtime + Compose |
+| Node.js | 18, 20, 22, 24 | JavaScript runtime          |
+| PNPM    | Latest         | Fast package manager        |
+| Foundry | Latest         | Ethereum development        |
+| Git     | Latest         | Version control             |
+| ZSH     | Latest         | Shell with Oh My Zsh        |
 
 ### Shell Aliases
 
 **Git**
+
 ```bash
 gs          # git status
 gco         # git checkout
@@ -89,6 +94,7 @@ git lg      # pretty log graph
 ```
 
 **General**
+
 ```bash
 d           # docker
 dc          # docker-compose
@@ -184,10 +190,12 @@ Add your dotfiles repository URL when creating the workspace. Your dotfiles repo
 ## Performance
 
 ### Startup Times
+
 - **First boot**: 3-5 minutes (one-time tool installation)
 - **Subsequent boots**: 30-60 seconds (services only)
 
 ### Resource Usage
+
 - **Image size**: ~3.6GB
 - **Idle workspace**: ~500MB RAM, <5% CPU
 - **Active development**: 2-4GB RAM, 10-50% CPU
@@ -220,6 +228,7 @@ act --version                # Should show act version
 This template mounts the Docker socket (`/var/run/docker.sock`) which provides full Docker functionality with native performance, but also means users can access the host Docker daemon.
 
 Recommendations:
+
 - Use in trusted development environments
 - Implement network isolation if needed
 - Consider Docker authorization plugins
@@ -228,6 +237,7 @@ Recommendations:
 ## Troubleshooting
 
 ### Docker not accessible
+
 ```bash
 ls -l /var/run/docker.sock
 groups | grep docker
@@ -235,6 +245,7 @@ docker info
 ```
 
 ### Tools not installing
+
 ```bash
 # Check network connectivity
 curl -I https://github.com
@@ -244,12 +255,15 @@ curl -I https://github.com
 ```
 
 ### Out of memory/CPU
+
 Adjust resource limits in `main.tf` and update the template:
+
 ```bash
 coder templates push web3-dev-workspace
 ```
 
 ## External Resources
+
 - [Coder Documentation](https://coder.com/docs)
 - [Terraform Coder Provider](https://registry.terraform.io/providers/coder/coder/latest/docs)
 - [Docker Documentation](https://docs.docker.com)

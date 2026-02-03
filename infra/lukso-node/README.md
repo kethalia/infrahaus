@@ -38,19 +38,20 @@ docker compose logs -f
 
 All configuration is in `.env`:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATA_DIR` | `/mnt/lukso-node` | Base path for all node data |
-| `GETH_VERSION` | `v1.16.1` | Geth Docker image tag |
-| `LIGHTHOUSE_VERSION` | `v7.0.1` | Lighthouse Docker image tag |
-| `GETH_MAX_PEERS` | `50` | Maximum Geth peers |
-| `LIGHTHOUSE_TARGET_PEERS` | `100` | Target Lighthouse peers |
-| `GRAFANA_PORT` | `3000` | Grafana web UI port |
-| `GRAFANA_ADMIN_PASSWORD` | - | **Required**: Set this! |
+| Variable                  | Default           | Description                 |
+| ------------------------- | ----------------- | --------------------------- |
+| `DATA_DIR`                | `/mnt/lukso-node` | Base path for all node data |
+| `GETH_VERSION`            | `v1.16.1`         | Geth Docker image tag       |
+| `LIGHTHOUSE_VERSION`      | `v7.0.1`          | Lighthouse Docker image tag |
+| `GETH_MAX_PEERS`          | `50`              | Maximum Geth peers          |
+| `LIGHTHOUSE_TARGET_PEERS` | `100`             | Target Lighthouse peers     |
+| `GRAFANA_PORT`            | `3000`            | Grafana web UI port         |
+| `GRAFANA_ADMIN_PASSWORD`  | -                 | **Required**: Set this!     |
 
 ## Directory Structure
 
 **Repository:**
+
 ```
 lukso-node/
 ├── configs/              # Network configuration (included)
@@ -65,6 +66,7 @@ lukso-node/
 ```
 
 **Data directory ($DATA_DIR):**
+
 ```
 /mnt/lukso-node/
 ├── geth/              # Execution client data
@@ -76,6 +78,7 @@ lukso-node/
 Network configuration files (genesis.json, config.yaml) are included in the `configs/` directory.
 
 The setup script automatically:
+
 - Downloads `genesis.ssz` from the official LUKSO repo
 - Generates a unique `jwt.hex` for client authentication
 
@@ -90,10 +93,12 @@ openssl rand -hex 32 | sudo tee /mnt/lukso-node/configs/jwt.hex
 Grafana is available at `http://localhost:3000` (or your configured port).
 
 Default credentials:
+
 - Username: `admin`
 - Password: (whatever you set in `GRAFANA_ADMIN_PASSWORD`)
 
 The **LUKSO Node** dashboard is auto-provisioned and includes:
+
 - Sync status and progress
 - Peer counts (Geth + Lighthouse)
 - Memory and disk usage
@@ -103,16 +108,16 @@ The **LUKSO Node** dashboard is auto-provisioned and includes:
 
 ## Endpoints
 
-| Service | Port | Description |
-|---------|------|-------------|
-| Geth HTTP RPC | 8545 | JSON-RPC API |
-| Geth WebSocket | 8546 | WebSocket API |
-| Geth GraphQL | 8547 | GraphQL API |
-| Geth P2P | 30303 | Peer discovery |
-| Lighthouse HTTP | 5052 | Beacon API (localhost only) |
-| Lighthouse P2P | 9000 | Peer discovery |
-| Grafana | 3000 | Monitoring UI |
-| Prometheus | 9090 | Metrics (localhost only) |
+| Service         | Port  | Description                 |
+| --------------- | ----- | --------------------------- |
+| Geth HTTP RPC   | 8545  | JSON-RPC API                |
+| Geth WebSocket  | 8546  | WebSocket API               |
+| Geth GraphQL    | 8547  | GraphQL API                 |
+| Geth P2P        | 30303 | Peer discovery              |
+| Lighthouse HTTP | 5052  | Beacon API (localhost only) |
+| Lighthouse P2P  | 9000  | Peer discovery              |
+| Grafana         | 3000  | Monitoring UI               |
+| Prometheus      | 9090  | Metrics (localhost only)    |
 
 ## Common Operations
 
