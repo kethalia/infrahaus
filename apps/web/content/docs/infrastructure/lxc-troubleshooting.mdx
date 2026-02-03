@@ -1,0 +1,535 @@
+---
+title: LXC Troubleshooting
+description: Common issues, diagnostic commands, and solutions for LXC containers and config-manager.
+---
+
+## Quick Diagnostics
+
+Before diving into specific issues, run these commands:
+
+```bash
+# Check service status
+systemctl status config-manager
+
+# View recent logs
+journalctl -u config-manager -n 50
+
+# Check for conflicts
+config-rollback status
+
+# List snapshots
+config-rollback list
+
+# Check configuration
+cat /etc/config-manager/config.env
+
+# Check disk space
+df -h /
+```
+
+## Common Issues
+
+## 1. Service Not Starting / Failing on Boot
+
+### Symptom
+
+```bash
+systemctl status config-manager
+# Active: failed (Result: exit-code)
+```
+
+### Causes
+
+- Configuration file missing or invalid (exit code 3)
+- Git repository unreachable (exit code 4)
+- Snapshot backend issues (exit code 3)
+- Stale lock file (exit code 2)
+
+### Diagnosis
+
+```bash
+# Check config file
+ls -la /etc/config-manager/config.env
+
+# Test git access
+cd /opt/config-manager/repo && git fetch
+
+# Check lock file
+ls -la /run/config-manager/config-manager.lock
+```
+
+### Solutions
+
+**Fix Missing Configuration**:
+
+```bash
+sudo tee /etc/config-manager/config.env <<EOF
+CONFIG_REPO_URL="https://github.com/kethalia/pve-home-lab.git"
+CONFIG_BRANCH="main"
+CONFIG_PATH="infra/lxc/templates/web3-dev/container-configs"
+SNAPSHOT_ENABLED="auto"
+EOF
+
+sudo systemctl restart config-manager
+```
+
+**Remove Stale Lock**:
+
+```bash
+sudo rm /run/config-manager/config-manager.lock
+sudo systemctl restart config-manager
+```
+
+---
+
+## 2. Git Sync Failures
+
+### Repository Not Found / Authentication Failed
+
+**Symptom**:
+
+```bash
+[ERROR] Git operation failed: fatal: repository not found
+```
+
+**Solutions**:
+
+```bash
+# Fix repository URL
+sudo vim /etc/config-manager/config.env
+# Correct: https://github.com/user/repo.git
+
+# Set up SSH authentication
+ssh-keygen -t ed25519 -C "config-manager@$(hostname)"
+cat ~/.ssh/id_ed25519.pub
+# Add to GitHub as deploy key
+
+# Update to SSH URL
+# CONFIG_REPO_URL="git@github.com:user/repo.git"
+
+# Remove old repo and retry
+sudo rm -rf /opt/config-manager/repo
+sudo systemctl restart config-manager
+```
+
+### Network Issues
+
+**Symptom**: Git clone/pull times out
+
+**Diagnosis**:
+
+```bash
+# Test DNS
+nslookup github.com
+
+# Test connectivity
+ping -c 3 github.com
+
+# Test HTTPS
+curl -I https://github.com
+```
+
+**Solutions**:
+
+```bash
+# Fix DNS
+echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+echo "nameserver 1.1.1.1" | sudo tee -a /etc/resolv.conf
+
+# Add network dependency
+sudo systemctl edit config-manager
+# Add:
+# [Unit]
+# After=network-online.target
+# Wants=network-online.target
+
+sudo systemctl daemon-reload
+```
+
+---
+
+## 3. Snapshot/Rollback Problems
+
+### Snapshot Creation Fails
+
+**Symptom**:
+
+```bash
+[WARNING] Snapshot creation failed: command not found: zfs
+[WARNING] Falling back to file-level snapshots
+```
+
+**Solutions**:
+
+```bash
+# Install backend utilities
+sudo apt-get install zfsutils-linux    # For ZFS
+sudo apt-get install lvm2               # For LVM
+sudo apt-get install btrfs-progs        # For BTRFS
+
+# Or force specific backend
+sudo vim /etc/config-manager/config.env
+# SNAPSHOT_BACKEND="zfs"  # or lvm, btrfs, none
+
+sudo systemctl restart config-manager
+```
+
+### Rollback Doesn't Restore Files
+
+**Symptom**: Files not restored after `config-rollback restore`
+
+**Solutions**:
+
+**File-level Manual Restore**:
+
+```bash
+SNAPSHOT="config-manager-20260203-143022"
+
+# Restore files
+sudo rsync -av /var/lib/config-manager/backups/$SNAPSHOT/files/ /
+
+# Restore state
+sudo rsync -av /var/lib/config-manager/backups/$SNAPSHOT/state/ /var/lib/config-manager/state/
+```
+
+**ZFS/LVM Requires Reboot**:
+
+```bash
+# For ZFS
+sudo zfs rollback tank/lxc/100@config-manager-20260203-143022
+
+# For LVM
+sudo lvconvert --merge /dev/vg0/config-manager-20260203-143022
+sudo reboot
+```
+
+---
+
+## 4. Package Installation Failures
+
+### Package Not Found
+
+**Symptom**:
+
+```bash
+[ERROR] E: Unable to locate package nodejs-24
+```
+
+**Solutions**:
+
+```bash
+# Search for correct name
+apt-cache search nodejs
+
+# Update package list
+vim container-configs/packages/base.apt
+# Change: nodejs-24 → nodejs
+
+git commit -am "Fix package name"
+git push
+sudo systemctl restart config-manager
+```
+
+### Custom Installer Timeout
+
+**Symptom**:
+
+```bash
+[ERROR] Custom installer 'foundry' timed out after 300 seconds
+```
+
+**Solutions**:
+
+```bash
+# Increase timeout
+vim container-configs/packages/cli.custom
+# Change: foundry|...|600  (10 minutes)
+
+git commit -am "Increase timeout"
+git push
+sudo systemctl restart config-manager
+```
+
+### Package Manager Locked
+
+**Symptom**:
+
+```bash
+[ERROR] Could not get lock /var/lib/dpkg/lock-frontend
+```
+
+**Solutions**:
+
+```bash
+# Wait for running process
+ps aux | grep -E 'apt|dpkg' | grep -v grep
+
+# Or kill stale locks (only if no apt process running)
+sudo rm /var/lib/dpkg/lock-frontend
+sudo rm /var/lib/dpkg/lock
+sudo dpkg --configure -a
+```
+
+---
+
+## 5. File Permission Issues
+
+### Target Not Writable
+
+**Symptom**:
+
+```bash
+[ERROR] Failed to deploy: Permission denied
+```
+
+**Solutions**:
+
+```bash
+# Check service runs as root
+grep User /etc/systemd/system/config-manager.service
+# Should NOT have User= line
+
+# Fix target permissions
+sudo chmod 755 /etc/nginx
+```
+
+### Ownership Mismatch
+
+**Symptom**: Files owned by root, user can't edit
+
+**Solutions**:
+
+```bash
+# Fix ownership
+sudo chown -R coder:coder /home/coder
+
+# Add post-processing script
+cat > container-configs/scripts/98-fix-ownership.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+sudo chown -R "$CONTAINER_USER:$CONTAINER_USER" "/home/$CONTAINER_USER" || true
+log_info "Fixed ownership"
+EOF
+
+git commit -am "Add ownership fix"
+git push
+sudo systemctl restart config-manager
+```
+
+---
+
+## 6. Conflict Detection Issues
+
+### False Positive Conflicts
+
+**Symptom**: Conflicts reported but no actual changes
+
+**Solutions**:
+
+```bash
+# Resolve false positive
+config-rollback resolve
+sudo systemctl restart config-manager
+
+# Or force update
+sudo rm /home/coder/.bashrc
+sudo systemctl restart config-manager
+```
+
+### Can't Resolve Conflicts
+
+**Symptom**: Conflict marker persists
+
+**Solutions**:
+
+```bash
+# Manually remove marker
+sudo rm /var/lib/config-manager/CONFLICT
+sudo rm /var/lib/config-manager/state/conflicts.log
+
+# Retry
+sudo systemctl restart config-manager
+
+# Or rollback
+config-rollback restore config-manager-20260202-090000
+sudo systemctl restart config-manager
+```
+
+---
+
+## 7. Script Execution Issues
+
+### Scripts Not Running
+
+**Symptom**: Scripts exist but don't execute
+
+**Solutions**:
+
+```bash
+# Make scripts executable
+cd container-configs/scripts
+chmod +x *.sh
+git add --chmod=+x *.sh
+git commit -m "Make scripts executable"
+git push
+sudo systemctl restart config-manager
+```
+
+### Script Fails Silently
+
+**Symptom**: No helpful error message
+
+**Solutions**:
+
+```bash
+# Run manually with debugging
+cd /opt/config-manager/repo/<CONFIG_PATH>
+bash -x scripts/02-docker-install.sh
+
+# Add logging to script
+# Replace: echo "..." → log_info "..."
+```
+
+---
+
+## 8. Container Creation Issues
+
+### Template Download Fails
+
+**Symptom**: curl fails to download template
+
+**Solutions**:
+
+```bash
+# Test DNS
+nslookup raw.githubusercontent.com
+
+# Download manually
+wget https://raw.githubusercontent.com/.../container.sh
+bash container.sh
+```
+
+### Resource Allocation Errors
+
+**Symptom**: Storage limit exceeded
+
+**Solutions**:
+
+```bash
+# Check storage
+pvesm status
+
+# Request less disk
+var_disk=15 bash container.sh
+
+# Or use different storage
+pct set <container-id> -rootfs local-zfs:20
+```
+
+---
+
+## 9. First Boot Issues
+
+### Container Won't Start
+
+**Diagnosis**:
+
+```bash
+# Check status
+pct status <container-id>
+
+# View logs
+pct start <container-id>
+journalctl -xe
+```
+
+**Solutions**:
+
+```bash
+# Enable required features
+pct set <container-id> -features nesting=1
+pct start <container-id>
+```
+
+---
+
+## 10. Performance Issues
+
+### Slow Boot Times
+
+**Symptom**: Container takes 5+ minutes to boot
+
+**Solutions**:
+
+```bash
+# Check what's taking time
+journalctl -u config-manager -n 200 | grep -E 'took|Installing'
+
+# Optimize package lists (remove unused)
+# Cache packages on ProxmoxVE host
+# Use local apt-cacher-ng
+```
+
+---
+
+## Debugging Guide
+
+### Log Locations
+
+| Log             | Location                                      |
+| --------------- | --------------------------------------------- |
+| Sync log        | `/var/log/config-manager/sync.log`            |
+| Systemd journal | `journalctl -u config-manager`                |
+| Conflicts       | `/var/lib/config-manager/state/conflicts.log` |
+
+### Useful Commands
+
+```bash
+# Manual sync with verbose output
+sudo bash -x /usr/local/bin/config-sync.sh
+
+# Test git access
+cd /opt/config-manager/repo && git fetch -v
+
+# Test script manually
+cd /opt/config-manager/repo/<CONFIG_PATH>
+sudo bash -x scripts/02-docker-install.sh
+
+# Clear lock
+sudo rm /run/config-manager/config-manager.lock
+```
+
+### Exit Codes
+
+| Code | Meaning            |
+| ---- | ------------------ |
+| 0    | Success            |
+| 1    | General error      |
+| 2    | Lock failed        |
+| 3    | Config error       |
+| 4    | Git error          |
+| 5    | Conflicts detected |
+
+---
+
+## Getting Help
+
+### Information to Gather
+
+When reporting issues, include:
+
+1. System info: `cat /etc/os-release`
+2. Service status: `systemctl status config-manager`
+3. Logs: `journalctl -u config-manager -n 100`
+4. Configuration: `cat /etc/config-manager/config.env`
+
+### Where to Ask
+
+- **GitHub Issues**: https://github.com/kethalia/pve-home-lab/issues
+- **Discussions**: https://github.com/kethalia/pve-home-lab/discussions
+
+## Full Documentation
+
+For the complete troubleshooting guide with detailed examples and solutions, see:
+
+**[infra/lxc/docs/TROUBLESHOOTING.md](https://github.com/kethalia/pve-home-lab/blob/main/infra/lxc/docs/TROUBLESHOOTING.md)**

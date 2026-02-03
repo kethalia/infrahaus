@@ -1,0 +1,304 @@
+---
+title: Infrastructure
+description: LXC containers with git-based configuration management for reproducible, version-controlled development environments.
+---
+
+## Overview
+
+The infrastructure layer provides reproducible, version-controlled development environments using LXC containers with git-based configuration management. Everything is defined as code — packages, scripts, configuration files — enabling instant environment recreation and team standardization.
+
+## LXC Configuration Management
+
+The config-manager system runs as a systemd service on every boot, synchronizing container configuration from a git repository. This enables:
+
+- **Infrastructure as Code**: All configs version-controlled in git
+- **Automatic Updates**: Sync on every boot keeps environments current
+- **Snapshot/Rollback**: Built-in backup system for instant recovery
+- **Reproducibility**: Create identical environments on-demand
+- **Team Collaboration**: Share configs via git, standardize tooling
+
+### Architecture
+
+```
+ProxmoxVE Host
+├── LXC Container (Ubuntu 24.04)
+│   ├── Config-Manager Service (systemd)
+│   │   ├── Git Sync (/opt/config-manager/repo)
+│   │   ├── Script Execution (00-pre-checks.sh → 99-post-setup.sh)
+│   │   ├── File Management (bashrc, aliases, gitconfig)
+│   │   ├── Package Installation (apt, npm, pip, custom)
+│   │   └── Snapshot System (ZFS/LVM/BTRFS/file-level)
+│   ├── Installed Tools (Docker, Node.js, etc.)
+│   └── User Environment (coder:1000)
+└── Template Repository (GitHub)
+    └── infra/lxc/templates/*/container-configs/
+        ├── scripts/
+        ├── files/
+        └── packages/
+```
+
+### Key Features
+
+- **Declarative Configuration**: Define environment in git, not manual steps
+- **Multiple Package Managers**: apt, apk, dnf, npm, pip, custom installers
+- **Policy-Based File Management**: Replace, default, or backup existing files
+- **Conflict Detection**: Prevent overwriting local changes
+- **Automatic Snapshots**: Pre-sync backup with ZFS/LVM/BTRFS support
+- **Exit Code Standardization**: Consistent error handling across components
+
+## Quick Start
+
+### One-Command Deployment
+
+```bash
+# From ProxmoxVE host:
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/container.sh)"
+```
+
+### Custom Resources
+
+```bash
+# 2 CPU, 4GB RAM, 30GB disk
+var_cpu=2 var_ram=4096 var_disk=30 \
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/container.sh)"
+```
+
+### Custom Repository
+
+```bash
+# Use your own config fork
+REPO_URL="https://github.com/yourusername/your-configs.git" \
+REPO_BRANCH="main" \
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/container.sh)"
+```
+
+## Available Templates
+
+| Template   | OS           | Default Resources    | Key Tools                                | Use Case                    |
+| ---------- | ------------ | -------------------- | ---------------------------------------- | --------------------------- |
+| `web3-dev` | Ubuntu 24.04 | 4 CPU, 8GB RAM, 20GB | Docker, Node.js, Foundry, VS Code Server | Web3/blockchain development |
+
+More templates coming soon. Contributions welcome!
+
+## Configuration Structure
+
+Each template includes a `container-configs/` directory with three key subdirectories:
+
+### Scripts (`scripts/`)
+
+Bash scripts executed in alphabetical order on every config sync:
+
+```bash
+scripts/
+├── 00-pre-checks.sh       # Pre-flight validation
+├── 01-setup-user.sh       # User creation
+├── 02-docker-install.sh   # Docker CE installation
+├── 03-nodejs-setup.sh     # Node.js and PNPM
+├── 04-web3-tools.sh       # Foundry, Hardhat, etc.
+├── 50-vscode-server.sh    # VS Code Server
+└── 99-post-setup.sh       # Final verification
+```
+
+Scripts are idempotent and have access to helper functions like `is_installed`, `ensure_installed`, and `log_*`.
+
+### Files (`files/`)
+
+Configuration files deployed with policy-based conflict resolution:
+
+```bash
+files/
+├── bashrc                 # File content
+├── bashrc.path            # Target location: /home/coder
+├── bashrc.policy          # Policy: default (preserve user edits)
+├── gitconfig              # Git configuration
+├── gitconfig.path         # Target location: /home/coder
+└── gitconfig.policy       # Policy: replace (always update)
+```
+
+**Policies**:
+
+- `replace`: Always overwrite (system configs)
+- `default`: Deploy once, preserve user changes (dotfiles)
+- `backup`: Backup old version before replacing (migrations)
+
+### Packages (`packages/`)
+
+Declarative package lists for multiple package managers:
+
+```bash
+packages/
+├── base.apt               # APT packages (Debian/Ubuntu)
+├── development.apt        # Dev tools
+├── node.npm               # NPM global packages
+├── python.pip             # Python packages
+└── cli.custom             # Custom installers (Foundry, gh, starship)
+```
+
+**Custom installer format**:
+
+```bash
+name|check_command|install_command[|timeout_seconds]
+
+# Example: Foundry installation
+foundry|command -v forge|curl -L https://foundry.paradigm.xyz | bash && foundryup|600
+```
+
+## Documentation Sections
+
+Comprehensive documentation for all aspects of the LXC infrastructure:
+
+- [**LXC Setup**](/docs/infrastructure/lxc-setup) — Installation, quick start, resource requirements, first-boot walkthrough, and creating custom templates
+- [**LXC Configuration**](/docs/infrastructure/lxc-configuration) — Complete reference for config-manager: scripts, files, packages, snapshots, conflict resolution, and advanced topics
+- [**LXC Migration**](/docs/infrastructure/lxc-migration) — Migrating from Coder workspaces, Docker Compose, bare-metal setups, and cloud IDEs with step-by-step guides
+- [**LXC Troubleshooting**](/docs/infrastructure/lxc-troubleshooting) — Common issues, diagnostic commands, and solutions for service failures, git sync problems, and performance issues
+
+## Use Cases
+
+### Individual Developer
+
+- **Quick environment setup**: Deploy production-ready dev environment in 10 minutes
+- **Experiment safely**: Snapshot before testing, rollback instantly
+- **Multiple projects**: Spin up isolated containers per project
+- **Remote access**: Develop from any device (browser-based VS Code)
+
+### Development Teams
+
+- **Standardize tooling**: Everyone uses the same environment
+- **Fast onboarding**: New team members productive in minutes
+- **Update propagation**: Push tool updates via git, sync on boot
+- **Reduce "works on my machine"**: Identical environments eliminate config drift
+
+### Home Lab / Self-Hosting
+
+- **Resource efficiency**: LXC overhead is minimal (10-20% vs VMs)
+- **Easy replication**: One command to deploy new environments
+- **Backup/restore**: Snapshots protect against misconfigurations
+- **Infrastructure as Code**: Track changes, revert to known-good state
+
+## Why LXC?
+
+### vs Docker Containers
+
+| Aspect              | Docker                      | LXC                       |
+| ------------------- | --------------------------- | ------------------------- |
+| **Overhead**        | Moderate (Docker daemon)    | Minimal (shares kernel)   |
+| **Boot time**       | 5-15 seconds                | 2-5 seconds               |
+| **Persistence**     | Volumes required            | Entire container persists |
+| **System services** | Complex (systemd in Docker) | Native (full systemd)     |
+| **Resource limits** | cgroups                     | cgroups (same)            |
+
+**When to use LXC**: Long-lived development environments, need systemd, want VM-like experience with container efficiency.
+
+**When to use Docker**: Short-lived processes, microservices, production deployments.
+
+### vs Virtual Machines
+
+| Aspect          | VMs                         | LXC                           |
+| --------------- | --------------------------- | ----------------------------- |
+| **Overhead**    | High (full OS + hypervisor) | Low (shared kernel)           |
+| **Boot time**   | 30-60+ seconds              | 2-5 seconds                   |
+| **Memory**      | Minimum 512MB-1GB overhead  | Minimum 20-50MB overhead      |
+| **Isolation**   | Full (separate kernel)      | Process-level (shared kernel) |
+| **Performance** | Good (near-native with KVM) | Excellent (native)            |
+
+**When to use LXC**: Linux workloads, resource efficiency matters, fast boot needed.
+
+**When to use VMs**: Need non-Linux OS, require full isolation, GPU passthrough.
+
+## Best Practices
+
+### Repository Organization
+
+```
+your-repo/
+└── infra/lxc/templates/
+    ├── web3-dev/
+    │   └── container-configs/
+    ├── python-dev/
+    │   └── container-configs/
+    └── shared/
+        └── configs/  # Shared files, scripts
+```
+
+### Branching Strategy
+
+- **`main`**: Production-ready configs
+- **`staging`**: Testing before production
+- **`dev`**: Active development
+- **Feature branches**: Experiment with new tools
+
+Point containers at different branches:
+
+```bash
+# Production
+CONFIG_BRANCH="main"
+
+# Staging
+CONFIG_BRANCH="staging"
+```
+
+### Security Considerations
+
+- **Don't commit secrets**: Use environment variables or mount from host
+- **Review scripts**: Config-manager runs as root, scripts have full access
+- **Use SSH keys**: For private repos (better than HTTPS tokens)
+- **Limit snapshot retention**: Balance backup needs with disk space
+
+### Performance Tips
+
+- **Batch package installs**: Group related packages in one `.apt` file
+- **Cache repositories**: Use local apt-cacher-ng for faster installs
+- **Minimize script count**: Combine related setup into one script
+- **Use ZFS/LVM**: For efficient snapshots (file-level is slowest)
+
+## Troubleshooting
+
+### Quick Diagnostics
+
+```bash
+# Check service status
+systemctl status config-manager
+
+# View recent logs
+journalctl -u config-manager -n 50
+
+# Check for conflicts
+config-rollback status
+
+# List snapshots
+config-rollback list
+```
+
+### Common Issues
+
+- **Service failed**: Check `/var/log/config-manager/sync.log` and config file at `/etc/config-manager/config.env`
+- **Git sync failed**: Verify network connectivity and repository URL
+- **Conflicts detected**: Review conflicts log, resolve manually or rollback
+- **Package install failed**: Check package name, repository availability
+
+See [LXC Troubleshooting](/docs/infrastructure/lxc-troubleshooting) for detailed solutions.
+
+## Contributing
+
+### Share Your Template
+
+1. Fork the repository
+2. Create your template in `infra/lxc/templates/your-template/`
+3. Test deployment
+4. Submit pull request
+
+### Report Issues
+
+- **GitHub Issues**: https://github.com/kethalia/pve-home-lab/issues
+- **Discussions**: https://github.com/kethalia/pve-home-lab/discussions
+
+### Improve Documentation
+
+Found an error or have a better explanation? Submit a PR to update the docs.
+
+## Next Steps
+
+- **New to LXC?** Start with [LXC Setup](/docs/infrastructure/lxc-setup) for installation and quick start
+- **Customizing configs?** See [LXC Configuration](/docs/infrastructure/lxc-configuration) for complete reference
+- **Migrating?** Check [LXC Migration](/docs/infrastructure/lxc-migration) for step-by-step guides
+- **Having issues?** Consult [LXC Troubleshooting](/docs/infrastructure/lxc-troubleshooting) for solutions
