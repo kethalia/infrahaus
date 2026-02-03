@@ -14,23 +14,18 @@ infra/lxc/
 │       ├── config-rollback
 │       └── ...
 │
-├── templates/                       # Self-contained container templates
-│   └── web3-dev/                    # Web3 development template
-│       ├── container.sh             # ProxmoxVE creation script
-│       ├── install.sh               # Container setup script
-│       ├── README.md                # Template documentation
-│       └── container-configs/       # Web3-specific configuration
-│           ├── packages/            # Docker, Node.js, Web3 tools
-│           ├── scripts/             # Boot-time scripts
-│           └── files/               # Config files
-│
-└── container-configs/               # Shared/default configuration (fallback)
-    ├── packages/                    # Default package lists
-    ├── scripts/                     # Default scripts
-    └── files/                       # Default files
+└── templates/                       # Self-contained container templates
+    └── web3-dev/                    # Web3 development template
+        ├── container.sh             # ProxmoxVE creation script
+        ├── install.sh               # Container setup script
+        ├── README.md                # Template documentation
+        └── container-configs/       # Web3-specific configuration
+            ├── packages/            # Docker, Node.js, Web3 tools
+            ├── scripts/             # Boot-time scripts
+            └── files/               # Config files
 ```
 
-**Key Point:** Each template is **self-contained** with its own `container-configs/` directory. The global `container-configs/` serves as a fallback or shared resource.
+**Key Point:** Each template is **completely self-contained** with its own `container-configs/` directory. Templates are independent and portable - just copy the directory to create a new template.
 
 ## Configuration Management System
 
@@ -102,15 +97,18 @@ Templates are reusable, self-contained setups that can be customized:
    - `install.sh` - Base packages, user setup
    - `README.md` - Documentation for your template
 
-3. **Create custom configuration:**
+3. **Customize the container-configs:**
 
    ```bash
-   mkdir infra/lxc/container-configs-my-template
+   # Template already includes its own container-configs/
+   cd infra/lxc/templates/my-template/container-configs/packages
+   rm -f *.custom  # Remove web3 packages
+   # Add your packages
    ```
 
-4. **Update install.sh to use custom config:**
+4. **Update install.sh CONFIG_PATH (already points to template's own configs):**
    ```bash
-   CONFIG_PATH="${CONFIG_PATH:-infra/lxc/container-configs-my-template}"
+   CONFIG_PATH="${CONFIG_PATH:-infra/lxc/templates/my-template/container-configs}"
    ```
 
 ### Template Best Practices
@@ -123,36 +121,43 @@ Templates are reusable, self-contained setups that can be customized:
 ### Example: Creating a Python Template
 
 ```bash
-# 1. Copy web3-dev template
+# 1. Copy entire web3-dev template (includes container-configs/)
 cp -r infra/lxc/templates/web3-dev infra/lxc/templates/python-dev
 
 # 2. Edit container.sh
-APP="Python Dev Container"
-var_tags="${var_tags:-python;development;django;flask}"
+cd infra/lxc/templates/python-dev
+sed -i 's/Web3 Dev Container/Python Dev Container/' container.sh
+sed -i 's/web3;development;nodejs;docker/python;development;django;flask/' container.sh
 
-# 3. Edit install.sh
-CONFIG_PATH="${CONFIG_PATH:-infra/lxc/container-configs-python}"
+# 3. Edit install.sh CONFIG_PATH (update to point to this template)
+sed -i 's|web3-dev/container-configs|python-dev/container-configs|' install.sh
 
-# 4. Create Python-specific configs
-mkdir -p infra/lxc/container-configs-python/packages
-echo "python3 python3-pip python3-venv" > infra/lxc/container-configs-python/packages/python.apt
-echo "django flask fastapi" > infra/lxc/container-configs-python/packages/python.pip
+# 4. Replace packages in container-configs/
+cd container-configs/packages
+rm -f cli.custom node.custom web3.custom
+echo "python3 python3-pip python3-venv" > python.apt
+echo "django flask fastapi uvicorn" > python.pip
 
 # 5. Update README.md with Python-specific documentation
+cd ../..
+vim README.md  # Document Python template
+
+# Done! Completely independent template
 ```
 
-## Container Configs
+## Container Configs Structure
 
-The `../container-configs/` directory contains the default declarative configuration used by templates.
+Each template includes its own `container-configs/` directory with template-specific packages and configuration.
 
-### Structure
+### Standard Structure
 
 ```
-container-configs/
+templates/<template-name>/container-configs/
 ├── packages/
 │   ├── *.apt         # APT packages (one per line)
 │   ├── *.custom      # Custom installer scripts
-│   └── *.npm         # NPM global packages
+│   ├── *.npm         # NPM global packages
+│   └── *.pip         # Python pip packages
 ├── scripts/
 │   └── *.sh          # Boot-time scripts (run alphabetically)
 └── files/
@@ -160,16 +165,16 @@ container-configs/
     └── *.policy      # Deployment policies (deploy-once, always-update, etc.)
 ```
 
-### Creating Custom Configs
+### Template Examples
 
-You can create separate config directories for different template types:
+Each template is completely self-contained:
 
-- `container-configs/` - Default (web3 development)
-- `container-configs-python/` - Python development
-- `container-configs-datascience/` - Data science with Jupyter
-- `container-configs-minimal/` - Minimal base system
+- `templates/web3-dev/container-configs/` - Docker, Node.js, Web3 tools
+- `templates/python-dev/container-configs/` - Python, Django, Flask
+- `templates/datascience/container-configs/` - Jupyter, Pandas, TensorFlow
+- `templates/minimal/container-configs/` - Basic system only
 
-Each config directory follows the same structure (packages/, scripts/, files/).
+All follow the same structure but with different packages.
 
 ## Usage Examples
 
