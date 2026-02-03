@@ -1,0 +1,12 @@
+curl
+git
+sudo
+wget
+ca-certificates
+gnupg
+build-essential
+vim
+unzip
+software-properties-common
+fonts-firacode
+fonts-powerline
