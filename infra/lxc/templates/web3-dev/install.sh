@@ -4,6 +4,9 @@
 # SC2034: ProxmoxVE framework variables used externally
 # SC2154: ProxmoxVE framework provides these variables
 
+# Generic LXC container installation script
+# All template-specific configuration should be in container-configs/
+
 # Copyright (c) 2026 kethalia  
 # Author: kethalia
 # License: MIT | https://github.com/kethalia/pve-home-lab/raw/main/LICENSE
@@ -21,100 +24,6 @@ update_os
 REPO_URL="${REPO_URL:-https://github.com/kethalia/pve-home-lab.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 CONFIG_PATH="${CONFIG_PATH:-infra/lxc/templates/web3-dev/container-configs}"
-
-msg_info "Installing base system packages"
-$STD apt-get install -y \
-  curl \
-  git \
-  sudo \
-  wget \
-  ca-certificates \
-  gnupg \
-  build-essential \
-  vim \
-  unzip \
-  software-properties-common \
-  fonts-firacode \
-  fonts-powerline
-msg_ok "Installed base system packages"
-
-msg_info "Creating coder user (UID 1000)"
-if ! useradd -m -u 1000 -s /bin/bash -G sudo coder; then
-  msg_error "Failed to create coder user"
-  exit 1
-fi
-
-# Configure sudo access via group membership (more secure than NOPASSWD:ALL)
-# The user is already in the sudo group, which requires password by default
-# For development containers, we enable NOPASSWD for common operations
-cat > /etc/sudoers.d/coder <<'EOF'
-# Allow coder user passwordless sudo for development operations
-coder ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/docker, /usr/bin/git, /usr/local/bin/config-sync.sh, /usr/local/bin/config-rollback
-# Allow full sudo with password for other operations
-coder ALL=(ALL:ALL) ALL
-EOF
-
-if ! chmod 0440 /etc/sudoers.d/coder; then
-  msg_error "Failed to set permissions on sudoers file"
-  exit 1
-fi
-
-# Validate sudoers file syntax
-if ! visudo -c -f /etc/sudoers.d/coder; then
-  msg_error "Invalid sudoers configuration"
-  rm -f /etc/sudoers.d/coder
-  exit 1
-fi
-
-msg_ok "Created coder user"
-
-msg_info "Installing Starship prompt"
-
-# Install Starship using prebuilt binary (more secure than curl|sh)
-STARSHIP_VERSION="latest"
-STARSHIP_ARCH="x86_64-unknown-linux-gnu"
-STARSHIP_TEMP="$(mktemp -t starship.XXXXXX.tar.gz)"
-
-if ! curl -fsSL --max-time 30 -A "ProxmoxVE-Script/1.0" \
-    "https://github.com/starship/starship/releases/latest/download/starship-${STARSHIP_ARCH}.tar.gz" \
-    -o "${STARSHIP_TEMP}"; then
-  msg_error "Failed to download Starship binary"
-  rm -f "${STARSHIP_TEMP}"
-  exit 1
-fi
-
-# Extract to /usr/local/bin
-if ! tar -xzf "${STARSHIP_TEMP}" -C /usr/local/bin/; then
-  msg_error "Failed to extract Starship binary"
-  rm -f "${STARSHIP_TEMP}"
-  exit 1
-fi
-
-rm -f "${STARSHIP_TEMP}"
-
-# Verify installation
-if ! command -v starship >/dev/null 2>&1; then
-  msg_error "Starship binary not found after installation"
-  exit 1
-fi
-
-# Ensure coder home directory exists and is properly owned
-if [ ! -d "/home/coder" ]; then
-  mkdir -p /home/coder
-  chown coder:coder /home/coder
-fi
-
-# Configure for coder user
-if ! sudo -u coder bash -c 'echo "eval \"\$(starship init bash)\"" >> /home/coder/.bashrc'; then
-  msg_warn "Failed to configure Starship for coder user"
-fi
-
-# Configure for root user as well
-if ! echo 'eval "$(starship init bash)"' >> /root/.bashrc; then
-  msg_warn "Failed to configure Starship for root user"
-fi
-
-msg_ok "Installed Starship prompt"
 
 msg_info "Installing config-manager service"
 INSTALL_SCRIPT="$(mktemp -t install-config-manager.XXXXXX.sh)"
@@ -141,7 +50,9 @@ if ! chmod +x "${INSTALL_SCRIPT}"; then
   exit 1
 fi
 
-# Install and run config-manager with the pve-home-lab repository
+# Install and run config-manager
+# All template-specific setup will be handled by container-configs/
+msg_info "Running config-manager with template configuration"
 if ! bash "${INSTALL_SCRIPT}" \
   --repo-url "${REPO_URL}" \
   --branch "${REPO_BRANCH}" \
@@ -153,21 +64,7 @@ if ! bash "${INSTALL_SCRIPT}" \
 fi
 
 rm -f "${INSTALL_SCRIPT}"
-msg_ok "Installed config-manager service"
-
-msg_info "Ensuring coder user permissions"
-# Add coder to docker group (if docker gets installed by config-manager)
-# This is idempotent - the group may not exist yet
-if getent group docker >/dev/null 2>&1; then
-  if usermod -aG docker coder; then
-    msg_info "Added coder to docker group"
-  else
-    msg_warn "Failed to add coder to docker group"
-  fi
-else
-  msg_info "Docker group not found yet - will be added post-installation by config-manager"
-fi
-msg_ok "Updated coder user permissions"
+msg_ok "Config-manager installed and initial sync completed"
 
 # ProxmoxVE standard finalizations
 msg_info "Configuring SSH access"
@@ -182,34 +79,22 @@ msg_info "Cleaning up container"
 cleanup_lxc
 msg_ok "Container cleanup completed"
 
-# Display final summary
-msg_ok "Web3 Dev Container setup complete!\n"
+# Display completion message
+msg_ok "Container setup complete!"
 echo -e "${CREATING}${GN}===========================================${CL}"
-echo -e "${CREATING}${GN}  Web3 Development Container Ready!${CL}"
+echo -e "${CREATING}${GN}  LXC Container Ready!${CL}"
 echo -e "${CREATING}${GN}===========================================${CL}"
 echo -e ""
-echo -e "${INFO}${YW}Container Details:${CL}"
-echo -e "${TAB}• User: ${BGN}coder${CL} (UID 1000)"
-echo -e "${TAB}• Shell: ${BGN}bash${CL} with Starship prompt"
-echo -e "${TAB}• Config sync: ${BGN}Enabled${CL} at boot"
-echo -e "${TAB}• IP Address: ${BGN}${IP}${CL}"
+echo -e "${INFO}${YW}Configuration applied from:${CL}"
+echo -e "${TAB}Repository: ${BGN}${REPO_URL}${CL}"
+echo -e "${TAB}Branch: ${BGN}${REPO_BRANCH}${CL}"
+echo -e "${TAB}Path: ${BGN}${CONFIG_PATH}${CL}"
 echo -e ""
-echo -e "${INFO}${YW}Access Methods:${CL}"
-echo -e "${TAB}• SSH: ${BGN}ssh coder@${IP}${CL}"
-echo -e "${TAB}• Console: Via ProxmoxVE web interface"
+echo -e "${INFO}${YW}Container IP:${CL} ${BGN}${IP}${CL}"
 echo -e ""
-echo -e "${INFO}${YW}Configuration Management:${CL}"
-echo -e "${TAB}• Check sync logs: ${BGN}journalctl -u config-manager${CL}"
+echo -e "${INFO}${YW}Config Management:${CL}"
 echo -e "${TAB}• Manual sync: ${BGN}sudo systemctl restart config-manager${CL}"
-echo -e "${TAB}• Config status: ${BGN}config-rollback status${CL}"
-echo -e "${TAB}• List snapshots: ${BGN}config-rollback list${CL}"
+echo -e "${TAB}• View logs: ${BGN}journalctl -u config-manager -f${CL}"
+echo -e "${TAB}• Rollback: ${BGN}config-rollback list${CL}"
 echo -e ""
-echo -e "${INFO}${YW}Development Tools:${CL}"
-echo -e "${TAB}Tools will be installed via git-synced configuration:"
-echo -e "${TAB}• Docker (with Docker Compose)"
-echo -e "${TAB}• Node.js ecosystem (Node.js, npm, pnpm)"
-echo -e "${TAB}• Web3 tools (Foundry, Solidity)"
-echo -e "${TAB}• CLI utilities (gh, act)"
-echo -e ""
-echo -e "${WARN}${RD}Note:${CL} Some tools may require container restart to be available in PATH"
-echo -e "${INFO}${YW}Repository:${CL} ${BGN}https://github.com/kethalia/pve-home-lab${CL}"
+echo -e "${WARN}${RD}Note:${CL} Check container-specific documentation for access details"
