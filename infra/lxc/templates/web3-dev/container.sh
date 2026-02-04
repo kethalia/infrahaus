@@ -10,6 +10,10 @@ source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxV
 # License: MIT | https://github.com/kethalia/pve-home-lab/raw/main/LICENSE
 # Source: https://github.com/kethalia/pve-home-lab
 
+# Detect which branch this script is running from
+# This allows testing on feature branches
+SCRIPT_BRANCH="fix/web3-dev-unprivileged-and-install"  # Will be changed to 'main' when merged
+
 # Source template configuration
 # Works both when run locally and via curl from ProxmoxVE
 if [[ -f "$(dirname "${BASH_SOURCE[0]}")/template.conf" ]]; then
@@ -17,7 +21,7 @@ if [[ -f "$(dirname "${BASH_SOURCE[0]}")/template.conf" ]]; then
   source "$(dirname "${BASH_SOURCE[0]}")/template.conf"
 else
   # Remote execution via curl
-  source <(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/template.conf)
+  source <(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/${SCRIPT_BRANCH}/infra/lxc/templates/web3-dev/template.conf)
 fi
 
 # Template metadata
