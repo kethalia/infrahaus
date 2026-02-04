@@ -84,8 +84,8 @@ Configuration Management:
 start
 
 # Build container (framework will attempt to run web3devcontainer-install.sh which doesn't exist - harmless 404 error)
-# Suppress the expected 404 error from stderr
-build_container 2> >(grep -v "curl: (22)" >&2)
+# Note: The 404 error is silently handled by curl's -f flag, so no need to filter stderr
+build_container
 
 # Run our actual installer post-build
 msg_info "Running Web3 Dev Container configuration"
