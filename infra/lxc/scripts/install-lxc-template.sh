@@ -32,10 +32,11 @@ fi
 
 msg_info "Installing config-manager service"
 
-# Create necessary directories
+# Create necessary directories (including /opt/config-manager for systemd namespace)
 mkdir -p /etc/config-manager
 mkdir -p /var/log/config-manager
 mkdir -p /var/lib/config-manager/{backups,state}
+mkdir -p /opt/config-manager
 
 # Write configuration file
 msg_info "Creating configuration file"
