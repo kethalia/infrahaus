@@ -33,3 +33,6 @@ RUN mkdir -p /etc/config-manager \
              /run/config-manager
 
 WORKDIR /workspace
+
+# Copy source code into the image (build context is project root)
+COPY . /workspace/

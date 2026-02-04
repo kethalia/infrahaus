@@ -3,7 +3,7 @@ node_modules
 .source
 .git
 .github
-infra
+# infra - COMMENTED OUT: needed for test Docker images in infra/lxc/tests/
 *.md
 .prettierrc
 .prettierignore

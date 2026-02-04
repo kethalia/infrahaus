@@ -51,6 +51,9 @@ VOLUME ["/sys/fs/cgroup"]
 
 WORKDIR /workspace
 
+# Copy source code into the image (build context is project root)
+COPY . /workspace/
+
 # Use systemd as init
 STOPSIGNAL SIGRTMIN+3
 CMD ["/sbin/init"]

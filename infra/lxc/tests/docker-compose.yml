@@ -1,33 +1,28 @@
 services:
   lint:
     build:
-      context: .
-      dockerfile: Dockerfile.unit
-    volumes:
-      - /home/coder/pve-home-lab:/workspace:ro
+      context: ../../..
+      dockerfile: infra/lxc/tests/Dockerfile.unit
     working_dir: /workspace
     command: bats infra/lxc/tests/lint/
 
   unit:
     build:
-      context: .
-      dockerfile: Dockerfile.unit
-    volumes:
-      - /home/coder/pve-home-lab:/workspace:ro
+      context: ../../..
+      dockerfile: infra/lxc/tests/Dockerfile.unit
     working_dir: /workspace
     command: bats infra/lxc/tests/unit/
 
   integration:
     build:
-      context: .
-      dockerfile: Dockerfile.integration
+      context: ../../..
+      dockerfile: infra/lxc/tests/Dockerfile.integration
     privileged: true
     tmpfs:
       - /run
       - /run/lock
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
-      - /home/coder/pve-home-lab:/workspace:ro
     working_dir: /workspace
     # For integration: start systemd, wait, then run tests
     entrypoint: ["/bin/bash", "-c"]

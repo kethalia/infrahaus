@@ -14,7 +14,8 @@ load '../bats-helpers'
 }
 
 @test "shellcheck: execute-scripts.sh passes" {
-    run shellcheck -x -S warning "${CM_SCRIPTS}/execute-scripts.sh"
+    # SC1090: Dynamic sourcing is expected (sources user scripts)
+    run shellcheck -x -S warning --exclude=SC1090 "${CM_SCRIPTS}/execute-scripts.sh"
     assert_success
 }
 
