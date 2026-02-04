@@ -246,6 +246,7 @@ run_as_user() {
     local user_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     user_path="$user_path:/home/$CONTAINER_USER/.local/bin"
     user_path="$user_path:/home/$CONTAINER_USER/.foundry/bin"
+    user_path="$user_path:/home/$CONTAINER_USER/.npm-global/bin"
     [[ -n "$nvm_node_bin" ]] && user_path="$user_path:$nvm_node_bin"
     
     sudo -u "$CONTAINER_USER" env \
