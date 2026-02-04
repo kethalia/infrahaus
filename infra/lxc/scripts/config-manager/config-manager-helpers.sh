@@ -124,6 +124,52 @@ detect_package_manager() {
 }
 
 # ---------------------------------------------------------------------------
+# wait_for_apt_lock — wait for dpkg/apt lock to be released
+#
+# Waits up to 120 seconds for any apt/dpkg processes to finish.
+# Common on fresh containers where unattended-upgrades may be running.
+# ---------------------------------------------------------------------------
+wait_for_apt_lock() {
+    local max_wait=120
+    local waited=0
+    
+    # Check if fuser is available
+    if ! command -v fuser &>/dev/null; then
+        log_warn "fuser not available, skipping lock wait"
+        return 0
+    fi
+    
+    log_info "Checking for dpkg/apt lock..."
+    
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+          fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
+          fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+        
+        if (( waited >= max_wait )); then
+            log_error "Timed out waiting for dpkg lock after ${max_wait}s"
+            return 1
+        fi
+        
+        if (( waited == 0 )); then
+            log_info "Another package manager is running, waiting for it to finish..."
+        fi
+        
+        sleep 5
+        (( waited += 5 ))
+        
+        if (( waited % 30 == 0 )); then
+            log_info "Still waiting for dpkg lock... (${waited}s elapsed)"
+        fi
+    done
+    
+    if (( waited > 0 )); then
+        log_info "dpkg lock released after ${waited}s"
+    fi
+    
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # is_installed <cmd> — check if a command is available
 # ---------------------------------------------------------------------------
 is_installed() {
@@ -157,11 +203,16 @@ ensure_installed() {
     # Ensure we know which package manager to use
     [[ -z "${_PKG_MGR:-}" ]] && detect_package_manager
 
+    # Wait for apt lock if using apt-based system
+    if [[ "$_PKG_MGR" == "apt" ]]; then
+        wait_for_apt_lock || return 1
+    fi
+
     log_info "ensure_installed: installing '${pkg}' via ${_PKG_MGR} ..."
 
     case "$_PKG_MGR" in
         apt)
-            apt-get update -qq && apt-get install -y -qq "$pkg"
+            apt-get update -qq && apt-get install -y -qq -o DPkg::Lock::Timeout=120 "$pkg"
             ;;
         apk)
             apk add --quiet "$pkg"
@@ -217,4 +268,92 @@ export_script_env() {
     export CONTAINER_OS_VERSION="${CONTAINER_OS_VERSION:-unknown}"
     export CONTAINER_USER="${CONTAINER_USER:-coder}"
     export CONFIG_MANAGER_FIRST_RUN="${CONFIG_MANAGER_FIRST_RUN:-false}"
+}
+
+# ---------------------------------------------------------------------------
+# run_as_user — Run command as container user with proper environment
+#
+# Usage: run_as_user command [args...]
+#        run_as_user bash -c "node --version"
+#
+# Problem: sudo restricts PATH by default, causing scripts with #!/usr/bin/env
+# shebangs to fail because env can't find bash/node/etc in PATH.
+#
+# Solution: Explicitly set full PATH and HOME when running as user.
+# Dynamically resolve NVM node path since globs don't expand in quotes.
+# ---------------------------------------------------------------------------
+run_as_user() {
+    # Resolve NVM node bin path (glob won't expand in quotes, need to expand it here)
+    local nvm_node_bin=""
+    for d in /home/$CONTAINER_USER/.nvm/versions/node/*/bin; do
+        # Only use the directory if it actually exists (glob didn't match returns literal *)
+        if [[ -d "$d" ]]; then
+            nvm_node_bin="$d"
+            break  # Use first match (typically only one node version installed)
+        fi
+    done
+    
+    # Build PATH with user tool directories
+    local user_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    user_path="$user_path:/home/$CONTAINER_USER/.local/bin"
+    user_path="$user_path:/home/$CONTAINER_USER/.foundry/bin"
+    user_path="$user_path:/home/$CONTAINER_USER/.npm-global/bin"
+    [[ -n "$nvm_node_bin" ]] && user_path="$user_path:$nvm_node_bin"
+    
+    # Pass through EXTENSIONS_GALLERY if set (for code-server extension installs)
+    local env_vars=(
+        PATH="$user_path"
+        HOME="/home/$CONTAINER_USER"
+        USER="$CONTAINER_USER"
+    )
+    [[ -n "${EXTENSIONS_GALLERY:-}" ]] && env_vars+=("EXTENSIONS_GALLERY=$EXTENSIONS_GALLERY")
+    
+    sudo -u "$CONTAINER_USER" env "${env_vars[@]}" "$@"
+}
+
+# ---------------------------------------------------------------------------
+# generate_password — Generate a random secure password
+#
+# Usage: password=$(generate_password [length])
+#        password=$(generate_password)      # defaults to 16 characters
+#        password=$(generate_password 24)   # 24 character password
+#
+# Generates a cryptographically random password using /dev/urandom.
+# Character set: A-Z, a-z, 0-9 (62 possible characters)
+# ---------------------------------------------------------------------------
+generate_password() {
+    local length="${1:-16}"
+    tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "$length"
+}
+
+# ---------------------------------------------------------------------------
+# save_credential — Append credential to shared credentials file
+#
+# Usage: save_credential "KEY" "value"
+#        save_credential "CODE_SERVER_PASSWORD" "aB3dEf7hIjKl"
+#
+# Creates /etc/pve-home-lab/credentials with mode 600 (root-only) and
+# appends key=value pairs for use by other scripts and welcome messages.
+# ---------------------------------------------------------------------------
+save_credential() {
+    local key="$1"
+    local value="$2"
+    local creds_file="/etc/pve-home-lab/credentials"
+    
+    # Ensure directory exists
+    mkdir -p "$(dirname "$creds_file")"
+    
+    # Create file with timestamp header on first write
+    if [[ ! -f "$creds_file" ]]; then
+        {
+            echo "# Auto-generated credentials for Web3 Dev Container"
+            echo "# Generated: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "# WARNING: This file contains sensitive passwords - keep secure"
+            echo ""
+        } > "$creds_file"
+        chmod 600 "$creds_file"
+    fi
+    
+    # Append credential
+    echo "${key}=${value}" >> "$creds_file"
 }

@@ -119,11 +119,47 @@ ssh coder@<container-ip>
 
 ### Port Mappings
 
-| Port | Service        | Access                       |
-| ---- | -------------- | ---------------------------- |
-| 8080 | VS Code Server | `http://<container-ip>:8080` |
-| 8081 | FileBrowser    | `http://<container-ip>:8081` |
-| 8082 | OpenCode       | `http://<container-ip>:8082` |
+| Port | Service        | Access                       | Authentication    |
+| ---- | -------------- | ---------------------------- | ----------------- |
+| 8080 | VS Code Server | `http://<container-ip>:8080` | Password required |
+| 8081 | FileBrowser    | `http://<container-ip>:8081` | Username/password |
+| 8082 | OpenCode       | `http://<container-ip>:8082` | Password required |
+
+### Viewing Credentials
+
+All web services use randomly generated passwords created during first boot. Retrieve credentials:
+
+**From ProxmoxVE host:**
+
+```bash
+# View credentials file
+pct exec <container-id> -- cat /etc/pve-home-lab/credentials
+
+# Or watch the welcome banner
+pct exec <container-id> -- journalctl -u config-manager -f --no-pager -o cat
+```
+
+**Inside container:**
+
+```bash
+# View credentials (requires root/sudo)
+sudo cat /etc/pve-home-lab/credentials
+
+# Or check welcome message
+cat /etc/motd
+```
+
+**Example output:**
+
+```bash
+# Generated credentials for Web3 Dev Container
+CODE_SERVER_PASSWORD=Abc123Xyz789Def4
+FILEBROWSER_USERNAME=admin
+FILEBROWSER_PASSWORD=Xyz456Abc123Ghi7
+OPENCODE_PASSWORD=Def789Jkl012Mno3
+```
+
+For detailed credential management, password rotation, and security best practices, see [LXC Credentials](/docs/infrastructure/lxc-credentials).
 
 ## Customization
 

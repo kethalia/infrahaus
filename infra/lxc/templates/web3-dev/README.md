@@ -40,14 +40,18 @@ var_cpu=2 var_ram=4096 var_disk=30 \
 REPO_URL="https://github.com/myuser/my-fork.git" \
 REPO_BRANCH="develop" \
   bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/templates/web3-dev/container.sh)"
+
+# Test feature branch (for developers)
+SCRIPT_BRANCH="feature/my-changes" \
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/feature/my-changes/infra/lxc/templates/web3-dev/container.sh)"
 ```
 
 ## Container Specifications
 
 ### Default Configuration
 
-- **Type:** Privileged LXC (for Docker-in-Docker)
-- **OS:** Ubuntu 24.04 LTS
+- **Type:** Unprivileged LXC (secure by default)
+- **OS:** Debian 12 (Bookworm)
 - **CPU:** 4 cores
 - **RAM:** 8192 MB (8 GB)
 - **Disk:** 20 GB
@@ -55,9 +59,10 @@ REPO_BRANCH="develop" \
 - **Tags:** web3, development, nodejs, docker
 - **User:** `coder` (UID 1000)
 - **Exposed Ports:**
-  - 8080: VS Code Server
-  - 8081: FileBrowser
-  - 8082: OpenCode
+  - 8080: VS Code Server (password-protected)
+  - 8081: FileBrowser (password-protected)
+  - 8082: OpenCode (password-protected)
+- **Security:** Random passwords generated on first boot, stored in `/etc/pve-home-lab/credentials`
 
 ### Customizable via Environment Variables
 
@@ -67,9 +72,9 @@ REPO_BRANCH="develop" \
 var_cpu=<cores>              # Number of CPU cores (default: 4)
 var_ram=<megabytes>          # RAM in MB (default: 8192)
 var_disk=<gigabytes>         # Disk size in GB (default: 20)
-var_os=<os>                  # OS template (default: ubuntu)
-var_version=<version>        # OS version (default: 24.04)
-var_unprivileged=<0|1>       # Privileged mode (default: 0 = privileged)
+var_os=<os>                  # OS template (default: debian)
+var_version=<version>        # OS version (default: 12)
+var_unprivileged=<0|1>       # Container mode (default: 1 = unprivileged)
 var_nesting=<0|1>            # Enable nesting (default: 1)
 var_keyctl=<0|1>             # Enable keyctl (default: 1)
 var_fuse=<0|1>               # Enable FUSE (default: 1)
@@ -80,6 +85,7 @@ var_fuse=<0|1>               # Enable FUSE (default: 1)
 ```bash
 REPO_URL=<git-url>           # Configuration repository (default: this repo)
 REPO_BRANCH=<branch>         # Repository branch (default: main)
+SCRIPT_BRANCH=<branch>       # Script branch for testing (default: main)
 
 # Note: CONFIG_PATH is automatically set by template.conf
 # and points to this template's container-configs directory
@@ -108,16 +114,21 @@ Automatically installed from `container-configs/packages/`:
 ### Browser-Based Development Tools
 
 - **code-server:** VS Code in the browser (port 8080)
-  - Pre-configured with extensions (ESLint, Prettier, Solidity, Copilot, GitLens, Docker)
+  - Pre-configured with extensions from Microsoft Marketplace (ESLint, Prettier, Solidity, Copilot, GitLens, Docker, Live Share)
   - Auto-save enabled, format on save
   - Default Dark+ theme
+  - Password-protected (random password on first boot)
 - **FileBrowser:** Web-based file manager (port 8081)
   - Browse and manage files through browser
   - Upload/download files
   - Edit files directly
+  - Password-protected (random password on first boot)
 - **OpenCode:** Alternative web-based code editor (port 8082)
   - Lightweight alternative to code-server
   - Modern web-based editing experience
+  - Password-protected (random password on first boot)
+
+**Credentials:** All passwords are randomly generated during container setup and stored in `/etc/pve-home-lab/credentials` (mode 600, root-only). See [Credentials & Security](#credentials--security) section.
 
 ## Configuration Management
 
@@ -145,6 +156,105 @@ web3-dev/container-configs/
 ```
 
 **Self-Contained:** All web3-specific packages are defined within this template, making it easy to customize or fork.
+
+## Credentials & Security
+
+### Password System
+
+This template implements a secure credential management system:
+
+- **Random Generation:** All passwords are randomly generated (16 characters, A-Za-z0-9) during first boot
+- **Secure Storage:** Credentials stored in `/etc/pve-home-lab/credentials` (mode 600, root-only access)
+- **No Defaults:** No hardcoded passwords - each container has unique credentials
+- **Easy Access:** Credentials displayed in welcome banner and accessible via simple commands
+
+### Viewing Credentials
+
+**From ProxmoxVE host:**
+
+```bash
+# View all credentials
+pct exec <container-id> -- cat /etc/pve-home-lab/credentials
+
+# Stream welcome message with credentials
+pct exec <container-id> -- journalctl -u config-manager -f --no-pager -o cat
+```
+
+**Inside the container:**
+
+```bash
+# View credentials file directly (requires root)
+sudo cat /etc/pve-home-lab/credentials
+
+# Or use the welcome message command
+cat /etc/motd
+```
+
+**Example credentials output:**
+
+```bash
+# Generated credentials for Web3 Dev Container
+CODE_SERVER_PASSWORD=Abc123Xyz789Def4
+FILEBROWSER_USERNAME=admin
+FILEBROWSER_PASSWORD=Xyz456Abc123Ghi7
+OPENCODE_PASSWORD=Def789Jkl012Mno3
+```
+
+### Changing Passwords
+
+**VS Code Server (code-server):**
+
+```bash
+# Method 1: Edit systemd service file
+sudo vim /etc/systemd/system/code-server@.service
+# Update the PASSWORD= line under [Service]
+sudo systemctl daemon-reload
+sudo systemctl restart code-server@coder
+
+# Method 2: Use hashed password (more secure)
+# Generate hash
+echo -n "your-new-password" | npx argon2-cli -e
+# Update service file with hashed value
+sudo vim /etc/systemd/system/code-server@.service
+# Change: Environment=PASSWORD=your-hash
+# Change: Environment=HASHED_PASSWORD=true
+sudo systemctl daemon-reload
+sudo systemctl restart code-server@coder
+```
+
+**FileBrowser:**
+
+```bash
+# Change password via CLI
+sudo filebrowser users update admin --password "new-password"
+sudo systemctl restart filebrowser
+```
+
+**OpenCode:**
+
+```bash
+# Edit systemd service file
+sudo vim /etc/systemd/system/opencode@.service
+# Add: --password "new-password" to ExecStart line
+sudo systemctl daemon-reload
+sudo systemctl restart opencode@coder
+```
+
+**Update credentials file (optional):**
+
+```bash
+# Update stored credentials for reference
+sudo vim /etc/pve-home-lab/credentials
+```
+
+### Security Best Practices
+
+1. **Rotate Passwords:** Change default generated passwords after first login
+2. **Network Isolation:** Use ProxmoxVE firewall to restrict web service access
+3. **HTTPS:** Use reverse proxy (nginx/traefik) with Let's Encrypt certificates
+4. **VPN Access:** Consider accessing web services through VPN
+5. **Backup Credentials:** Store credentials in password manager after first boot
+6. **Container Snapshots:** Take snapshot before making security changes
 
 ### Manual Configuration Management
 
@@ -184,29 +294,37 @@ Access your development environment through the browser:
 
 ```
 VS Code Server:   http://<container-ip>:8080
-                  Password: coder
-
 FileBrowser:      http://<container-ip>:8081
-                  Username: admin
-                  Password: coder
-
 OpenCode:         http://<container-ip>:8082
+```
+
+**Get passwords:**
+
+```bash
+# From ProxmoxVE host
+pct exec <container-id> -- cat /etc/pve-home-lab/credentials
+
+# Inside container
+sudo cat /etc/pve-home-lab/credentials
 ```
 
 **Features:**
 
 - Full VS Code experience in the browser
-- Pre-installed extensions (Solidity, Docker, GitLens, Copilot)
+- Pre-installed extensions from Microsoft Marketplace (Solidity, Docker, GitLens, Copilot, Live Share)
 - File management and uploads via FileBrowser
 - Auto-save and format-on-save enabled
 - Git integration with GitLens
+- Password-protected services with unique credentials
 
 **First Time Setup:**
 
-1. Open `http://<container-ip>:8080` in your browser
-2. Enter password: `coder`
-3. Open folder: `/home/coder`
-4. Start coding!
+1. Retrieve credentials: `pct exec <container-id> -- cat /etc/pve-home-lab/credentials`
+2. Open `http://<container-ip>:8080` in your browser
+3. Enter the `CODE_SERVER_PASSWORD` from credentials file
+4. Open folder: `/home/coder`
+5. Start coding!
+6. (Optional) Change passwords following [Credentials & Security](#credentials--security) guide
 
 ### Updates
 
@@ -343,8 +461,8 @@ chmod +x ml.custom
 
 - **ProxmoxVE:** 8.x or 9.x
 - **Network:** Internet access for package downloads and git sync
-- **Storage:** Sufficient pool space for container disk
-- **Permissions:** Ability to create privileged containers
+- **Storage:** Sufficient pool space for container disk (minimum 20GB)
+- **Permissions:** Ability to create containers (unprivileged by default)
 
 ## Troubleshooting
 
@@ -430,9 +548,12 @@ ufw status
 **Common Issues:**
 
 - **Can't access port 8080:** Check if code-server is running: `systemctl status code-server@coder`
-- **Wrong password:** Default password is `coder` for all services
-- **Port conflicts:** Ensure ports 8080-8082 are not already in use
-- **VS Code extensions not loading:** Restart code-server service
+- **Password not working:** Get credentials: `sudo cat /etc/pve-home-lab/credentials`
+- **Credentials file missing:** Wait for config-manager to complete: `journalctl -u config-manager -f`
+- **Port conflicts:** Ensure ports 8080-8082 are not already in use: `ss -tlnp | grep ':808'`
+- **VS Code extensions not loading:** Check EXTENSIONS_GALLERY is set: `cat /etc/environment | grep EXTENSIONS`
+- **VS Code extension missing (ms-vsliveshare):** Restart code-server: `sudo systemctl restart code-server@coder`
+- **Container fails on first boot:** Check for apt lock issues: `journalctl -u config-manager -n 100`
 
 ## Security Considerations
 
@@ -448,25 +569,34 @@ The `coder` user has passwordless sudo for specific development commands:
 
 All other sudo commands require password authentication.
 
-### Privileged Container
+### Container Security
 
-This template creates a **privileged** LXC container to support Docker-in-Docker. Privileged containers have root access to the host system. Use appropriate network isolation and security policies.
+This template creates an **unprivileged** LXC container by default for enhanced security. Docker-in-Docker is supported via nested containers with proper user namespace mapping.
+
+**Security Features:**
+
+- Unprivileged by default (can be changed via `var_unprivileged=0`)
+- Random password generation for all services
+- Credentials stored in root-only file (mode 600)
+- Restricted sudo access for `coder` user
+- User namespace isolation
 
 ### Web Service Security
 
 The container exposes web services on ports 8080-8082 for browser-based development:
 
-- **code-server (8080):** Protected with password authentication (default: `coder`)
-- **filebrowser (8081):** Protected with username/password (admin/coder)
-- **opencode (8082):** No authentication (bind to localhost or use reverse proxy)
+- **code-server (8080):** Password authentication (random, 16 chars)
+- **filebrowser (8081):** Username/password authentication (random, 16 chars)
+- **opencode (8082):** Password authentication (random, 16 chars)
 
 **Security Recommendations:**
 
-1. **Change default passwords** after first login
+1. **Rotate passwords** after first login (see [Credentials & Security](#credentials--security))
 2. **Use reverse proxy** (nginx/traefik) with HTTPS for production
 3. **Firewall rules:** Restrict access to trusted networks only
 4. **VPN access:** Consider accessing web services through VPN
 5. **Container isolation:** Run in isolated network or VLAN
+6. **Backup credentials:** Store in password manager after first boot
 
 **ProxmoxVE Firewall Example:**
 
@@ -507,6 +637,8 @@ MIT - See [LICENSE](https://github.com/kethalia/pve-home-lab/blob/main/LICENSE)
 
 ## Related Documentation
 
+- [Credentials & Security Guide](./CREDENTIALS.md) - Detailed credential management
+- [Testing Guide](./TESTING.md) - Container testing procedures
 - [ProxmoxVE Community Scripts](https://github.com/community-scripts/ProxmoxVE)
 - [Config-Manager Documentation](../../scripts/config-manager/)
 - [Container Configs](../../container-configs/)

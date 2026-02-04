@@ -225,20 +225,43 @@ source ~/.bashrc
 echo $PATH
 ```
 
-4. **Test browser access:**
+4. **Test credentials system:**
+
+```bash
+# Verify credentials file exists
+sudo cat /etc/pve-home-lab/credentials
+
+# Check file permissions
+ls -l /etc/pve-home-lab/credentials
+# Should show: -rw------- 1 root root
+
+# Verify all required credentials present
+grep -E "CODE_SERVER_PASSWORD|FILEBROWSER_USERNAME|FILEBROWSER_PASSWORD|OPENCODE_PASSWORD" /etc/pve-home-lab/credentials
+
+# Check password format (should be 16 chars, alphanumeric)
+sudo grep CODE_SERVER_PASSWORD /etc/pve-home-lab/credentials | cut -d'=' -f2 | wc -c
+# Should output: 17 (16 chars + newline)
+```
+
+5. **Test browser access:**
 
 ```bash
 # Get container IP
 CONTAINER_IP=$(hostname -I | awk '{print $1}')
 echo "VS Code: http://${CONTAINER_IP}:8080"
 echo "FileBrowser: http://${CONTAINER_IP}:8081"
+echo "OpenCode: http://${CONTAINER_IP}:8082"
+
+# Get credentials
+sudo cat /etc/pve-home-lab/credentials
 
 # Test from external machine
 curl -I http://${CONTAINER_IP}:8080
 curl -I http://${CONTAINER_IP}:8081
+curl -I http://${CONTAINER_IP}:8082
 ```
 
-5. **Test configuration files:**
+6. **Test configuration files:**
 
 ```bash
 # As coder user
@@ -258,6 +281,22 @@ starship --version
 echo $PS1
 ```
 
+7. **Test VS Code extensions (Microsoft Marketplace):**
+
+```bash
+# Check EXTENSIONS_GALLERY is configured
+grep EXTENSIONS_GALLERY /etc/environment
+cat /home/coder/.bashrc | grep EXTENSIONS_GALLERY
+
+# List installed extensions
+ls -la /home/coder/.local/share/code-server/extensions/
+
+# Verify critical extensions installed
+ls /home/coder/.local/share/code-server/extensions/ | grep -i "ms-vsliveshare"
+ls /home/coder/.local/share/code-server/extensions/ | grep -i "github.copilot"
+ls /home/coder/.local/share/code-server/extensions/ | grep -i "juanblanco.solidity"
+```
+
 ---
 
 ## Validation Checklist
@@ -271,11 +310,14 @@ echo $PS1
 - [ ] 04-web3-tools.sh installs Foundry tools
 - [ ] 05-shell-setup.sh installs Starship and configures shell
 - [ ] 06-dev-tools.sh installs gh, act, and pnpm
-- [ ] 50-vscode-server.sh installs code-server, extensions, and filebrowser
-- [ ] 99-post-setup.sh validates installation and shows welcome message
+- [ ] 50-vscode-server.sh installs code-server with Microsoft Marketplace extensions
+- [ ] 51-filebrowser.sh installs FileBrowser with random password
+- [ ] 52-opencode.sh installs OpenCode with random password
+- [ ] 99-post-setup.sh validates installation and shows welcome message with credentials
 - [ ] All scripts are idempotent (can run multiple times)
 - [ ] All scripts handle errors gracefully
 - [ ] All scripts log properly
+- [ ] Scripts wait for apt locks before package installation
 
 ### Packages
 
@@ -296,7 +338,20 @@ echo $PS1
 - [ ] docker.service is running and enabled
 - [ ] code-server@coder.service is running and enabled
 - [ ] filebrowser.service is running and enabled
+- [ ] opencode@coder.service is running and enabled
 - [ ] Services auto-start on container reboot
+
+### Credentials & Security
+
+- [ ] /etc/pve-home-lab/credentials file exists
+- [ ] Credentials file has correct permissions (600, root:root)
+- [ ] All required credentials present (CODE*SERVER_PASSWORD, FILEBROWSER*\*, OPENCODE_PASSWORD)
+- [ ] Passwords are 16 characters, alphanumeric
+- [ ] Each password is unique (not duplicated)
+- [ ] Passwords work for their respective services
+- [ ] EXTENSIONS_GALLERY configured in /etc/environment
+- [ ] EXTENSIONS_GALLERY configured in ~/.bashrc
+- [ ] EXTENSIONS_GALLERY passed through run_as_user function
 
 ### Functionality
 
@@ -308,16 +363,22 @@ echo $PS1
 - [ ] act is installed and working
 - [ ] Starship prompt displays correctly
 - [ ] Shell aliases work (d, dc, g, gs, etc.)
-- [ ] VS Code is accessible on port 8080
-- [ ] FileBrowser is accessible on port 8081
-- [ ] VS Code extensions are installed (20 extensions)
+- [ ] VS Code is accessible on port 8080 (requires password)
+- [ ] FileBrowser is accessible on port 8081 (requires username/password)
+- [ ] OpenCode is accessible on port 8082 (requires password)
+- [ ] VS Code extensions are installed from Microsoft Marketplace
+- [ ] ms-vsliveshare extension is present (validates Microsoft Marketplace usage)
+- [ ] No dpkg/apt lock errors during initial setup
 
 ### User Experience
 
-- [ ] Welcome message displays on first boot
+- [ ] Welcome message displays on first boot with credentials
 - [ ] Validation checks pass in 99-post-setup.sh
 - [ ] All tools are documented in welcome message
 - [ ] Service URLs are displayed correctly
+- [ ] Credentials are shown in welcome banner
+- [ ] Instructions for viewing credentials are clear
+- [ ] Password change instructions are provided
 
 ---
 

@@ -472,6 +472,190 @@ journalctl -u config-manager -n 200 | grep -E 'took|Installing'
 
 ---
 
+## 11. Credentials & Authentication Issues
+
+### Credentials File Missing
+
+**Symptom**: `/etc/pve-home-lab/credentials` doesn't exist
+
+**Cause**: Config-manager hasn't completed first boot setup
+
+**Solutions**:
+
+```bash
+# Check if config-manager is still running
+systemctl status config-manager
+
+# Watch logs for completion
+journalctl -u config-manager -f
+
+# If failed, check for errors
+journalctl -u config-manager -n 100
+
+# Restart config-manager
+sudo systemctl restart config-manager
+```
+
+### Web Service Password Not Working
+
+**Symptom**: Cannot login to VS Code Server, FileBrowser, or OpenCode
+
+**Diagnosis**:
+
+```bash
+# Verify credentials file exists and is readable
+sudo cat /etc/pve-home-lab/credentials
+
+# Check service is running
+systemctl status code-server@coder
+systemctl status filebrowser
+systemctl status opencode@coder
+
+# Check service configuration
+sudo cat /etc/systemd/system/code-server@.service | grep PASSWORD
+```
+
+**Solutions**:
+
+```bash
+# Restart the service
+sudo systemctl restart code-server@coder
+
+# If still not working, regenerate credentials
+sudo rm /etc/pve-home-lab/credentials
+sudo systemctl restart config-manager
+```
+
+### Service Won't Start After Password Change
+
+**Symptom**: Service fails after editing password in systemd unit file
+
+**Solutions**:
+
+```bash
+# Reload systemd daemon (required after editing service files)
+sudo systemctl daemon-reload
+
+# Restart the service
+sudo systemctl restart code-server@coder
+
+# Check for errors
+sudo journalctl -u code-server@coder -n 50
+
+# Verify service file syntax
+sudo systemctl cat code-server@coder
+```
+
+---
+
+## 12. VS Code Extensions Issues
+
+### Extensions Not Installing from Microsoft Marketplace
+
+**Symptom**: Missing extensions like `ms-vsliveshare.vsliveshare`
+
+**Cause**: `EXTENSIONS_GALLERY` not configured
+
+**Diagnosis**:
+
+```bash
+# Check if EXTENSIONS_GALLERY is set
+grep EXTENSIONS_GALLERY /etc/environment
+cat ~/.bashrc | grep EXTENSIONS_GALLERY
+
+# List installed extensions
+ls /home/coder/.local/share/code-server/extensions/
+```
+
+**Solutions**:
+
+```bash
+# Restart code-server to pick up environment variables
+sudo systemctl restart code-server@coder
+
+# If still missing, manually set EXTENSIONS_GALLERY
+echo 'export EXTENSIONS_GALLERY='\''{"serviceUrl":"https://marketplace.visualstudio.com/_apis/public/gallery","itemUrl":"https://marketplace.visualstudio.com/items"}'\''' | sudo tee -a /etc/environment
+
+# Restart container
+sudo reboot
+```
+
+### Extensions Fail to Install
+
+**Symptom**: Extension installation hangs or fails during first boot
+
+**Solutions**:
+
+```bash
+# Check network connectivity
+ping marketplace.visualstudio.com
+
+# Check code-server logs
+journalctl -u code-server@coder -n 100
+
+# Manually install extension
+sudo -u coder code-server --install-extension ms-vsliveshare.vsliveshare
+
+# If persistent, try reinstalling code-server
+sudo systemctl stop code-server@coder
+sudo rm -rf /home/coder/.local/share/code-server
+sudo systemctl restart config-manager
+```
+
+---
+
+## 13. Package Installation Issues
+
+### dpkg Lock Errors on First Boot
+
+**Symptom**:
+
+```
+E: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend)
+02-docker-install.sh FAILED with exit code 1
+```
+
+**Cause**: Fresh containers have `unattended-upgrades` running, creating apt lock race condition
+
+**Solution**:
+
+This is now automatically handled by `wait_for_apt_lock()` helper. If you still see this:
+
+```bash
+# Check if unattended-upgrades is running
+ps aux | grep unattended
+
+# Manually wait for lock
+sudo fuser /var/lib/dpkg/lock-frontend
+
+# Force kill if necessary (not recommended)
+sudo killall apt apt-get unattended-upgrades
+sudo rm /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock
+
+# Restart config-manager
+sudo systemctl restart config-manager
+```
+
+### Apt Lock Timeout
+
+**Symptom**: Script waits for apt lock but times out after 120 seconds
+
+**Solutions**:
+
+```bash
+# Check what process is holding the lock
+sudo lsof /var/lib/dpkg/lock-frontend
+
+# Wait for process to complete, or force kill
+sudo killall unattended-upgrades
+
+# Disable unattended-upgrades (if not needed)
+sudo systemctl stop unattended-upgrades
+sudo systemctl disable unattended-upgrades
+```
+
+---
+
 ## Debugging Guide
 
 ### Log Locations

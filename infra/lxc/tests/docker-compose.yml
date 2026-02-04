@@ -1,0 +1,49 @@
+services:
+  lint:
+    build:
+      context: ../../..
+      dockerfile: infra/lxc/tests/Dockerfile.unit
+    working_dir: /workspace
+    command: bats infra/lxc/tests/lint/
+
+  unit:
+    build:
+      context: ../../..
+      dockerfile: infra/lxc/tests/Dockerfile.unit
+    working_dir: /workspace
+    command: bats infra/lxc/tests/unit/
+
+  coverage:
+    build:
+      context: ../../..
+      dockerfile: infra/lxc/tests/Dockerfile.unit
+    working_dir: /workspace
+    volumes:
+      - ./coverage:/workspace/infra/lxc/tests/coverage
+    command: bash infra/lxc/tests/run-coverage.sh
+
+  integration:
+    build:
+      context: ../../..
+      dockerfile: infra/lxc/tests/Dockerfile.integration
+    privileged: true
+    tmpfs:
+      - /run
+      - /run/lock
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    working_dir: /workspace
+    # For integration: start systemd, wait, then run tests
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        # Start systemd in the background
+        /sbin/init &
+        # Wait for systemd to be ready
+        sleep 3
+        # Run integration tests
+        bats /workspace/infra/lxc/tests/integration/
+        TEST_EXIT=$?
+        # Shutdown systemd
+        kill 1
+        exit $TEST_EXIT

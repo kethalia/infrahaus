@@ -24,6 +24,10 @@ update_os
 REPO_URL="${REPO_URL:-https://github.com/kethalia/pve-home-lab.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 
+# Use the same branch for config-manager as the installation script
+# This ensures feature branch testing uses the feature branch configs
+CONFIG_MANAGER_BRANCH="${CONFIG_MANAGER_BRANCH:-${REPO_BRANCH}}"
+
 # CONFIG_PATH must be set by the calling container.sh script
 if [[ -z "${CONFIG_PATH}" ]]; then
   msg_error "CONFIG_PATH environment variable is required but not set"
@@ -32,10 +36,13 @@ fi
 
 msg_info "Installing config-manager service"
 
-# Create necessary directories
+# Create necessary directories (including /opt/config-manager for systemd namespace)
 mkdir -p /etc/config-manager
 mkdir -p /var/log/config-manager
 mkdir -p /var/lib/config-manager/{backups,state}
+mkdir -p /opt/config-manager
+mkdir -p /usr/local/lib/config-manager/package-handlers
+mkdir -p /run/config-manager
 
 # Write configuration file
 msg_info "Creating configuration file"
@@ -46,8 +53,8 @@ cat > /etc/config-manager/config.env <<EOF
 # Git repository containing container configurations
 CONFIG_REPO_URL="${REPO_URL}"
 
-# Branch to track
-CONFIG_BRANCH="${REPO_BRANCH}"
+# Branch to track (use main for config-manager stability during testing)
+CONFIG_BRANCH="${CONFIG_MANAGER_BRANCH}"
 
 # Sub-path inside the repository where container configs live
 CONFIG_PATH="${CONFIG_PATH}"
@@ -127,9 +134,50 @@ systemctl enable config-manager.service || {
   exit 1
 }
 
+# Ensure git is installed before starting config-manager
+msg_info "Ensuring git is installed"
+if ! command -v git &>/dev/null; then
+  apt-get update -qq && apt-get install -y -qq git
+fi
+
+if ! command -v git &>/dev/null; then
+  msg_error "Failed to install git - config-manager requires git"
+  exit 1
+fi
+msg_ok "Git is installed"
+
 # Start the service to perform initial sync
 msg_info "Running initial configuration sync"
-if ! systemctl start config-manager.service; then
+
+# Start the service non-blocking so we can stream logs in real-time
+systemctl start --no-block config-manager.service
+
+# Wait for service to transition to active state (avoid race condition)
+# Poll for up to 10 seconds for service to start
+for i in $(seq 1 10); do
+  if systemctl is-active --quiet config-manager.service 2>/dev/null; then
+    break
+  fi
+  sleep 1
+done
+
+# Stream config-manager logs to the terminal while it runs
+# Use -o cat to strip journal metadata and show clean output
+journalctl -u config-manager -f --no-pager -o cat 2>/dev/null &
+JOURNAL_PID=$!
+
+# Wait for the oneshot service to finish
+while systemctl is-active --quiet config-manager.service 2>/dev/null; do
+  sleep 2
+done
+
+# Stop journal tail
+# Use || true to absorb the non-zero exit from killing/waiting on terminated process
+kill "$JOURNAL_PID" 2>/dev/null || true
+wait "$JOURNAL_PID" 2>/dev/null || true
+
+# Check final result
+if systemctl is-failed --quiet config-manager.service 2>/dev/null; then
   msg_error "Initial sync failed. Check logs: journalctl -u config-manager"
   msg_error "Container may not be fully configured"
   exit 1
@@ -152,6 +200,11 @@ msg_ok "Container cleanup completed"
 
 # Display completion message
 msg_ok "Container setup complete!"
+
+# Capture container IP (framework may not have set $IP in all cases)
+CONTAINER_IP="${IP:-$(hostname -I | awk '{print $1}')}"
+CONTAINER_IP="${CONTAINER_IP:-<unknown>}"
+
 echo -e "${CREATING}${GN}===========================================${CL}"
 echo -e "${CREATING}${GN}  LXC Container Ready!${CL}"
 echo -e "${CREATING}${GN}===========================================${CL}"
@@ -161,11 +214,15 @@ echo -e "${TAB}Repository: ${BGN}${REPO_URL}${CL}"
 echo -e "${TAB}Branch: ${BGN}${REPO_BRANCH}${CL}"
 echo -e "${TAB}Path: ${BGN}${CONFIG_PATH}${CL}"
 echo -e ""
-echo -e "${INFO}${YW}Container IP:${CL} ${BGN}${IP}${CL}"
+echo -e "${INFO}${YW}Container IP:${CL} ${BGN}${CONTAINER_IP}${CL}"
 echo -e ""
-echo -e "${INFO}${YW}Config Management:${CL}"
+echo -e "${INFO}${YW}Follow config-manager logs from host:${CL}"
+echo -e "${TAB}${BGN}pct exec ${CTID} -- journalctl -u config-manager -f --no-pager -o cat${CL}"
+echo -e ""
+echo -e "${INFO}${YW}View web app credentials (generated passwords):${CL}"
+echo -e "${TAB}${BGN}pct exec ${CTID} -- cat /etc/pve-home-lab/credentials${CL}"
+echo -e ""
+echo -e "${INFO}${YW}Config Management (from inside container):${CL}"
 echo -e "${TAB}• Manual sync: ${BGN}sudo systemctl restart config-manager${CL}"
 echo -e "${TAB}• View logs: ${BGN}journalctl -u config-manager -f${CL}"
 echo -e "${TAB}• Rollback: ${BGN}config-rollback list${CL}"
-echo -e ""
-echo -e "${WARN}${RD}Note:${CL} Check container-specific documentation for access details"

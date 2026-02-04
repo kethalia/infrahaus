@@ -13,7 +13,9 @@
 #   4  — git operation failed (and no cached state available)
 #   5  — conflicts detected between local changes and git updates
 
-set -euo pipefail
+# Note: We use 'set -eo pipefail' without -u to avoid issues with kcov instrumentation
+# and BASH_SOURCE in certain sourcing contexts (e.g., bash -c "source ...")
+set -eo pipefail
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -24,7 +26,7 @@ readonly LOG_DIR="/var/log/config-manager"
 readonly LOG_FILE="${LOG_DIR}/sync.log"
 readonly REPO_DIR="/opt/config-manager/repo"
 readonly LIB_DIR="/usr/local/lib/config-manager"
-readonly VERSION="0.4.0"
+readonly CONFIG_SYNC_VERSION="0.4.0"
 
 # ---------------------------------------------------------------------------
 # Logging helpers
@@ -172,14 +174,14 @@ ensure_helpers() {
     log_info "Helper scripts not found. Downloading from repository..."
 
     # Create temp directory for helper download
-    local temp_helper_dir
+    local temp_helper_dir=""
     temp_helper_dir="$(mktemp -d -t config-manager-helpers-XXXXXX)"
-    trap 'rm -rf "${temp_helper_dir}"' RETURN
 
     # Clone repo to temp location to get helpers
     log_info "Cloning repository to retrieve helper scripts..."
     if ! git clone --depth 1 --branch "${CONFIG_BRANCH}" "${CONFIG_REPO_URL}" "${temp_helper_dir}" &>/dev/null; then
         log_error "Failed to clone repository for helper scripts."
+        rm -rf "${temp_helper_dir}"
         return 1
     fi
 
@@ -192,6 +194,7 @@ ensure_helpers() {
     if [[ ! -d "$helper_source_dir" ]]; then
         log_error "Helper source directory not found: ${CONFIG_HELPER_PATH}"
         log_error "Check CONFIG_HELPER_PATH in /etc/config-manager/config.env"
+        rm -rf "${temp_helper_dir}"
         return 1
     fi
     
@@ -228,6 +231,9 @@ ensure_helpers() {
         chmod 755 /usr/local/bin/config-rollback
         log_info "  → Installed config-rollback CLI"
     fi
+
+    # Cleanup temp directory
+    rm -rf "${temp_helper_dir}"
 
     log_info "Helper scripts installed successfully."
 }
@@ -458,7 +464,7 @@ main() {
     mkdir -p "$LOG_DIR"
 
     log_info "========================================="
-    log_info "config-sync v${VERSION} starting (PID $$)"
+    log_info "config-sync v${CONFIG_SYNC_VERSION} starting (PID $$)"
     log_info "========================================="
 
     # Step 1 — Acquire lock

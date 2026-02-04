@@ -1,0 +1,7 @@
+# Only ignore large/unnecessary directories when building test images
+node_modules
+.next
+.source
+.git
+*.md
+!infra/lxc/tests/README.md
