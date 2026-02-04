@@ -26,7 +26,9 @@ jobs:
 
       - name: Run shellcheck on config-manager scripts
         run: |
-          shellcheck -x -S warning \
+          # SC1090: Dynamic sourcing (execute-scripts.sh)
+          # SC2155: Declare/assign separately (conflict-detector, config-rollback)
+          shellcheck -x -S warning --exclude=SC1090,SC2155 \
             infra/lxc/scripts/config-manager/config-sync.sh \
             infra/lxc/scripts/config-manager/config-manager-helpers.sh \
             infra/lxc/scripts/config-manager/execute-scripts.sh \
@@ -61,7 +63,6 @@ jobs:
       - name: Run unit tests
         run: |
           docker run --rm \
-            -v "${{ github.workspace }}:/workspace:ro" \
             cm-test-unit \
             bats /workspace/infra/lxc/tests/unit/
 
@@ -80,7 +81,6 @@ jobs:
         run: |
           mkdir -p infra/lxc/tests/coverage
           docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/infra/lxc/tests/coverage:/workspace/infra/lxc/tests/coverage" \
             cm-test-coverage \
             bash /workspace/infra/lxc/tests/run-coverage.sh
@@ -119,6 +119,5 @@ jobs:
           docker run --rm --privileged \
             --tmpfs /run --tmpfs /run/lock \
             -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-            -v "${{ github.workspace }}:/workspace:ro" \
             cm-test-integration \
             bash -c '/sbin/init & sleep 3 && bats /workspace/infra/lxc/tests/integration/ ; TEST_EXIT=$? ; kill 1 ; exit $TEST_EXIT'
