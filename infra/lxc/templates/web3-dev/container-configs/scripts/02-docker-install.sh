@@ -39,6 +39,12 @@ fi
 
 log_info "Docker not found. Installing Docker CE..."
 
+# Wait for any existing package manager operations to complete
+wait_for_apt_lock || {
+    log_error "Failed to acquire package manager lock"
+    exit 1
+}
+
 # Install dependencies
 log_info "Installing prerequisites..."
 ensure_installed ca-certificates
@@ -46,6 +52,7 @@ ensure_installed curl
 ensure_installed gnupg
 
 # Download and run official Docker installation script
+# Note: The Docker install script will handle its own apt operations
 log_info "Running official Docker installation script..."
 if curl -fsSL https://get.docker.com | sh; then
     log_info "✓ Docker CE installed successfully"

@@ -124,6 +124,52 @@ detect_package_manager() {
 }
 
 # ---------------------------------------------------------------------------
+# wait_for_apt_lock — wait for dpkg/apt lock to be released
+#
+# Waits up to max_wait seconds for any apt/dpkg processes to finish.
+# Common on fresh containers where unattended-upgrades may be running.
+# ---------------------------------------------------------------------------
+wait_for_apt_lock() {
+    local max_wait="${1:-120}"  # default 120 seconds
+    local waited=0
+    
+    # Check if fuser is available
+    if ! command -v fuser &>/dev/null; then
+        log_warn "fuser not available, skipping lock wait"
+        return 0
+    fi
+    
+    log_info "Checking for dpkg/apt lock..."
+    
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+          fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
+          fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+        
+        if (( waited >= max_wait )); then
+            log_error "Timed out waiting for dpkg lock after ${max_wait}s"
+            return 1
+        fi
+        
+        if (( waited == 0 )); then
+            log_info "Another package manager is running, waiting for it to finish..."
+        fi
+        
+        sleep 5
+        (( waited += 5 ))
+        
+        if (( waited % 30 == 0 )); then
+            log_info "Still waiting for dpkg lock... (${waited}s elapsed)"
+        fi
+    done
+    
+    if (( waited > 0 )); then
+        log_info "dpkg lock released after ${waited}s"
+    fi
+    
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # is_installed <cmd> — check if a command is available
 # ---------------------------------------------------------------------------
 is_installed() {
@@ -157,11 +203,16 @@ ensure_installed() {
     # Ensure we know which package manager to use
     [[ -z "${_PKG_MGR:-}" ]] && detect_package_manager
 
+    # Wait for apt lock if using apt-based system
+    if [[ "$_PKG_MGR" == "apt" ]]; then
+        wait_for_apt_lock || return 1
+    fi
+
     log_info "ensure_installed: installing '${pkg}' via ${_PKG_MGR} ..."
 
     case "$_PKG_MGR" in
         apt)
-            apt-get update -qq && apt-get install -y -qq "$pkg"
+            apt-get update -qq && apt-get install -y -qq -o DPkg::Lock::Timeout=120 "$pkg"
             ;;
         apk)
             apk add --quiet "$pkg"
