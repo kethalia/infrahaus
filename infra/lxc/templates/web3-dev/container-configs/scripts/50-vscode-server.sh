@@ -13,9 +13,6 @@ set -euo pipefail
 
 log_info "=== Installing Browser-Based Development Tools ==="
 
-INSTALL_LOG="/var/log/web-tools-install.log"
-exec > >(tee -a "$INSTALL_LOG") 2>&1
-
 # ============================================================================
 # code-server (VS Code in browser)
 # ============================================================================

@@ -6,7 +6,9 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+ExecStartPre=/bin/sh -c 'printf "System is being configured by config-manager.\\nPlease wait for initial setup to complete.\\nCheck progress: journalctl -u config-manager -f\\n" > /var/run/nologin'
 ExecStart=/usr/local/bin/config-sync.sh
+ExecStopPost=/bin/rm -f /var/run/nologin
 RemainAfterExit=no
 Environment=HOME=/root
 

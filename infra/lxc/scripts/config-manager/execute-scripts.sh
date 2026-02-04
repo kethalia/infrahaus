@@ -145,7 +145,23 @@ run_single_script() {
 
         source "$script_path"
     ) 2>&1 | while IFS= read -r line; do
-        log_info "[${script_name}] ${line}"
+        # Parse container script output for embedded log levels
+        # Format: [timestamp] [LEVEL   ] message
+        if [[ "$line" =~ ^\[([0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2})\]\ \[(INFO|WARNING|ERROR)\ +\]\ (.*)$ ]]; then
+            # Extract the level and message, strip the original timestamp
+            local level="${BASH_REMATCH[2]}"
+            local msg="${BASH_REMATCH[3]}"
+            
+            # Re-emit with the correct log level and script name prefix
+            case "$level" in
+                INFO)    log_info "[${script_name}] ${msg}" ;;
+                WARNING) log_warn "[${script_name}] ${msg}" ;;
+                ERROR)   log_error "[${script_name}] ${msg}" ;;
+            esac
+        else
+            # Raw output (no log formatting) — emit as INFO
+            log_info "[${script_name}] ${line}"
+        fi
     done
     exit_code=${PIPESTATUS[0]}
 

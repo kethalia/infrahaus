@@ -148,7 +148,26 @@ msg_ok "Git is installed"
 
 # Start the service to perform initial sync
 msg_info "Running initial configuration sync"
-if ! systemctl start config-manager.service; then
+
+# Start the service non-blocking so we can stream logs in real-time
+systemctl start --no-block config-manager.service
+
+# Stream config-manager logs to the terminal while it runs
+# Use -o cat to strip journal metadata and show clean output
+journalctl -u config-manager -f --no-pager -o cat 2>/dev/null &
+JOURNAL_PID=$!
+
+# Wait for the oneshot service to finish
+while systemctl is-active --quiet config-manager.service 2>/dev/null; do
+  sleep 2
+done
+
+# Stop journal tail
+kill "$JOURNAL_PID" 2>/dev/null
+wait "$JOURNAL_PID" 2>/dev/null
+
+# Check final result
+if systemctl is-failed --quiet config-manager.service 2>/dev/null; then
   msg_error "Initial sync failed. Check logs: journalctl -u config-manager"
   msg_error "Container may not be fully configured"
   exit 1
