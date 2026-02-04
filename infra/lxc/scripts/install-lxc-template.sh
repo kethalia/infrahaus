@@ -152,16 +152,22 @@ msg_info "Running initial configuration sync"
 # Start the service non-blocking so we can stream logs in real-time
 systemctl start --no-block config-manager.service
 
+# Wait for service to transition to active state (avoid race condition)
+# Poll for up to 10 seconds for service to start
+for i in $(seq 1 10); do
+  if systemctl is-active --quiet config-manager.service 2>/dev/null; then
+    break
+  fi
+  sleep 1
+done
+
 # Stream config-manager logs to the terminal while it runs
 # Use -o cat to strip journal metadata and show clean output
 journalctl -u config-manager -f --no-pager -o cat 2>/dev/null &
 JOURNAL_PID=$!
 
 # Wait for the oneshot service to finish
-# Use || true to prevent is-active returning non-zero from triggering catch_errors
-while systemctl is-active --quiet config-manager.service 2>/dev/null || true; do
-  # Break when service is no longer active
-  systemctl is-active --quiet config-manager.service 2>/dev/null || break
+while systemctl is-active --quiet config-manager.service 2>/dev/null; do
   sleep 2
 done
 
@@ -215,4 +221,4 @@ echo -e "${TAB}• Manual sync: ${BGN}sudo systemctl restart config-manager${CL}
 echo -e "${TAB}• View logs: ${BGN}journalctl -u config-manager -f${CL}"
 echo -e "${TAB}• Rollback: ${BGN}config-rollback list${CL}"
 echo -e ""
-echo -e "${WARN}${RD}Note:${CL} Check container-specific documentation for access details"
+echo -e "${WARN:-}${RD}Note:${CL} Check container-specific documentation for access details"
