@@ -24,7 +24,7 @@ readonly LOG_DIR="/var/log/config-manager"
 readonly LOG_FILE="${LOG_DIR}/sync.log"
 readonly REPO_DIR="/opt/config-manager/repo"
 readonly LIB_DIR="/usr/local/lib/config-manager"
-readonly VERSION="0.4.0"
+readonly CONFIG_SYNC_VERSION="0.4.0"
 
 # ---------------------------------------------------------------------------
 # Logging helpers
