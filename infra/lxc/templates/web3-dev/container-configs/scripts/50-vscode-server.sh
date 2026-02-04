@@ -300,7 +300,7 @@ install_opencode() {
     
     # Run as the container user
     run_as_user bash -c "
-        curl -fsSL https://opencode.ai/install | sh
+        curl -fsSL https://opencode.ai/install | bash
     "
     
     # Add opencode to PATH
