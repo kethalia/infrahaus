@@ -61,7 +61,7 @@ install_code_server() {
     
     # 1. Add to /etc/environment (system-wide, picked up by PAM/sudo/login shells)
     if ! grep -q "EXTENSIONS_GALLERY" /etc/environment 2>/dev/null; then
-        echo 'EXTENSIONS_GALLERY={"serviceUrl":"https://marketplace.visualstudio.com/_apis/public/gallery"}' >> /etc/environment
+        echo 'EXTENSIONS_GALLERY={"serviceUrl":"https://marketplace.visualstudio.com/_apis/public/gallery","itemUrl":"https://marketplace.visualstudio.com/items"}' >> /etc/environment
     fi
     
     # 2. Add to user's .bashrc (interactive shells)
@@ -69,7 +69,7 @@ install_code_server() {
     if ! grep -q "EXTENSIONS_GALLERY" "$BASHRC_FILE" 2>/dev/null; then
         echo '' >> "$BASHRC_FILE"
         echo '# VS Code Marketplace access for code-server' >> "$BASHRC_FILE"
-        echo 'export EXTENSIONS_GALLERY='"'"'{"serviceUrl":"https://marketplace.visualstudio.com/_apis/public/gallery"}'"'"'' >> "$BASHRC_FILE"
+        echo 'export EXTENSIONS_GALLERY='"'"'{"serviceUrl":"https://marketplace.visualstudio.com/_apis/public/gallery","itemUrl":"https://marketplace.visualstudio.com/items"}'"'"'' >> "$BASHRC_FILE"
     fi
     
     # Generate random password
@@ -90,7 +90,7 @@ ExecStart=/usr/bin/code-server --bind-addr 0.0.0.0:8080 --auth password
 Restart=always
 User=%i
 Environment=PASSWORD=${CODE_SERVER_PASSWORD}
-Environment="EXTENSIONS_GALLERY={\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
+Environment="EXTENSIONS_GALLERY={\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\",\"itemUrl\":\"https://marketplace.visualstudio.com/items\"}"
 
 [Install]
 WantedBy=default.target
@@ -111,7 +111,7 @@ install_vscode_extensions() {
     log_info "Installing VS Code extensions for code-server..."
     
     # Export EXTENSIONS_GALLERY for this session (ensures run_as_user calls have it)
-    export EXTENSIONS_GALLERY='{"serviceUrl":"https://marketplace.visualstudio.com/_apis/public/gallery"}'
+    export EXTENSIONS_GALLERY='{"serviceUrl":"https://marketplace.visualstudio.com/_apis/public/gallery","itemUrl":"https://marketplace.visualstudio.com/items"}'
     
     # Wait for code-server to be fully started
     sleep 5
