@@ -4,6 +4,7 @@
     "index",
     "lxc-setup",
     "lxc-configuration",
+    "lxc-credentials",
     "lxc-migration",
     "lxc-troubleshooting"
   ]

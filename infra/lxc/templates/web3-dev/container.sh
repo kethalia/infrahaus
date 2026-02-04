@@ -11,8 +11,8 @@ source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxV
 # Source: https://github.com/kethalia/pve-home-lab
 
 # Detect which branch this script is running from
-# This allows testing on feature branches
-SCRIPT_BRANCH="fix/web3-dev-unprivileged-and-install"  # Will be changed to 'main' when merged
+# This allows testing on feature branches by setting SCRIPT_BRANCH env var
+SCRIPT_BRANCH="${SCRIPT_BRANCH:-main}"
 
 # Source template configuration
 # Works both when run locally and via curl from ProxmoxVE

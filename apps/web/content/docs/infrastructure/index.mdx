@@ -21,15 +21,17 @@ The config-manager system runs as a systemd service on every boot, synchronizing
 
 ```
 ProxmoxVE Host
-├── LXC Container (Ubuntu 24.04)
+├── LXC Container (Debian 12, unprivileged)
 │   ├── Config-Manager Service (systemd)
 │   │   ├── Git Sync (/opt/config-manager/repo)
 │   │   ├── Script Execution (00-pre-checks.sh → 99-post-setup.sh)
 │   │   ├── File Management (bashrc, aliases, gitconfig)
 │   │   ├── Package Installation (apt, npm, pip, custom)
+│   │   ├── Credential Generation (/etc/pve-home-lab/credentials)
 │   │   └── Snapshot System (ZFS/LVM/BTRFS/file-level)
 │   ├── Installed Tools (Docker, Node.js, etc.)
-│   └── User Environment (coder:1000)
+│   ├── User Environment (coder:1000)
+│   └── Web Services (VS Code Server, FileBrowser, OpenCode)
 └── Template Repository (GitHub)
     └── infra/lxc/templates/*/container-configs/
         ├── scripts/
@@ -74,9 +76,9 @@ REPO_BRANCH="main" \
 
 ## Available Templates
 
-| Template   | OS           | Default Resources    | Key Tools                                | Use Case                    |
-| ---------- | ------------ | -------------------- | ---------------------------------------- | --------------------------- |
-| `web3-dev` | Ubuntu 24.04 | 4 CPU, 8GB RAM, 20GB | Docker, Node.js, Foundry, VS Code Server | Web3/blockchain development |
+| Template   | OS        | Default Resources    | Key Tools                                | Use Case                    | Security                  |
+| ---------- | --------- | -------------------- | ---------------------------------------- | --------------------------- | ------------------------- |
+| `web3-dev` | Debian 12 | 4 CPU, 8GB RAM, 20GB | Docker, Node.js, Foundry, VS Code Server | Web3/blockchain development | Unprivileged, random auth |
 
 More templates coming soon. Contributions welcome!
 
@@ -95,8 +97,10 @@ scripts/
 ├── 02-docker-install.sh   # Docker CE installation
 ├── 03-nodejs-setup.sh     # Node.js and PNPM
 ├── 04-web3-tools.sh       # Foundry, Hardhat, etc.
-├── 50-vscode-server.sh    # VS Code Server
-└── 99-post-setup.sh       # Final verification
+├── 50-vscode-server.sh    # VS Code Server with random password
+├── 51-filebrowser.sh      # FileBrowser with random password
+├── 52-opencode.sh         # OpenCode with random password
+└── 99-post-setup.sh       # Final verification & welcome banner
 ```
 
 Scripts are idempotent and have access to helper functions like `is_installed`, `ensure_installed`, and `log_*`.
@@ -143,12 +147,43 @@ name|check_command|install_command[|timeout_seconds]
 foundry|command -v forge|curl -L https://foundry.paradigm.xyz | bash && foundryup|600
 ```
 
+## Security Features
+
+### Random Credential Generation
+
+All web services (VS Code Server, FileBrowser, OpenCode) use randomly generated passwords:
+
+- **16-character alphanumeric passwords** generated on first boot
+- **Stored securely** in `/etc/pve-home-lab/credentials` (mode 600, root-only)
+- **Unique per container** - no hardcoded defaults
+- **Easy retrieval** from ProxmoxVE host or inside container
+
+**View credentials:**
+
+```bash
+# From ProxmoxVE host
+pct exec <container-id> -- cat /etc/pve-home-lab/credentials
+
+# Inside container
+sudo cat /etc/pve-home-lab/credentials
+```
+
+### Unprivileged Containers
+
+Templates use unprivileged LXC containers by default for enhanced security:
+
+- User namespace isolation
+- Reduced attack surface
+- No direct root access to host
+- Docker-in-Docker still supported
+
 ## Documentation Sections
 
 Comprehensive documentation for all aspects of the LXC infrastructure:
 
 - [**LXC Setup**](/docs/infrastructure/lxc-setup) — Installation, quick start, resource requirements, first-boot walkthrough, and creating custom templates
 - [**LXC Configuration**](/docs/infrastructure/lxc-configuration) — Complete reference for config-manager: scripts, files, packages, snapshots, conflict resolution, and advanced topics
+- [**LXC Credentials**](/docs/infrastructure/lxc-credentials) — Credential management, password rotation, security best practices for web services
 - [**LXC Migration**](/docs/infrastructure/lxc-migration) — Migrating from Coder workspaces, Docker Compose, bare-metal setups, and cloud IDEs with step-by-step guides
 - [**LXC Troubleshooting**](/docs/infrastructure/lxc-troubleshooting) — Common issues, diagnostic commands, and solutions for service failures, git sync problems, and performance issues
 
