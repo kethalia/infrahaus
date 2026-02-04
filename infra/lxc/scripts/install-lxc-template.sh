@@ -171,6 +171,11 @@ msg_ok "Container cleanup completed"
 
 # Display completion message
 msg_ok "Container setup complete!"
+
+# Capture container IP (framework may not have set $IP in all cases)
+CONTAINER_IP="${IP:-$(hostname -I | awk '{print $1}')}"
+CONTAINER_IP="${CONTAINER_IP:-<unknown>}"
+
 echo -e "${CREATING}${GN}===========================================${CL}"
 echo -e "${CREATING}${GN}  LXC Container Ready!${CL}"
 echo -e "${CREATING}${GN}===========================================${CL}"
@@ -180,7 +185,7 @@ echo -e "${TAB}Repository: ${BGN}${REPO_URL}${CL}"
 echo -e "${TAB}Branch: ${BGN}${REPO_BRANCH}${CL}"
 echo -e "${TAB}Path: ${BGN}${CONFIG_PATH}${CL}"
 echo -e ""
-echo -e "${INFO}${YW}Container IP:${CL} ${BGN}${IP}${CL}"
+echo -e "${INFO}${YW}Container IP:${CL} ${BGN}${CONTAINER_IP}${CL}"
 echo -e ""
 echo -e "${INFO}${YW}Config Management:${CL}"
 echo -e "${TAB}• Manual sync: ${BGN}sudo systemctl restart config-manager${CL}"
