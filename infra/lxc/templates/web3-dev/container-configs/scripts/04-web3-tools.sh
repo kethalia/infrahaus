@@ -19,7 +19,7 @@ if run_as_user bash -c "command -v forge" >/dev/null 2>&1; then
     
     # Optionally update Foundry
     log_info "Checking for Foundry updates..."
-    if run_as_user bash -c "foundryup" >/dev/null 2>&1; then
+    if run_as_user bash -c "bash \"\$HOME/.foundry/bin/foundryup\"" >/dev/null 2>&1; then
         FORGE_VERSION_NEW=$(run_as_user bash -c "forge --version" 2>/dev/null | head -1 || echo "unknown")
         if [[ "$FORGE_VERSION" != "$FORGE_VERSION_NEW" ]]; then
             log_info "✓ Foundry updated: ${FORGE_VERSION_NEW}"
@@ -56,9 +56,10 @@ export PATH="${FOUNDRY_DIR}/bin:$PATH"
 
 # Run foundryup to install Foundry tools
 log_info "Running foundryup to install Foundry tools (forge, cast, anvil, chisel)..."
+# Run foundryup explicitly with bash to bypass shebang issues
 run_as_user bash -c "
     export PATH='${FOUNDRY_DIR}/bin:\$PATH'
-    foundryup
+    bash '${FOUNDRY_DIR}/bin/foundryup'
 "
 
 # Verify Foundry installation

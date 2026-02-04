@@ -24,9 +24,9 @@ update_os
 REPO_URL="${REPO_URL:-https://github.com/kethalia/pve-home-lab.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 
-# For testing branches, config-manager should use main branch for stability
-# Feature branches may not have all the container-configs ready
-CONFIG_MANAGER_BRANCH="${CONFIG_MANAGER_BRANCH:-main}"
+# Use the same branch for config-manager as the installation script
+# This ensures feature branch testing uses the feature branch configs
+CONFIG_MANAGER_BRANCH="${CONFIG_MANAGER_BRANCH:-${REPO_BRANCH}}"
 
 # CONFIG_PATH must be set by the calling container.sh script
 if [[ -z "${CONFIG_PATH}" ]]; then
