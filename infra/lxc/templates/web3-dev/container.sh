@@ -94,8 +94,18 @@ msg_info "Running Web3 Dev Container configuration"
 REPO_URL="${REPO_URL:-https://github.com/kethalia/pve-home-lab.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 
-# Execute the install script inside the container
-if ! lxc-attach -n "$CTID" -- bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/${REPO_BRANCH}/infra/lxc/scripts/install-lxc-template.sh)"; then
+# The install script needs FUNCTIONS_FILE_PATH (ProxmoxVE framework functions)
+# This was already exported by build_container, so it's available in the current shell
+# We need to pass it along with other required variables to the container
+
+# Execute the install script inside the container with required environment
+if ! lxc-attach -n "$CTID" -- bash -c "
+export FUNCTIONS_FILE_PATH='${FUNCTIONS_FILE_PATH}'
+export CONFIG_PATH='${CONFIG_PATH}'
+export REPO_URL='${REPO_URL}'
+export REPO_BRANCH='${REPO_BRANCH}'
+$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/${REPO_BRANCH}/infra/lxc/scripts/install-lxc-template.sh)
+"; then
   msg_error "Web3 Dev Container configuration failed"
   msg_error "Check logs: journalctl -u config-manager (inside container)"
   exit 1
