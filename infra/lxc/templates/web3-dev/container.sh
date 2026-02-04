@@ -104,36 +104,49 @@ REPO_BRANCH="${REPO_BRANCH:-${SCRIPT_BRANCH}}"  # Use same branch as container.s
 
 # Create a wrapper script inside the container that downloads functions and runs install
 # We can't pass FUNCTIONS_FILE_PATH as an env var because it contains multi-line script content
-cat > /tmp/web3-install-wrapper-${CTID}.sh <<EOFWRAPPER
+cat > /tmp/web3-install-wrapper-${CTID}.sh <<'EOFWRAPPER'
 #!/usr/bin/env bash
 set -euo pipefail
 
 # Download ProxmoxVE framework functions (same as build_container does)
-export FUNCTIONS_FILE_PATH="\$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)"
+export FUNCTIONS_FILE_PATH="$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)"
 
-# Set other required environment variables
+# Download the install script to a file
+curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/BRANCH_PLACEHOLDER/infra/lxc/scripts/install-lxc-template.sh > /tmp/install-lxc-template.sh
+chmod +x /tmp/install-lxc-template.sh
+
+# Execute it
+/tmp/install-lxc-template.sh
+
+# Clean up
+rm -f /tmp/install-lxc-template.sh
+EOFWRAPPER
+
+# Replace placeholders in the wrapper script
+sed -i "s|BRANCH_PLACEHOLDER|${REPO_BRANCH}|g" /tmp/web3-install-wrapper-${CTID}.sh
+
+# Push environment variables to a separate file
+cat > /tmp/web3-install-env-${CTID}.sh <<EOFENV
 export CONFIG_PATH='${CONFIG_PATH}'
 export REPO_URL='${REPO_URL}'
 export REPO_BRANCH='${REPO_BRANCH}'
+EOFENV
 
-# Download and execute the install script
-curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/${REPO_BRANCH}/infra/lxc/scripts/install-lxc-template.sh | bash
-EOFWRAPPER
-
-# Push the wrapper script to the container
+# Push both files to the container
 pct push "$CTID" /tmp/web3-install-wrapper-${CTID}.sh /tmp/install-wrapper.sh
+pct push "$CTID" /tmp/web3-install-env-${CTID}.sh /tmp/install-env.sh
 
-# Execute it
-if ! pct exec "$CTID" -- bash /tmp/install-wrapper.sh; then
+# Execute with environment sourced
+if ! pct exec "$CTID" -- bash -c "source /tmp/install-env.sh && bash /tmp/install-wrapper.sh"; then
   msg_error "Web3 Dev Container configuration failed"
   msg_error "Check logs: journalctl -u config-manager (inside container)"
-  rm -f /tmp/web3-install-wrapper-${CTID}.sh
+  rm -f /tmp/web3-install-wrapper-${CTID}.sh /tmp/web3-install-env-${CTID}.sh
   exit 1
 fi
 
 # Clean up
-pct exec "$CTID" -- rm -f /tmp/install-wrapper.sh
-rm -f /tmp/web3-install-wrapper-${CTID}.sh
+pct exec "$CTID" -- rm -f /tmp/install-wrapper.sh /tmp/install-env.sh
+rm -f /tmp/web3-install-wrapper-${CTID}.sh /tmp/web3-install-env-${CTID}.sh
 
 msg_ok "Web3 Dev Container configured successfully"
 
