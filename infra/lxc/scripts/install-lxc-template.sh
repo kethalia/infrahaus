@@ -24,6 +24,10 @@ update_os
 REPO_URL="${REPO_URL:-https://github.com/kethalia/pve-home-lab.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 
+# For testing branches, config-manager should use main branch for stability
+# Feature branches may not have all the container-configs ready
+CONFIG_MANAGER_BRANCH="${CONFIG_MANAGER_BRANCH:-main}"
+
 # CONFIG_PATH must be set by the calling container.sh script
 if [[ -z "${CONFIG_PATH}" ]]; then
   msg_error "CONFIG_PATH environment variable is required but not set"
@@ -47,8 +51,8 @@ cat > /etc/config-manager/config.env <<EOF
 # Git repository containing container configurations
 CONFIG_REPO_URL="${REPO_URL}"
 
-# Branch to track
-CONFIG_BRANCH="${REPO_BRANCH}"
+# Branch to track (use main for config-manager stability during testing)
+CONFIG_BRANCH="${CONFIG_MANAGER_BRANCH}"
 
 # Sub-path inside the repository where container configs live
 CONFIG_PATH="${CONFIG_PATH}"
