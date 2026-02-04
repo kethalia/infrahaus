@@ -126,11 +126,11 @@ detect_package_manager() {
 # ---------------------------------------------------------------------------
 # wait_for_apt_lock — wait for dpkg/apt lock to be released
 #
-# Waits up to max_wait seconds for any apt/dpkg processes to finish.
+# Waits up to 120 seconds for any apt/dpkg processes to finish.
 # Common on fresh containers where unattended-upgrades may be running.
 # ---------------------------------------------------------------------------
 wait_for_apt_lock() {
-    local max_wait="${1:-120}"  # default 120 seconds
+    local max_wait=120
     local waited=0
     
     # Check if fuser is available
