@@ -77,6 +77,10 @@ main() {
         integration)
             run_target integration
             ;;
+        coverage)
+            info "Running tests with coverage tracking..."
+            run_target coverage
+            ;;
         act)
             run_act
             ;;
@@ -101,7 +105,7 @@ main() {
             fi
             ;;
         *)
-            echo "Usage: $0 [lint|unit|integration|act|all]"
+            echo "Usage: $0 [lint|unit|integration|coverage|act|all]"
             exit 1
             ;;
     esac

@@ -13,6 +13,15 @@ services:
     working_dir: /workspace
     command: bats infra/lxc/tests/unit/
 
+  coverage:
+    build:
+      context: ../../..
+      dockerfile: infra/lxc/tests/Dockerfile.unit
+    working_dir: /workspace
+    volumes:
+      - ./coverage:/workspace/infra/lxc/tests/coverage
+    command: bash infra/lxc/tests/run-coverage.sh
+
   integration:
     build:
       context: ../../..

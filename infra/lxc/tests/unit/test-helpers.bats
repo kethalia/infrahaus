@@ -16,10 +16,11 @@ setup() {
     source "${CM_SCRIPTS}/config-manager-helpers.sh"
 }
 
-@test "detect_container_os: detects ubuntu from /etc/os-release" {
+@test "detect_container_os: detects debian from /etc/os-release" {
     detect_container_os
-    assert_equal "$CONTAINER_OS" "ubuntu"
-    assert_equal "$CONTAINER_OS_VERSION" "24.04"
+    assert_equal "$CONTAINER_OS" "debian"
+    # Debian 12 version ID is "12"
+    [[ "$CONTAINER_OS_VERSION" == "12" ]]
 }
 
 @test "detect_package_manager: detects apt on Ubuntu" {
