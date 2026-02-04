@@ -1,0 +1,86 @@
+name: Config Manager Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/lxc/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/lxc/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: ShellCheck Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on config-manager scripts
+        run: |
+          shellcheck -x -S warning \
+            infra/lxc/scripts/config-manager/config-sync.sh \
+            infra/lxc/scripts/config-manager/config-manager-helpers.sh \
+            infra/lxc/scripts/config-manager/execute-scripts.sh \
+            infra/lxc/scripts/config-manager/process-files.sh \
+            infra/lxc/scripts/config-manager/snapshot-manager.sh \
+            infra/lxc/scripts/config-manager/conflict-detector.sh \
+            infra/lxc/scripts/config-manager/config-rollback.sh
+
+      - name: Run shellcheck on package handlers
+        run: |
+          shellcheck -x -S warning \
+            infra/lxc/scripts/config-manager/package-handlers/*.sh
+
+      - name: Run shellcheck on container-config scripts
+        run: |
+          for script in infra/lxc/templates/web3-dev/container-configs/scripts/*.sh; do
+            echo "Checking: $script"
+            shellcheck -x -S warning --exclude=SC2154 "$script"
+          done
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build test image
+        working-directory: infra/lxc/tests
+        run: docker build -t cm-test-unit -f Dockerfile.unit .
+
+      - name: Run unit tests
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace:ro" \
+            cm-test-unit \
+            bats /workspace/infra/lxc/tests/unit/
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build integration test image
+        working-directory: infra/lxc/tests
+        run: docker build -t cm-test-integration -f Dockerfile.integration .
+
+      - name: Run integration tests
+        run: |
+          docker run --rm --privileged \
+            --tmpfs /run --tmpfs /run/lock \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+            -v "${{ github.workspace }}:/workspace:ro" \
+            cm-test-integration \
+            bash -c '/sbin/init & sleep 3 && bats /workspace/infra/lxc/tests/integration/ ; TEST_EXIT=$? ; kill 1 ; exit $TEST_EXIT'
