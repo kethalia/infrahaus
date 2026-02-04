@@ -158,13 +158,17 @@ journalctl -u config-manager -f --no-pager -o cat 2>/dev/null &
 JOURNAL_PID=$!
 
 # Wait for the oneshot service to finish
-while systemctl is-active --quiet config-manager.service 2>/dev/null; do
+# Use || true to prevent is-active returning non-zero from triggering catch_errors
+while systemctl is-active --quiet config-manager.service 2>/dev/null || true; do
+  # Break when service is no longer active
+  systemctl is-active --quiet config-manager.service 2>/dev/null || break
   sleep 2
 done
 
 # Stop journal tail
-kill "$JOURNAL_PID" 2>/dev/null
-wait "$JOURNAL_PID" 2>/dev/null
+# Use || true to absorb the non-zero exit from killing/waiting on terminated process
+kill "$JOURNAL_PID" 2>/dev/null || true
+wait "$JOURNAL_PID" 2>/dev/null || true
 
 # Check final result
 if systemctl is-failed --quiet config-manager.service 2>/dev/null; then
