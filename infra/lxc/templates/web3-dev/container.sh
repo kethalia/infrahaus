@@ -32,13 +32,10 @@ var_os="${var_os:-${TEMPLATE_OS}}"
 var_version="${var_version:-${TEMPLATE_VERSION}}"
 
 # Container features
-var_unprivileged="${var_unprivileged:-${TEMPLATE_PRIVILEGED}}"
+var_unprivileged="${var_unprivileged:-${TEMPLATE_UNPRIVILEGED}}"
 var_nesting="${var_nesting:-${TEMPLATE_NESTING}}"
 var_keyctl="${var_keyctl:-${TEMPLATE_KEYCTL}}"
 var_fuse="${var_fuse:-${TEMPLATE_FUSE}}"
-
-# Use shared generic installer
-var_install="${var_install:-https://raw.githubusercontent.com/kethalia/pve-home-lab/main/infra/lxc/scripts/install-lxc-template.sh}"
 
 # Export CONFIG_PATH for installer
 export CONFIG_PATH="${TEMPLATE_CONFIG_PATH}"
@@ -85,5 +82,25 @@ Configuration Management:
   Config status: config-rollback status"
 
 start
-build_container
+
+# Build container (framework will attempt to run web3devcontainer-install.sh which doesn't exist - harmless 404 error)
+# Suppress the expected 404 error from stderr
+build_container 2> >(grep -v "curl: (22)" >&2)
+
+# Run our actual installer post-build
+msg_info "Running Web3 Dev Container configuration"
+
+# Configuration (must be provided via environment variables)
+REPO_URL="${REPO_URL:-https://github.com/kethalia/pve-home-lab.git}"
+REPO_BRANCH="${REPO_BRANCH:-main}"
+
+# Execute the install script inside the container
+if ! lxc-attach -n "$CTID" -- bash -c "$(curl -fsSL https://raw.githubusercontent.com/kethalia/pve-home-lab/${REPO_BRANCH}/infra/lxc/scripts/install-lxc-template.sh)"; then
+  msg_error "Web3 Dev Container configuration failed"
+  msg_error "Check logs: journalctl -u config-manager (inside container)"
+  exit 1
+fi
+
+msg_ok "Web3 Dev Container configured successfully"
+
 description
