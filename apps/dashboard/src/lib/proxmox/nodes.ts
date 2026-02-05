@@ -5,14 +5,16 @@
 import "server-only";
 import { z } from "zod";
 import type { ProxmoxClient } from "./client.js";
-import { NodeSchema, NodeStatusSchema } from "./schemas.js";
-import type { ProxmoxNode, ProxmoxNodeStatus } from "./types.js";
+import { ClusterNodeSchema, NodeStatusSchema } from "./schemas.js";
+import type { ProxmoxClusterNode, ProxmoxNodeStatus } from "./types.js";
 
 /**
  * List all nodes in the cluster
  */
-export async function listNodes(client: ProxmoxClient): Promise<ProxmoxNode[]> {
-  return client.get("/nodes", z.array(NodeSchema));
+export async function listNodes(
+  client: ProxmoxClient,
+): Promise<ProxmoxClusterNode[]> {
+  return client.get("/nodes", z.array(ClusterNodeSchema));
 }
 
 /**

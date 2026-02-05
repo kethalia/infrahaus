@@ -20,7 +20,7 @@ export const TicketResponseSchema = z.object({
 // Node
 // ============================================================================
 
-export const NodeSchema = z.object({
+export const ClusterNodeSchema = z.object({
   node: z.string(),
   status: z.enum(["online", "offline", "unknown"]),
   type: z.literal("node"),

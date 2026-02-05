@@ -6,12 +6,11 @@
 import type { z } from "zod";
 import type {
   TicketResponseSchema,
-  NodeSchema,
+  ClusterNodeSchema,
   NodeStatusSchema,
   ContainerSchema,
   ContainerConfigSchema,
   ContainerStatusSchema,
-  TaskSchema,
   TaskStatusSchema,
   TaskLogEntrySchema,
   StorageSchema,
@@ -31,12 +30,6 @@ export interface ProxmoxApiResponse<T> {
 // ============================================================================
 
 export type ProxmoxTicketResponse = z.infer<typeof TicketResponseSchema>;
-
-export interface ProxmoxTicketRequest {
-  username: string;
-  password: string;
-  realm?: string; // Default: 'pam'
-}
 
 export interface ProxmoxTicketCredentials {
   type: "ticket";
@@ -76,7 +69,7 @@ export interface ProxmoxClientConfig {
 // Node (Response types inferred from Zod schemas)
 // ============================================================================
 
-export type ProxmoxNode = z.infer<typeof NodeSchema>;
+export type ProxmoxClusterNode = z.infer<typeof ClusterNodeSchema>;
 export type ProxmoxNodeStatus = z.infer<typeof NodeStatusSchema>;
 
 // ============================================================================
@@ -117,7 +110,6 @@ export interface ProxmoxContainerCreateConfig {
 // Task (Response types inferred from Zod schemas)
 // ============================================================================
 
-export type ProxmoxTask = z.infer<typeof TaskSchema>;
 export type ProxmoxTaskStatus = z.infer<typeof TaskStatusSchema>;
 export type ProxmoxTaskLogEntry = z.infer<typeof TaskLogEntrySchema>;
 

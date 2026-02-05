@@ -6,7 +6,7 @@
 import "server-only";
 // Type-only import from generated Prisma client - does not violate db.ts import rule
 // as this is erased at runtime and only used for type checking
-import type { ProxmoxNode as PrismaProxmoxNode } from "@/generated/prisma/client/index.js";
+import type { ProxmoxNode } from "@/generated/prisma/client/index.js";
 import { decrypt } from "../encryption.js";
 import { ProxmoxClient } from "./client.js";
 import type {
@@ -55,7 +55,7 @@ export function createProxmoxClient(
  * @param verifySsl - Whether to verify SSL certificates (default: false for self-signed certs)
  */
 export function createProxmoxClientFromNode(
-  node: PrismaProxmoxNode,
+  node: ProxmoxNode,
   verifySsl = false,
 ): ProxmoxClient {
   // Decrypt the token secret
