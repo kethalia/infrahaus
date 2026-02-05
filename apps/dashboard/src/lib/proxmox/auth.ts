@@ -54,6 +54,9 @@ export async function login(
 
 /**
  * Refresh an existing ticket before it expires
+ *
+ * Note: Proxmox requires the username for ticket refresh. The existing ticket
+ * is sent via the Cookie header by the client, and acts as authentication.
  */
 export async function refreshTicket(
   client: ProxmoxClient,
@@ -64,13 +67,12 @@ export async function refreshTicket(
     throw new Error("Can only refresh ticket-based credentials");
   }
 
-  // Use the existing ticket to get a new one
-  // Note: This uses the same endpoint as login, but we're already authenticated
+  // Refresh using the stored username and existing ticket (sent as Cookie)
   const response = await client.post<ProxmoxTicketResponse>(
     "/access/ticket",
     new URLSearchParams({
-      username: "", // Not needed when using existing ticket
-      password: "", // Not needed when using existing ticket
+      username: credentials.username,
+      password: credentials.ticket, // The ticket itself acts as password
     }),
   );
 
@@ -96,6 +98,7 @@ export function createTicketCredentials(
     type: "ticket",
     ticket: response.ticket,
     csrfToken: response.CSRFPreventionToken,
+    username: response.username,
     expiresAt,
   };
 }

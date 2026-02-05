@@ -15,6 +15,7 @@ describe("ProxmoxClient", () => {
     type: "ticket",
     ticket: "test-ticket",
     csrfToken: "test-csrf",
+    username: "root@pam",
     expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours from now
   };
 
@@ -177,10 +178,14 @@ describe("ProxmoxClient", () => {
       await expect(client.get("/test")).rejects.toThrow("VMID already exists");
     });
 
-    it("should throw ProxmoxApiError on 500", async () => {
+    it("should retry and then throw ProxmoxApiError on 500", async () => {
       const client = new ProxmoxClient({
         host: "pve.example.com",
         credentials: mockTokenCredentials,
+        retryConfig: {
+          maxRetries: 2,
+          initialDelayMs: 10,
+        },
       });
 
       const mockFetch = vi.fn().mockResolvedValue({
@@ -192,6 +197,8 @@ describe("ProxmoxClient", () => {
       vi.stubGlobal("fetch", mockFetch);
 
       await expect(client.get("/test")).rejects.toThrow(ProxmoxApiError);
+      // Should retry 5xx errors
+      expect(mockFetch).toHaveBeenCalledTimes(3); // Initial + 2 retries
     });
   });
 
@@ -368,6 +375,7 @@ describe("ProxmoxClient", () => {
         type: "ticket",
         ticket: "new-ticket",
         csrfToken: "new-csrf",
+        username: "root@pam",
         expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
       };
 
@@ -383,6 +391,7 @@ describe("ProxmoxClient", () => {
           type: "ticket",
           ticket: "test-ticket",
           csrfToken: "test-csrf",
+          username: "root@pam",
           expiresAt: soonToExpire,
         },
       });

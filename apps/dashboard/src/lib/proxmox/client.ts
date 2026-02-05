@@ -133,20 +133,33 @@ export class ProxmoxClient {
       // Handle other client/server errors
       if (!response.ok) {
         const errorBody = await this.parseErrorResponse(response);
-        throw new ProxmoxApiError(
+        const error = new ProxmoxApiError(
           this.extractErrorMessage(errorBody) ||
             `HTTP ${response.status}: ${response.statusText}`,
           response.status,
           path,
           errorBody,
         );
+
+        // Retry 5xx errors (server errors are typically transient)
+        if (response.status >= 500 && attempt < this.retryConfig.maxRetries) {
+          const delay = Math.min(
+            this.retryConfig.initialDelayMs * Math.pow(2, attempt),
+            this.retryConfig.maxDelayMs,
+          );
+          await this.sleep(delay);
+          return this.request<T>(method, path, body, attempt + 1);
+        }
+
+        // Don't retry 4xx errors (client errors) or if max retries exceeded
+        throw error;
       }
 
       // Parse successful response
       const data = await response.json();
       return this.unwrapResponse<T>(data);
     } catch (error) {
-      // Don't retry auth errors or typed Proxmox errors
+      // Don't retry auth errors or API errors (already handled above)
       if (
         error instanceof ProxmoxAuthError ||
         error instanceof ProxmoxApiError
@@ -154,7 +167,7 @@ export class ProxmoxClient {
         throw error;
       }
 
-      // Retry on network errors or 5xx
+      // Retry on network errors
       if (attempt < this.retryConfig.maxRetries) {
         const delay = Math.min(
           this.retryConfig.initialDelayMs * Math.pow(2, attempt),

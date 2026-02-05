@@ -39,6 +39,13 @@ export async function getTaskLog(
 
 /**
  * Wait for a task to complete, with optional progress callback
+ *
+ * @param client - Proxmox client instance
+ * @param node - Node name
+ * @param upid - Task UPID
+ * @param options - Wait options including interval, timeout, progress callback, and abort signal
+ * @returns Task status when completed
+ * @throws ProxmoxTaskError if task fails, times out, or is aborted
  */
 export async function waitForTask(
   client: ProxmoxClient,
@@ -53,6 +60,14 @@ export async function waitForTask(
   let lastLogLine = 0;
 
   while (true) {
+    // Check if aborted
+    if (options.signal?.aborted) {
+      throw new ProxmoxTaskError(
+        `Task polling aborted: ${options.signal.reason || "Operation cancelled"}`,
+        upid,
+      );
+    }
+
     // Check timeout
     if (Date.now() - startTime > timeout) {
       throw new ProxmoxTaskError(
@@ -73,9 +88,8 @@ export async function waitForTask(
           if (log.length > 0) {
             options.onProgress(log);
           }
-        } catch (error) {
-          // Log fetching is optional, don't fail on it
-          console.error("Failed to fetch final task log:", error);
+        } catch {
+          // Log fetching is optional, silently continue on error
         }
       }
 
@@ -111,9 +125,8 @@ export async function waitForTask(
           const maxLineNumber = Math.max(...log.map((entry) => entry.n));
           lastLogLine = maxLineNumber + 1;
         }
-      } catch (error) {
-        // Log fetching is optional, don't fail on it
-        console.error("Failed to fetch task log:", error);
+      } catch {
+        // Log fetching is optional, silently continue on error
       }
     }
 

@@ -32,6 +32,7 @@ export interface ProxmoxTicketCredentials {
   type: "ticket";
   ticket: string;
   csrfToken: string;
+  username: string; // Stored for ticket refresh
   expiresAt: Date; // Tickets expire after 2 hours
 }
 
@@ -257,6 +258,7 @@ export interface ProxmoxTaskWaitOptions {
   interval?: number; // Poll interval in ms, default 2000
   timeout?: number; // Timeout in ms, default 300000 (5 min)
   onProgress?: (log: ProxmoxTaskLogEntry[]) => void;
+  signal?: AbortSignal; // Optional AbortSignal to cancel polling
 }
 
 // ============================================================================
