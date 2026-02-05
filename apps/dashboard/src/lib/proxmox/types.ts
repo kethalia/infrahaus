@@ -1,7 +1,22 @@
 /**
  * Proxmox VE API TypeScript definitions
- * Based on Proxmox VE API documentation
+ * Response types are inferred from Zod schemas for runtime validation
  */
+
+import type { z } from "zod";
+import type {
+  TicketResponseSchema,
+  NodeSchema,
+  NodeStatusSchema,
+  ContainerSchema,
+  ContainerConfigSchema,
+  ContainerStatusSchema,
+  TaskSchema,
+  TaskStatusSchema,
+  TaskLogEntrySchema,
+  StorageSchema,
+  TemplateSchema,
+} from "./schemas.js";
 
 // ============================================================================
 // Generic API Response
@@ -12,20 +27,15 @@ export interface ProxmoxApiResponse<T> {
 }
 
 // ============================================================================
-// Authentication
+// Authentication (Response types inferred from Zod schemas)
 // ============================================================================
+
+export type ProxmoxTicketResponse = z.infer<typeof TicketResponseSchema>;
 
 export interface ProxmoxTicketRequest {
   username: string;
   password: string;
   realm?: string; // Default: 'pam'
-}
-
-export interface ProxmoxTicketResponse {
-  ticket: string;
-  CSRFPreventionToken: string;
-  username: string;
-  clustername?: string;
 }
 
 export interface ProxmoxTicketCredentials {
@@ -63,111 +73,19 @@ export interface ProxmoxClientConfig {
 }
 
 // ============================================================================
-// Node
+// Node (Response types inferred from Zod schemas)
 // ============================================================================
 
-export interface ProxmoxNode {
-  node: string;
-  status: "online" | "offline" | "unknown";
-  type: "node";
-  id: string;
-  maxcpu?: number;
-  maxmem?: number;
-  cpu?: number;
-  mem?: number;
-  disk?: number;
-  maxdisk?: number;
-  level?: string;
-  uptime?: number;
-}
-
-export interface ProxmoxNodeStatus {
-  uptime: number;
-  idle: number;
-  loadavg: number[];
-  kversion: string;
-  cpuinfo: {
-    cpus: number;
-    model: string;
-    mhz: string;
-    hvm?: string;
-    sockets: number;
-    cores: number;
-  };
-  memory: {
-    total: number;
-    used: number;
-    free: number;
-  };
-  swap: {
-    total: number;
-    used: number;
-    free: number;
-  };
-  pveversion: string;
-  rootfs: {
-    total: number;
-    used: number;
-    avail: number;
-  };
-}
+export type ProxmoxNode = z.infer<typeof NodeSchema>;
+export type ProxmoxNodeStatus = z.infer<typeof NodeStatusSchema>;
 
 // ============================================================================
 // Container (LXC)
 // ============================================================================
 
-export interface ProxmoxContainer {
-  vmid: number;
-  status: "running" | "stopped" | "mounted" | "paused";
-  name?: string;
-  maxdisk?: number;
-  disk?: number;
-  maxmem?: number;
-  mem?: number;
-  maxswap?: number;
-  swap?: number;
-  uptime?: number;
-  cpus?: number;
-  cpu?: number;
-  type: "lxc";
-  netin?: number;
-  netout?: number;
-  diskread?: number;
-  diskwrite?: number;
-  template?: boolean;
-  lock?: string;
-  tags?: string;
-}
-
-export interface ProxmoxContainerConfig {
-  arch?: "amd64" | "i386" | "arm64" | "armhf";
-  cmode?: "tty" | "console" | "shell";
-  console?: boolean;
-  cores?: number;
-  cpulimit?: number;
-  cpuunits?: number;
-  description?: string;
-  features?: string; // e.g., "keyctl=1,nesting=1"
-  hookscript?: string;
-  hostname?: string;
-  lock?: string;
-  memory?: number; // MB
-  mp?: Record<string, string>; // Mount points
-  nameserver?: string;
-  net?: Record<string, string>; // Network interfaces
-  onboot?: boolean;
-  ostype?: string;
-  protection?: boolean;
-  rootfs?: string; // e.g., "local-lvm:8"
-  searchdomain?: string;
-  startup?: string;
-  swap?: number; // MB
-  tags?: string;
-  template?: boolean;
-  tty?: number;
-  unprivileged?: boolean;
-  unused?: Record<string, string>;
-}
+export type ProxmoxContainer = z.infer<typeof ContainerSchema>;
+export type ProxmoxContainerConfig = z.infer<typeof ContainerConfigSchema>;
+export type ProxmoxContainerStatus = z.infer<typeof ContainerStatusSchema>;
 
 export interface ProxmoxContainerCreateConfig {
   vmid?: number; // Auto-assigned if not provided
@@ -195,64 +113,13 @@ export interface ProxmoxContainerCreateConfig {
   start?: boolean; // Start after creation
 }
 
-export interface ProxmoxContainerStatus {
-  status: "running" | "stopped" | "mounted" | "paused";
-  vmid: number;
-  name?: string;
-  cpus?: number;
-  cpu?: number;
-  maxmem?: number;
-  mem?: number;
-  maxswap?: number;
-  swap?: number;
-  maxdisk?: number;
-  disk?: number;
-  uptime?: number;
-  netin?: number;
-  netout?: number;
-  diskread?: number;
-  diskwrite?: number;
-  ha?: {
-    managed: boolean;
-  };
-  tags?: string;
-  lock?: string;
-}
-
 // ============================================================================
-// Task
+// Task (Response types inferred from Zod schemas)
 // ============================================================================
 
-export interface ProxmoxTask {
-  upid: string; // Unique Process ID
-  node: string;
-  pid: number;
-  pstart: number;
-  starttime: number;
-  type: string;
-  id?: string;
-  user: string;
-  status?: "running" | "stopped";
-  exitstatus?: string;
-}
-
-export interface ProxmoxTaskStatus {
-  status: "running" | "stopped";
-  exitstatus?: string; // "OK" on success, error message on failure
-  upid: string;
-  node: string;
-  pid: number;
-  pstart: number;
-  starttime: number;
-  type: string;
-  id?: string;
-  user: string;
-}
-
-export interface ProxmoxTaskLogEntry {
-  n: number; // Line number
-  t: string; // Log text
-}
+export type ProxmoxTask = z.infer<typeof TaskSchema>;
+export type ProxmoxTaskStatus = z.infer<typeof TaskStatusSchema>;
+export type ProxmoxTaskLogEntry = z.infer<typeof TaskLogEntrySchema>;
 
 export interface ProxmoxTaskWaitOptions {
   interval?: number; // Poll interval in ms, default 2000
@@ -262,34 +129,13 @@ export interface ProxmoxTaskWaitOptions {
 }
 
 // ============================================================================
-// Storage
+// Storage (Response type inferred from Zod schema)
 // ============================================================================
 
-export interface ProxmoxStorage {
-  storage: string;
-  type: string; // 'dir', 'lvm', 'lvmthin', 'zfs', 'nfs', etc.
-  content?: string; // Comma-separated: 'images', 'rootdir', 'vztmpl', etc.
-  shared?: boolean;
-  active?: boolean;
-  enabled?: boolean;
-  total?: number; // Bytes
-  used?: number; // Bytes
-  avail?: number; // Bytes
-}
+export type ProxmoxStorage = z.infer<typeof StorageSchema>;
 
 // ============================================================================
-// Template (aplinfo)
+// Template (Response type inferred from Zod schema)
 // ============================================================================
 
-export interface ProxmoxTemplate {
-  package: string;
-  template: string; // Full template name
-  headline?: string;
-  description?: string;
-  os: string;
-  version: string;
-  architecture: string;
-  infopage?: string;
-  section?: string;
-  type: "lxc" | "openvz";
-}
+export type ProxmoxTemplate = z.infer<typeof TemplateSchema>;

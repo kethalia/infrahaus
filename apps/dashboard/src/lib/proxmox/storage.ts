@@ -3,7 +3,9 @@
  */
 
 import "server-only";
+import { z } from "zod";
 import type { ProxmoxClient } from "./client.js";
+import { StorageSchema } from "./schemas.js";
 import type { ProxmoxStorage } from "./types.js";
 
 /**
@@ -13,5 +15,5 @@ export async function listStorage(
   client: ProxmoxClient,
   node: string,
 ): Promise<ProxmoxStorage[]> {
-  return client.get<ProxmoxStorage[]>(`/nodes/${node}/storage`);
+  return client.get(`/nodes/${node}/storage`, z.array(StorageSchema));
 }

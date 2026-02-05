@@ -4,6 +4,7 @@
 
 import "server-only";
 import { ProxmoxClient } from "./client.js";
+import { TicketResponseSchema } from "./schemas.js";
 import type {
   ProxmoxTicketCredentials,
   ProxmoxTicketRequest,
@@ -47,7 +48,7 @@ export async function login(
   }
 
   const data = await response.json();
-  const ticketData = data.data as ProxmoxTicketResponse;
+  const ticketData = TicketResponseSchema.parse(data.data);
 
   return createTicketCredentials(ticketData);
 }
@@ -68,12 +69,13 @@ export async function refreshTicket(
   }
 
   // Refresh using the stored username and existing ticket (sent as Cookie)
-  const response = await client.post<ProxmoxTicketResponse>(
+  const response = await client.post(
     "/access/ticket",
     new URLSearchParams({
       username: credentials.username,
       password: credentials.ticket, // The ticket itself acts as password
     }),
+    TicketResponseSchema,
   );
 
   const newCredentials = createTicketCredentials(response);

@@ -3,7 +3,9 @@
  */
 
 import "server-only";
+import { z } from "zod";
 import type { ProxmoxClient } from "./client.js";
+import { TemplateSchema } from "./schemas.js";
 import type { ProxmoxTemplate } from "./types.js";
 
 /**
@@ -13,5 +15,5 @@ export async function listTemplates(
   client: ProxmoxClient,
   node: string,
 ): Promise<ProxmoxTemplate[]> {
-  return client.get<ProxmoxTemplate[]>(`/nodes/${node}/aplinfo`);
+  return client.get(`/nodes/${node}/aplinfo`, z.array(TemplateSchema));
 }

@@ -4,6 +4,7 @@
 
 import "server-only";
 import https from "node:https";
+import type { ZodType } from "zod";
 import { ProxmoxApiError, ProxmoxAuthError, ProxmoxError } from "./errors.js";
 import type {
   ProxmoxApiResponse,
@@ -93,6 +94,7 @@ export class ProxmoxClient {
     method: string,
     path: string,
     body?: unknown,
+    schema?: ZodType<T>,
     attempt = 0,
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
@@ -148,7 +150,7 @@ export class ProxmoxClient {
             this.retryConfig.maxDelayMs,
           );
           await this.sleep(delay);
-          return this.request<T>(method, path, body, attempt + 1);
+          return this.request<T>(method, path, body, schema, attempt + 1);
         }
 
         // Don't retry 4xx errors (client errors) or if max retries exceeded
@@ -157,7 +159,10 @@ export class ProxmoxClient {
 
       // Parse successful response
       const data = await response.json();
-      return this.unwrapResponse<T>(data);
+      const unwrapped = this.unwrapResponse<T>(data);
+
+      // Validate with schema if provided, otherwise return as-is
+      return schema ? schema.parse(unwrapped) : unwrapped;
     } catch (error) {
       // Don't retry auth errors or API errors (already handled above)
       if (
@@ -174,7 +179,7 @@ export class ProxmoxClient {
           this.retryConfig.maxDelayMs,
         );
         await this.sleep(delay);
-        return this.request<T>(method, path, body, attempt + 1);
+        return this.request<T>(method, path, body, schema, attempt + 1);
       }
 
       // Max retries exceeded
@@ -250,19 +255,19 @@ export class ProxmoxClient {
   // Public HTTP methods
   // ============================================================================
 
-  async get<T>(path: string): Promise<T> {
-    return this.request<T>("GET", path);
+  async get<T>(path: string, schema?: ZodType<T>): Promise<T> {
+    return this.request<T>("GET", path, undefined, schema);
   }
 
-  async post<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>("POST", path, body);
+  async post<T>(path: string, body?: unknown, schema?: ZodType<T>): Promise<T> {
+    return this.request<T>("POST", path, body, schema);
   }
 
-  async put<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>("PUT", path, body);
+  async put<T>(path: string, body?: unknown, schema?: ZodType<T>): Promise<T> {
+    return this.request<T>("PUT", path, body, schema);
   }
 
-  async delete<T>(path: string): Promise<T> {
-    return this.request<T>("DELETE", path);
+  async delete<T>(path: string, schema?: ZodType<T>): Promise<T> {
+    return this.request<T>("DELETE", path, undefined, schema);
   }
 }

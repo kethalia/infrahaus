@@ -3,7 +3,13 @@
  */
 
 import "server-only";
+import { z } from "zod";
 import type { ProxmoxClient } from "./client.js";
+import {
+  ContainerSchema,
+  ContainerConfigSchema,
+  ContainerStatusSchema,
+} from "./schemas.js";
 import type {
   ProxmoxContainer,
   ProxmoxContainerConfig,
@@ -18,7 +24,7 @@ export async function listContainers(
   client: ProxmoxClient,
   node: string,
 ): Promise<ProxmoxContainer[]> {
-  return client.get<ProxmoxContainer[]>(`/nodes/${node}/lxc`);
+  return client.get(`/nodes/${node}/lxc`, z.array(ContainerSchema));
 }
 
 /**
@@ -68,7 +74,7 @@ export async function createContainer(
   if (config.start !== undefined)
     formData.append("start", config.start ? "1" : "0");
 
-  return client.post<string>(`/nodes/${node}/lxc`, formData);
+  return client.post(`/nodes/${node}/lxc`, formData, z.string());
 }
 
 /**
@@ -79,8 +85,9 @@ export async function getContainer(
   node: string,
   vmid: number,
 ): Promise<ProxmoxContainerStatus> {
-  return client.get<ProxmoxContainerStatus>(
+  return client.get(
     `/nodes/${node}/lxc/${vmid}/status/current`,
+    ContainerStatusSchema,
   );
 }
 
@@ -92,9 +99,7 @@ export async function getContainerConfig(
   node: string,
   vmid: number,
 ): Promise<ProxmoxContainerConfig> {
-  return client.get<ProxmoxContainerConfig>(
-    `/nodes/${node}/lxc/${vmid}/config`,
-  );
+  return client.get(`/nodes/${node}/lxc/${vmid}/config`, ContainerConfigSchema);
 }
 
 /**
@@ -106,7 +111,11 @@ export async function startContainer(
   node: string,
   vmid: number,
 ): Promise<string> {
-  return client.post<string>(`/nodes/${node}/lxc/${vmid}/status/start`);
+  return client.post(
+    `/nodes/${node}/lxc/${vmid}/status/start`,
+    undefined,
+    z.string(),
+  );
 }
 
 /**
@@ -118,7 +127,11 @@ export async function stopContainer(
   node: string,
   vmid: number,
 ): Promise<string> {
-  return client.post<string>(`/nodes/${node}/lxc/${vmid}/status/stop`);
+  return client.post(
+    `/nodes/${node}/lxc/${vmid}/status/stop`,
+    undefined,
+    z.string(),
+  );
 }
 
 /**
@@ -134,9 +147,10 @@ export async function shutdownContainer(
   const body = timeout
     ? new URLSearchParams({ timeout: String(timeout) })
     : undefined;
-  return client.post<string>(
+  return client.post(
     `/nodes/${node}/lxc/${vmid}/status/shutdown`,
     body,
+    z.string(),
   );
 }
 
@@ -151,5 +165,5 @@ export async function deleteContainer(
   purge = false,
 ): Promise<string> {
   const path = `/nodes/${node}/lxc/${vmid}${purge ? "?purge=1" : ""}`;
-  return client.delete<string>(path);
+  return client.delete(path, z.string());
 }

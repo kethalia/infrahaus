@@ -3,8 +3,10 @@
  */
 
 import "server-only";
+import { z } from "zod";
 import { ProxmoxTaskError } from "./errors.js";
 import type { ProxmoxClient } from "./client.js";
+import { TaskStatusSchema, TaskLogEntrySchema } from "./schemas.js";
 import type {
   ProxmoxTaskLogEntry,
   ProxmoxTaskStatus,
@@ -19,7 +21,7 @@ export async function getTaskStatus(
   node: string,
   upid: string,
 ): Promise<ProxmoxTaskStatus> {
-  return client.get<ProxmoxTaskStatus>(`/nodes/${node}/tasks/${upid}/status`);
+  return client.get(`/nodes/${node}/tasks/${upid}/status`, TaskStatusSchema);
 }
 
 /**
@@ -32,8 +34,9 @@ export async function getTaskLog(
   start = 0,
   limit = 50,
 ): Promise<ProxmoxTaskLogEntry[]> {
-  return client.get<ProxmoxTaskLogEntry[]>(
+  return client.get(
     `/nodes/${node}/tasks/${upid}/log?start=${start}&limit=${limit}`,
+    z.array(TaskLogEntrySchema),
   );
 }
 
