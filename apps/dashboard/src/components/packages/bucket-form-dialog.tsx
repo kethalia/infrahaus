@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import type { BucketWithPackages } from "@/lib/db";
 import { Button } from "@/components/ui/button";
@@ -17,13 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  createBucketAction,
-  updateBucketAction,
-  type ActionState,
-} from "@/lib/packages/actions";
-
-const initialState: ActionState = { success: false };
+import { createBucketAction, updateBucketAction } from "@/lib/packages/actions";
 
 export function BucketFormDialog({
   mode,
@@ -35,16 +30,25 @@ export function BucketFormDialog({
   trigger: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const action = mode === "create" ? createBucketAction : updateBucketAction;
-  const [state, formAction, pending] = useActionState(action, initialState);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
-  // Close dialog and show toast on success
-  useEffect(() => {
-    if (state.success) {
-      setOpen(false);
-      toast.success(mode === "create" ? "Bucket created" : "Bucket updated");
-    }
-  }, [state, mode]);
+  const handleSubmit = (formData: FormData) => {
+    setError(null);
+    startTransition(async () => {
+      const action =
+        mode === "create" ? createBucketAction : updateBucketAction;
+      const result = await action({ success: false }, formData);
+      if (result.success) {
+        setOpen(false);
+        toast.success(mode === "create" ? "Bucket created" : "Bucket updated");
+        router.refresh();
+      } else {
+        setError(result.error ?? "An error occurred");
+      }
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -60,7 +64,7 @@ export function BucketFormDialog({
               : "Update the bucket name and description."}
           </DialogDescription>
         </DialogHeader>
-        <form action={formAction} className="space-y-4">
+        <form action={handleSubmit} className="space-y-4">
           {mode === "edit" && bucket && (
             <input type="hidden" name="id" value={bucket.id} />
           )}
@@ -86,12 +90,10 @@ export function BucketFormDialog({
               className="min-h-16"
             />
           </div>
-          {!state.success && state.error && (
-            <p className="text-sm text-destructive">{state.error}</p>
-          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
-            <Button type="submit" disabled={pending}>
-              {pending
+            <Button type="submit" disabled={isPending}>
+              {isPending
                 ? mode === "create"
                   ? "Creating..."
                   : "Saving..."

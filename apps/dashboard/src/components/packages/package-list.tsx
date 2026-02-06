@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
 import { X, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import type { Package, PackageManager } from "@/generated/prisma/client";
 import { Button } from "@/components/ui/button";
@@ -21,10 +22,7 @@ import {
   addPackageAction,
   removePackageAction,
   bulkImportAction,
-  type ActionState,
 } from "@/lib/packages/actions";
-
-const initialState: ActionState = { success: false };
 
 export function PackageList({
   bucketId,
@@ -36,37 +34,34 @@ export function PackageList({
 }) {
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [manager, setManager] = useState<string>("apt");
+  const [addPending, startAddTransition] = useTransition();
+  const [bulkPending, startBulkTransition] = useTransition();
+  const router = useRouter();
 
-  // Add package form
-  const [addState, addAction, addPending] = useActionState(
-    addPackageAction,
-    initialState,
-  );
+  const handleAdd = (formData: FormData) => {
+    startAddTransition(async () => {
+      const result = await addPackageAction({ success: false }, formData);
+      if (result.success && result.message) {
+        toast.success(result.message);
+        router.refresh();
+      } else if (!result.success && result.error) {
+        toast.error(result.error);
+      }
+    });
+  };
 
-  // Bulk import form
-  const [bulkState, bulkAction, bulkPending] = useActionState(
-    bulkImportAction,
-    initialState,
-  );
-
-  // Toast feedback for add
-  useEffect(() => {
-    if (addState.success && addState.message) {
-      toast.success(addState.message);
-    } else if (!addState.success && addState.error) {
-      toast.error(addState.error);
-    }
-  }, [addState]);
-
-  // Toast feedback for bulk
-  useEffect(() => {
-    if (bulkState.success && bulkState.message) {
-      toast.success(bulkState.message);
-      setShowBulkImport(false);
-    } else if (!bulkState.success && bulkState.error) {
-      toast.error(bulkState.error);
-    }
-  }, [bulkState]);
+  const handleBulkImport = (formData: FormData) => {
+    startBulkTransition(async () => {
+      const result = await bulkImportAction({ success: false }, formData);
+      if (result.success && result.message) {
+        toast.success(result.message);
+        setShowBulkImport(false);
+        router.refresh();
+      } else if (!result.success && result.error) {
+        toast.error(result.error);
+      }
+    });
+  };
 
   return (
     <div className="space-y-3">
@@ -82,7 +77,7 @@ export function PackageList({
       )}
 
       {/* Add package inline form */}
-      <form action={addAction} className="flex items-center gap-2">
+      <form action={handleAdd} className="flex items-center gap-2">
         <input type="hidden" name="bucketId" value={bucketId} />
         <input type="hidden" name="manager" value={manager} />
         <Input
@@ -126,7 +121,10 @@ export function PackageList({
 
       {/* Bulk import form */}
       {showBulkImport && (
-        <form action={bulkAction} className="space-y-2 rounded-md border p-3">
+        <form
+          action={handleBulkImport}
+          className="space-y-2 rounded-md border p-3"
+        >
           <input type="hidden" name="bucketId" value={bucketId} />
           <div className="space-y-1">
             <Label className="text-xs">
@@ -171,12 +169,14 @@ export function PackageList({
 
 function PackageBadge({ pkg }: { pkg: Package }) {
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const handleRemove = () => {
     startTransition(async () => {
       const result = await removePackageAction(pkg.id);
       if (result.success) {
         toast.success("Package removed");
+        router.refresh();
       } else {
         toast.error(result.error ?? "Failed to remove package");
       }
