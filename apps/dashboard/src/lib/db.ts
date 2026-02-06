@@ -14,6 +14,8 @@ import type {
   TemplateScript,
   TemplateFile,
   Package,
+  PackageBucket,
+  PackageManager,
 } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -56,6 +58,11 @@ export type TemplateWithCounts = Template & {
 export type TemplateWithDetails = Template & {
   scripts: TemplateScript[];
   files: TemplateFile[];
+  packages: Package[];
+};
+
+/** PackageBucket with all packages included */
+export type BucketWithPackages = PackageBucket & {
   packages: Package[];
 };
 
@@ -232,5 +239,112 @@ export class DatabaseService {
    */
   static async deleteTemplate(id: string): Promise<void> {
     await this.prisma.template.delete({ where: { id } });
+  }
+
+  // ============================================================================
+  // PackageBucket Operations
+  // ============================================================================
+
+  /**
+   * List all package buckets with their packages included.
+   */
+  static async listBuckets(): Promise<BucketWithPackages[]> {
+    return this.prisma.packageBucket.findMany({
+      orderBy: { name: "asc" },
+      include: { packages: true },
+    });
+  }
+
+  /**
+   * Get a single bucket by ID with packages included.
+   */
+  static async getBucketById(id: string): Promise<BucketWithPackages | null> {
+    return this.prisma.packageBucket.findUnique({
+      where: { id },
+      include: { packages: true },
+    });
+  }
+
+  /**
+   * Create a new package bucket.
+   */
+  static async createBucket(data: {
+    name: string;
+    description?: string;
+  }): Promise<PackageBucket> {
+    return this.prisma.packageBucket.create({ data });
+  }
+
+  /**
+   * Update an existing package bucket.
+   */
+  static async updateBucket(
+    id: string,
+    data: { name?: string; description?: string },
+  ): Promise<PackageBucket> {
+    return this.prisma.packageBucket.update({ where: { id }, data });
+  }
+
+  /**
+   * Delete a package bucket. Throws if bucket has packages.
+   */
+  static async deleteBucket(id: string): Promise<void> {
+    const count = await this.prisma.package.count({
+      where: { bucketId: id },
+    });
+    if (count > 0) {
+      throw new Error("Remove all packages before deleting this bucket");
+    }
+    await this.prisma.packageBucket.delete({ where: { id } });
+  }
+
+  /**
+   * Add a single package to a bucket.
+   */
+  static async addPackageToBucket(
+    bucketId: string,
+    data: { name: string; manager: PackageManager; version?: string },
+  ): Promise<Package> {
+    return this.prisma.package.create({
+      data: { ...data, bucketId },
+    });
+  }
+
+  /**
+   * Remove a package by ID.
+   */
+  static async removePackage(id: string): Promise<void> {
+    await this.prisma.package.delete({ where: { id } });
+  }
+
+  /**
+   * Bulk add packages to a bucket. Skips duplicates (same name in bucket).
+   * Returns the count of newly created packages.
+   */
+  static async bulkAddPackagesToBucket(
+    bucketId: string,
+    packages: { name: string; manager: PackageManager }[],
+  ): Promise<number> {
+    // Query existing package names in bucket to skip duplicates
+    const existing = await this.prisma.package.findMany({
+      where: { bucketId },
+      select: { name: true },
+    });
+    const existingNames = new Set(existing.map((p) => p.name));
+
+    const newPackages = packages.filter((p) => !existingNames.has(p.name));
+    if (newPackages.length === 0) return 0;
+
+    const result = await this.prisma.package.createMany({
+      data: newPackages.map((p) => ({ ...p, bucketId })),
+    });
+    return result.count;
+  }
+
+  /**
+   * Get the total count of package buckets.
+   */
+  static async getBucketCount(): Promise<number> {
+    return this.prisma.packageBucket.count();
   }
 }
