@@ -34,6 +34,9 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prismaInstance;
 }
 
+/** Direct Prisma instance export for complex operations (e.g., transactions) */
+export { prismaInstance as prisma };
+
 /**
  * Database Service - Centralized data access layer
  * All database operations should go through this service
