@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 02-template-system — In progress
-**Plan:** 2 of 5 in current phase
-**Status:** Completed 02-02-PLAN.md
-**Last activity:** 2026-02-06 — Completed 02-02-PLAN.md
+**Plan:** 3 of 5 in current phase
+**Status:** Completed 02-03-PLAN.md
+**Last activity:** 2026-02-06 — Completed 02-03-PLAN.md
 
-Progress: ███░░░░░░░ 27% (4/15 plans)
+Progress: ███░░░░░░░ 33% (5/15 plans)
 
 ## Completed Work
 
@@ -35,6 +35,14 @@ Progress: ███░░░░░░░ 27% (4/15 plans)
 - TemplateCard, TemplateSearch, DiscoverButton components
 - Loading skeleton, empty state, no-results state
 
+**02-03 — Package bucket CRUD** ✓
+
+- DatabaseService PackageBucket/Package CRUD (9 methods)
+- Server actions with Zod validation for bucket and package mutations
+- /templates/packages management page with bucket cards, create/edit dialogs
+- Inline package add/remove, bulk import from .apt content
+- Sonner toast notifications infrastructure in root layout
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -52,10 +60,13 @@ Progress: ███░░░░░░░ 27% (4/15 plans)
 - Templates page under (dashboard) route group for sidebar layout inheritance
 - Server-side filtering via URL search params for shareability
 - Tag filtering uses AND logic (template must contain ALL selected tags)
+- BucketFormDialog uses mode prop (create/edit) to avoid duplicate dialog components
+- Sonner toasts for all CRUD feedback; Toaster in root layout for app-wide access
+- useActionState for form-based mutations, useTransition for direct server action calls
 
 ## Pending Work
 
-- Phase 2: Plans 02-03 through 02-05 (package CRUD, detail page, editor)
+- Phase 2: Plans 02-04 through 02-05 (template detail page, editor)
 - Phase 3: Container Creation (#80-82)
 - Phase 4: Container Management (#83-86)
 - Phase 5: Web UI & Monitoring (#87-88)
@@ -67,6 +78,6 @@ Progress: ███░░░░░░░ 27% (4/15 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-06T08:32:37Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-02-06T08:42:05Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None
