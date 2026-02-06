@@ -5,12 +5,12 @@
 import "server-only";
 import https from "node:https";
 import type { ZodType } from "zod";
-import { ProxmoxApiError, ProxmoxAuthError, ProxmoxError } from "./errors.js";
+import { ProxmoxApiError, ProxmoxAuthError, ProxmoxError } from "./errors";
 import type {
   ProxmoxApiResponse,
   ProxmoxClientConfig,
   ProxmoxCredentials,
-} from "./types.js";
+} from "./types";
 
 export class ProxmoxClient {
   private readonly baseUrl: string;

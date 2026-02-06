@@ -4,9 +4,9 @@
 
 import "server-only";
 import { z } from "zod";
-import type { ProxmoxClient } from "./client.js";
-import { ClusterNodeSchema, NodeStatusSchema } from "./schemas.js";
-import type { ProxmoxClusterNode, ProxmoxNodeStatus } from "./types.js";
+import type { ProxmoxClient } from "./client";
+import { ClusterNodeSchema, NodeStatusSchema } from "./schemas";
+import type { ProxmoxClusterNode, ProxmoxNodeStatus } from "./types";
 
 /**
  * List all nodes in the cluster

@@ -4,9 +4,9 @@
 
 import "server-only";
 import { z } from "zod";
-import type { ProxmoxClient } from "./client.js";
-import { TemplateSchema } from "./schemas.js";
-import type { ProxmoxTemplate } from "./types.js";
+import type { ProxmoxClient } from "./client";
+import { TemplateSchema } from "./schemas";
+import type { ProxmoxTemplate } from "./types";
 
 /**
  * List available OS templates (aplinfo)

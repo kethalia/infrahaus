@@ -3,12 +3,12 @@
  */
 
 import "server-only";
-import { ProxmoxClient } from "./client.js";
-import { TicketResponseSchema } from "./schemas.js";
+import { ProxmoxClient } from "./client";
+import { TicketResponseSchema } from "./schemas";
 import type {
   ProxmoxTicketCredentials,
   ProxmoxTicketResponse,
-} from "./types.js";
+} from "./types";
 
 /**
  * Login to Proxmox VE and obtain a ticket

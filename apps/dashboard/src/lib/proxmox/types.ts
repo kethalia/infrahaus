@@ -15,7 +15,7 @@ import type {
   TaskLogEntrySchema,
   StorageSchema,
   TemplateSchema,
-} from "./schemas.js";
+} from "./schemas";
 
 // ============================================================================
 // Generic API Response

@@ -7,32 +7,32 @@ import "server-only";
 // Type-only import from generated Prisma client - does not violate db.ts import rule
 // as this is erased at runtime and only used for type checking
 import type { ProxmoxNode } from "@/generated/prisma/client/index.js";
-import { decrypt } from "../encryption.js";
-import { ProxmoxClient } from "./client.js";
+import { decrypt } from "../encryption";
+import { ProxmoxClient } from "./client";
 import type {
   ProxmoxApiTokenCredentials,
   ProxmoxClientConfig,
-} from "./types.js";
+} from "./types";
 
 // ============================================================================
 // Re-export all types and schemas
 // ============================================================================
 
-export * from "./types.js";
-export * from "./schemas.js";
-export * from "./errors.js";
+export * from "./types";
+export * from "./schemas";
+export * from "./errors";
 
 // ============================================================================
 // Re-export all modules
 // ============================================================================
 
-export { ProxmoxClient } from "./client.js";
-export * as auth from "./auth.js";
-export * as nodes from "./nodes.js";
-export * as containers from "./containers.js";
-export * as tasks from "./tasks.js";
-export * as storage from "./storage.js";
-export * as templates from "./templates.js";
+export { ProxmoxClient } from "./client";
+export * as auth from "./auth";
+export * as nodes from "./nodes";
+export * as containers from "./containers";
+export * as tasks from "./tasks";
+export * as storage from "./storage";
+export * as templates from "./templates";
 
 // ============================================================================
 // Factory functions

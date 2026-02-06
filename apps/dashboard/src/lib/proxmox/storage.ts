@@ -4,9 +4,9 @@
 
 import "server-only";
 import { z } from "zod";
-import type { ProxmoxClient } from "./client.js";
-import { StorageSchema } from "./schemas.js";
-import type { ProxmoxStorage } from "./types.js";
+import type { ProxmoxClient } from "./client";
+import { StorageSchema } from "./schemas";
+import type { ProxmoxStorage } from "./types";
 
 /**
  * List all storage on a node

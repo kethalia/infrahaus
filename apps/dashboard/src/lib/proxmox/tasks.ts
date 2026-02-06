@@ -4,14 +4,14 @@
 
 import "server-only";
 import { z } from "zod";
-import { ProxmoxTaskError } from "./errors.js";
-import type { ProxmoxClient } from "./client.js";
-import { TaskStatusSchema, TaskLogEntrySchema } from "./schemas.js";
+import { ProxmoxTaskError } from "./errors";
+import type { ProxmoxClient } from "./client";
+import { TaskStatusSchema, TaskLogEntrySchema } from "./schemas";
 import type {
   ProxmoxTaskLogEntry,
   ProxmoxTaskStatus,
   ProxmoxTaskWaitOptions,
-} from "./types.js";
+} from "./types";
 
 /**
  * Get status of a task
