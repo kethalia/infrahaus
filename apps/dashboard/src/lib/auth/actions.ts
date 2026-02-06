@@ -58,8 +58,11 @@ export async function loginAction(
 
   try {
     // Authenticate against Proxmox VE
-    const host = process.env.PROXMOX_HOST;
-    const port = parseInt(process.env.PROXMOX_PORT || "8006", 10);
+    const host = process.env.PVE_HOST || process.env.PROXMOX_HOST;
+    const port = parseInt(
+      process.env.PVE_PORT || process.env.PROXMOX_PORT || "8006",
+      10,
+    );
 
     if (!host) {
       return { success: false, error: "Proxmox server is not configured" };
