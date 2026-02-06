@@ -6,16 +6,17 @@ Full-stack web app (`apps/dashboard`) for creating, configuring, and managing LX
 
 ## Phases
 
-### Phase 01: Foundation
+### Phase 01: Foundation ✓
 
 **Goal:** Working dev environment with database, Proxmox API client, and SSO authentication
-**Status:** 75% complete — SSO auth (#75) remaining
+**Status:** Complete
+**Completed:** 2026-02-06
 **Plans:** 2 plans
 
 Plans:
 
-- [ ] 01-01-PLAN.md — Session infrastructure, auth server actions, and login page UI
-- [ ] 01-02-PLAN.md — Route protection middleware, conditional layout, and sidebar logout
+- [x] 01-01-PLAN.md — Session infrastructure, auth server actions, and login page UI
+- [x] 01-02-PLAN.md — Route protection middleware, conditional layout, and sidebar logout
 
 ---
 
