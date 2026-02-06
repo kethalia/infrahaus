@@ -6,13 +6,10 @@
 import "server-only";
 // Type-only import from generated Prisma client - does not violate db.ts import rule
 // as this is erased at runtime and only used for type checking
-import type { ProxmoxNode } from "@/generated/prisma/client/index.js";
+import type { ProxmoxNode } from "@/generated/prisma/client";
 import { decrypt } from "../encryption";
 import { ProxmoxClient } from "./client";
-import type {
-  ProxmoxApiTokenCredentials,
-  ProxmoxClientConfig,
-} from "./types";
+import type { ProxmoxApiTokenCredentials, ProxmoxClientConfig } from "./types";
 
 // ============================================================================
 // Re-export all types and schemas

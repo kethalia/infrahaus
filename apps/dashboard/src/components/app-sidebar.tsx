@@ -99,11 +99,13 @@ export function AppSidebar({ username }: { username?: string }) {
               </div>
             )}
             <form action={logoutAction}>
-              <SidebarMenuButton asChild tooltip="Sign out">
-                <button type="submit" className="w-full">
-                  <LogOut />
-                  <span>Sign out</span>
-                </button>
+              <SidebarMenuButton
+                tooltip="Sign out"
+                type="submit"
+                className="w-full"
+              >
+                <LogOut />
+                <span>Sign out</span>
               </SidebarMenuButton>
             </form>
           </SidebarMenuItem>

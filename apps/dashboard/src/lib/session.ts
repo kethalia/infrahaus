@@ -93,6 +93,8 @@ export async function getSessionData(): Promise<RedisSessionData | null> {
   const raw = await redis.get(`${SESSION_PREFIX}${session.sessionId}`);
 
   if (!raw) {
+    // Redis session gone but cookie still exists — clean up cookie
+    session.destroy();
     return null;
   }
 
@@ -102,15 +104,17 @@ export async function getSessionData(): Promise<RedisSessionData | null> {
     // Validate not expired
     const expiresAt = new Date(data.expiresAt);
     if (expiresAt <= new Date()) {
-      // Session expired — clean up
+      // Session expired — clean up both Redis and cookie
       await redis.del(`${SESSION_PREFIX}${session.sessionId}`);
+      session.destroy();
       return null;
     }
 
     return data;
   } catch {
-    // Invalid JSON in Redis — clean up
+    // Invalid JSON in Redis — clean up both Redis and cookie
     await redis.del(`${SESSION_PREFIX}${session.sessionId}`);
+    session.destroy();
     return null;
   }
 }

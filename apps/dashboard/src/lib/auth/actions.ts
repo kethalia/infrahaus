@@ -83,19 +83,20 @@ export async function loginAction(
   } catch (error) {
     // Don't leak Proxmox error details to the client
     if (error instanceof Error) {
-      const msg =
+      const msg = (
         error.message +
-        (error.cause instanceof Error ? " " + error.cause.message : "");
+        (error.cause instanceof Error ? " " + error.cause.message : "")
+      ).toLowerCase();
       if (
         msg.includes("fetch") ||
-        msg.includes("ECONNREFUSED") ||
-        msg.includes("ENOTFOUND") ||
-        msg.includes("ETIMEDOUT") ||
-        msg.includes("EHOSTUNREACH") ||
-        msg.includes("CERT") ||
+        msg.includes("econnrefused") ||
+        msg.includes("enotfound") ||
+        msg.includes("etimedout") ||
+        msg.includes("ehostunreach") ||
+        msg.includes("cert") ||
         msg.includes("certificate") ||
         msg.includes("self-signed") ||
-        msg.includes("SSL") ||
+        msg.includes("ssl") ||
         msg.includes("unable to verify")
       ) {
         return { success: false, error: "Unable to reach Proxmox server" };
