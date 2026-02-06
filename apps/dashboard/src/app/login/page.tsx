@@ -2,6 +2,9 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useAction } from "next-safe-action/hooks";
 import { loginAction } from "@/lib/auth/actions";
 import {
@@ -11,12 +14,44 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+  realm: z.enum(["pam", "pve"]),
+});
+
+type LoginValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
   const { execute, result, isPending } = useAction(loginAction);
+
+  const form = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+      realm: "pam",
+    },
+  });
 
   useEffect(() => {
     if (result.data?.success) {
@@ -24,18 +59,8 @@ export default function LoginPage() {
     }
   }, [result.data?.success, router]);
 
-  const error =
-    result.serverError ||
-    result.validationErrors?.username?._errors?.[0] ||
-    result.validationErrors?.password?._errors?.[0] ||
-    result.validationErrors?.realm?._errors?.[0];
-
-  function handleSubmit(formData: FormData) {
-    execute({
-      username: formData.get("username") as string,
-      password: formData.get("password") as string,
-      realm: formData.get("realm") as "pam" | "pve",
-    });
+  function onSubmit(values: LoginValues) {
+    execute(values);
   }
 
   return (
@@ -47,48 +72,73 @@ export default function LoginPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="username" className="text-sm font-medium">
-              Username
-            </label>
-            <Input
-              id="username"
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex flex-col gap-4"
+          >
+            <FormField
+              control={form.control}
               name="username"
-              placeholder="admin"
-              required
-              autoFocus
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Username</FormLabel>
+                  <FormControl>
+                    <Input placeholder="admin" autoFocus {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
 
-          <div className="flex flex-col gap-2">
-            <label htmlFor="realm" className="text-sm font-medium">
-              Realm
-            </label>
-            <select
-              id="realm"
+            <FormField
+              control={form.control}
               name="realm"
-              defaultValue="pam"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] md:text-sm"
-            >
-              <option value="pam">Linux PAM</option>
-              <option value="pve">Proxmox VE</option>
-            </select>
-          </div>
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Realm</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select realm" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="pam">Linux PAM</SelectItem>
+                      <SelectItem value="pve">Proxmox VE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <div className="flex flex-col gap-2">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
-            </label>
-            <Input id="password" name="password" type="password" required />
-          </div>
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+            {result.serverError && (
+              <p className="text-sm text-destructive">{result.serverError}</p>
+            )}
 
-          <Button type="submit" className="w-full" disabled={isPending}>
-            {isPending ? "Signing in..." : "Sign in"}
-          </Button>
-        </form>
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending ? "Signing in..." : "Sign in"}
+            </Button>
+          </form>
+        </Form>
       </CardContent>
     </Card>
   );
