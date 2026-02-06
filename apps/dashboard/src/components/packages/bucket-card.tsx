@@ -15,6 +15,17 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { deleteBucketAction } from "@/lib/packages/actions";
 import { BucketFormDialog } from "./bucket-form-dialog";
 import { PackageList } from "./package-list";
@@ -23,10 +34,6 @@ export function BucketCard({ bucket }: { bucket: BucketWithPackages }) {
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = () => {
-    if (!confirm(`Delete bucket "${bucket.name}"? This cannot be undone.`)) {
-      return;
-    }
-
     startTransition(async () => {
       const result = await deleteBucketAction(bucket.id);
       if (result.success) {
@@ -67,15 +74,32 @@ export function BucketCard({ bucket }: { bucket: BucketWithPackages }) {
             </Button>
           }
         />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleDelete}
-          disabled={isPending}
-        >
-          <Trash2 className="size-3.5" />
-          Delete
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" disabled={isPending}>
+              <Trash2 className="size-3.5" />
+              Delete
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete bucket</AlertDialogTitle>
+              <AlertDialogDescription>
+                Delete bucket &ldquo;{bucket.name}&rdquo;? This cannot be
+                undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardFooter>
     </Card>
   );

@@ -206,9 +206,11 @@ export async function bulkImportAction(
       return { success: false, error: "Invalid package manager" };
     }
 
-    // Parse content: split by newlines, trim, strip inline comments, filter blanks
+    // Parse content: split by newlines, trim, strip full-line and inline comments, filter blanks
     const packages = content
       .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#"))
       .map((line) => line.replace(/#.*$/, "").trim())
       .filter((line) => line.length > 0)
       .map((name) => ({ name, manager: manager as PackageManager }));
