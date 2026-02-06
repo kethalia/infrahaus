@@ -164,10 +164,15 @@ export class DatabaseService {
 
     if (tags && tags.length > 0) {
       // Tags are stored as semicolon-separated strings.
-      // Filter templates whose tags field contains ALL specified tags.
+      // Match whole tags only, not substrings (e.g. "web" must not match "webapp").
       for (const tag of tags) {
         conditions.push({
-          tags: { contains: tag },
+          OR: [
+            { tags: tag },
+            { tags: { startsWith: `${tag};` } },
+            { tags: { endsWith: `;${tag}` } },
+            { tags: { contains: `;${tag};` } },
+          ],
         });
       }
     }
@@ -287,15 +292,18 @@ export class DatabaseService {
 
   /**
    * Delete a package bucket. Throws if bucket has packages.
+   * Uses a transaction to ensure the check and delete are atomic.
    */
   static async deleteBucket(id: string): Promise<void> {
-    const count = await this.prisma.package.count({
-      where: { bucketId: id },
+    await this.prisma.$transaction(async (tx) => {
+      const count = await tx.package.count({
+        where: { bucketId: id },
+      });
+      if (count > 0) {
+        throw new Error("Remove all packages before deleting this bucket");
+      }
+      await tx.packageBucket.delete({ where: { id } });
     });
-    if (count > 0) {
-      throw new Error("Remove all packages before deleting this bucket");
-    }
-    await this.prisma.packageBucket.delete({ where: { id } });
   }
 
   /**
@@ -337,6 +345,7 @@ export class DatabaseService {
 
     const result = await this.prisma.package.createMany({
       data: newPackages.map((p) => ({ ...p, bucketId })),
+      skipDuplicates: true,
     });
     return result.count;
   }

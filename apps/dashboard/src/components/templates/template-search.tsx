@@ -27,6 +27,15 @@ function TemplateSearchInner({ tags }: { tags: string[] }) {
     setSearchValue(currentSearch);
   }, [currentSearch]);
 
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
+
   /**
    * Update URL search params without full page reload.
    */
@@ -103,13 +112,18 @@ function TemplateSearchInner({ tags }: { tags: string[] }) {
 
       {/* Tag filter row */}
       {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div
+          role="group"
+          aria-label="Filter by tags"
+          className="flex flex-wrap gap-1.5"
+        >
           {tags.map((tag) => {
             const isActive = currentTags.includes(tag);
             return (
               <button
                 key={tag}
                 onClick={() => toggleTag(tag)}
+                aria-pressed={isActive}
                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
                   isActive
                     ? "bg-primary text-primary-foreground"

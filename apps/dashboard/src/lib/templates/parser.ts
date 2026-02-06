@@ -69,7 +69,9 @@ function resolveBashValue(raw: string): string {
     value = value.slice(1, -1);
   }
 
-  // Handle ${VAR:-default} pattern — extract the default value
+  // Handle ${VAR:-default} pattern — extract the default value.
+  // Limitation: does not support nested expansions (${VAR:-${OTHER:-val}})
+  // or escaped braces. Sufficient for template.conf which uses simple defaults.
   const defaultPattern = /^\$\{[A-Za-z_][A-Za-z0-9_]*:-([^}]*)\}$/;
   const match = value.match(defaultPattern);
   if (match) {
