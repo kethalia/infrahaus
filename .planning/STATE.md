@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 02-template-system — In progress
-**Plan:** 3 of 5 in current phase
-**Status:** Completed 02-03-PLAN.md
-**Last activity:** 2026-02-06 — Completed 02-03-PLAN.md
+**Plan:** 4 of 5 in current phase
+**Status:** Completed 02-04-PLAN.md
+**Last activity:** 2026-02-06 — Completed 02-04-PLAN.md
 
-Progress: ███░░░░░░░ 33% (5/15 plans)
+Progress: ████░░░░░░ 40% (6/15 plans)
 
 ## Completed Work
 
@@ -43,6 +43,13 @@ Progress: ███░░░░░░░ 33% (5/15 plans)
 - Inline package add/remove, bulk import from .apt content
 - Sonner toast notifications infrastructure in root layout
 
+**02-04 — Template detail page** ✓
+
+- /templates/[id] detail page with tabbed Config/Scripts/Packages/Files interface
+- TemplateConfigTab (resources, features), TemplateScriptsTab (collapsible ordered scripts)
+- TemplatePackagesTab (grouped by manager), TemplateFilesTab (collapsible with policy badges)
+- Loading skeleton, generateMetadata, deleteTemplateAction
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -63,10 +70,12 @@ Progress: ███░░░░░░░ 33% (5/15 plans)
 - BucketFormDialog uses mode prop (create/edit) to avoid duplicate dialog components
 - Sonner toasts for all CRUD feedback; Toaster in root layout for app-wide access
 - useActionState for form-based mutations, useTransition for direct server action calls
+- Tab components split by interactivity: Server Components for static display, Client Components for collapsible state
+- File policy badges color-coded: replace=destructive, default=secondary, backup=outline
 
 ## Pending Work
 
-- Phase 2: Plans 02-04 through 02-05 (template detail page, editor)
+- Phase 2: Plan 02-05 (template creator and editor forms)
 - Phase 3: Container Creation (#80-82)
 - Phase 4: Container Management (#83-86)
 - Phase 5: Web UI & Monitoring (#87-88)
@@ -78,6 +87,6 @@ Progress: ███░░░░░░░ 33% (5/15 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-06T08:42:05Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-02-06T14:12:00Z
+Stopped at: Completed 02-04-PLAN.md
 Resume file: None
