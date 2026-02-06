@@ -1,13 +1,16 @@
 "use server";
 
 /**
- * Template Discovery Server Actions
+ * Template Server Actions
  *
- * Server actions for triggering template discovery and checking status.
+ * Server actions for template discovery, status checking, and mutations.
  * Callable from client components via React server action pattern.
  */
 
-import { prisma } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
+import { DatabaseService, prisma } from "@/lib/db";
 
 import { discoverTemplates, type DiscoveryResult } from "./discovery";
 
@@ -64,4 +67,16 @@ export async function getDiscoveryStatus(): Promise<{
       lastDiscovery: null,
     };
   }
+}
+
+/**
+ * Delete a template by ID.
+ *
+ * Cascading deletes handle related scripts, files, and packages.
+ * On success, redirects to the templates list.
+ */
+export async function deleteTemplateAction(id: string): Promise<void> {
+  await DatabaseService.deleteTemplate(id);
+  revalidatePath("/templates");
+  redirect("/templates");
 }
