@@ -49,7 +49,7 @@ const fileSchema = z.object({
   content: z.string().min(1, "File content is required"),
 });
 
-export const templateFormSchema = z.object({
+const templateFormSchema = z.object({
   name: z
     .string()
     .min(1, "Name is required")
@@ -75,8 +75,6 @@ export const templateFormSchema = z.object({
   files: z.array(fileSchema).optional().default([]),
   bucketIds: z.array(z.string()).optional().default([]),
 });
-
-export type TemplateFormValues = z.infer<typeof templateFormSchema>;
 
 // ============================================================================
 // Helpers
