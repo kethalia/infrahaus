@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileCode, Box, Settings } from "lucide-react";
+import { LayoutDashboard, FileCode, Box, Settings, LogOut } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
+import { logoutAction } from "@/lib/auth/actions";
 
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -40,8 +43,9 @@ const navItems = [
   },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ username }: { username?: string }) {
   const pathname = usePathname();
+  const { execute: logout } = useAction(logoutAction);
 
   return (
     <Sidebar collapsible="icon">
@@ -88,6 +92,25 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            {username && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">
+                {username}
+              </div>
+            )}
+            <SidebarMenuButton
+              tooltip="Sign out"
+              className="w-full"
+              onClick={() => logout()}
+            >
+              <LogOut />
+              <span>Sign out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );

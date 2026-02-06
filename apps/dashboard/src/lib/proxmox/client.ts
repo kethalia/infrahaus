@@ -3,19 +3,19 @@
  */
 
 import "server-only";
-import https from "node:https";
+import { fetch as undiciFetch, Agent as UndiciAgent } from "undici";
 import type { ZodType } from "zod";
-import { ProxmoxApiError, ProxmoxAuthError, ProxmoxError } from "./errors.js";
+import { ProxmoxApiError, ProxmoxAuthError, ProxmoxError } from "./errors";
 import type {
   ProxmoxApiResponse,
   ProxmoxClientConfig,
   ProxmoxCredentials,
-} from "./types.js";
+} from "./types";
 
 export class ProxmoxClient {
   private readonly baseUrl: string;
   private credentials: ProxmoxCredentials;
-  private readonly agent?: https.Agent;
+  private readonly dispatcher?: UndiciAgent;
   private readonly retryConfig: {
     maxRetries: number;
     initialDelayMs: number;
@@ -29,8 +29,8 @@ export class ProxmoxClient {
 
     // Handle self-signed SSL certificates
     if (config.verifySsl === false) {
-      this.agent = new https.Agent({
-        rejectUnauthorized: false,
+      this.dispatcher = new UndiciAgent({
+        connect: { rejectUnauthorized: false },
       });
     }
 
@@ -102,11 +102,10 @@ export class ProxmoxClient {
       "Content-Type": "application/json",
     };
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions: Record<string, unknown> = {
       method,
       headers,
-      // @ts-expect-error - Node.js fetch supports agent option
-      agent: this.agent,
+      dispatcher: this.dispatcher,
     };
 
     if (body !== undefined && method !== "GET") {
@@ -119,7 +118,10 @@ export class ProxmoxClient {
     }
 
     try {
-      const response = await fetch(url, fetchOptions);
+      const response = await undiciFetch(
+        url,
+        fetchOptions as Parameters<typeof undiciFetch>[1],
+      );
 
       // Handle authentication errors
       if (response.status === 401) {
@@ -193,7 +195,9 @@ export class ProxmoxClient {
   /**
    * Parse error response from Proxmox
    */
-  private async parseErrorResponse(response: Response): Promise<unknown> {
+  private async parseErrorResponse(response: {
+    text(): Promise<string>;
+  }): Promise<unknown> {
     try {
       const text = await response.text();
       if (!text) return null;

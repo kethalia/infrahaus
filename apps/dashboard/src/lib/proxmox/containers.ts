@@ -4,18 +4,18 @@
 
 import "server-only";
 import { z } from "zod";
-import type { ProxmoxClient } from "./client.js";
+import type { ProxmoxClient } from "./client";
 import {
   ContainerSchema,
   ContainerConfigSchema,
   ContainerStatusSchema,
-} from "./schemas.js";
+} from "./schemas";
 import type {
   ProxmoxContainer,
   ProxmoxContainerConfig,
   ProxmoxContainerCreateConfig,
   ProxmoxContainerStatus,
-} from "./types.js";
+} from "./types";
 
 /**
  * List all LXC containers on a node
