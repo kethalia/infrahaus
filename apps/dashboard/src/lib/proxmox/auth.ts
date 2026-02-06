@@ -5,10 +5,7 @@
 import "server-only";
 import { ProxmoxClient } from "./client";
 import { TicketResponseSchema } from "./schemas";
-import type {
-  ProxmoxTicketCredentials,
-  ProxmoxTicketResponse,
-} from "./types";
+import type { ProxmoxTicketCredentials, ProxmoxTicketResponse } from "./types";
 
 /**
  * Login to Proxmox VE and obtain a ticket
@@ -35,10 +32,9 @@ export async function login(
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: body.toString(),
-    // Allow self-signed certificates
-    // @ts-expect-error - Node.js fetch supports agent option
-    agent: new (await import("node:https")).Agent({
-      rejectUnauthorized: false,
+    // @ts-expect-error - Node.js 18+ undici dispatcher for self-signed certs
+    dispatcher: new (await import("undici")).Agent({
+      connect: { rejectUnauthorized: false },
     }),
   });
 

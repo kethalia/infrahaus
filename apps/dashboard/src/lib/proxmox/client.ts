@@ -3,7 +3,7 @@
  */
 
 import "server-only";
-import https from "node:https";
+import { Agent as UndiciAgent } from "undici";
 import type { ZodType } from "zod";
 import { ProxmoxApiError, ProxmoxAuthError, ProxmoxError } from "./errors";
 import type {
@@ -15,7 +15,7 @@ import type {
 export class ProxmoxClient {
   private readonly baseUrl: string;
   private credentials: ProxmoxCredentials;
-  private readonly agent?: https.Agent;
+  private readonly dispatcher?: UndiciAgent;
   private readonly retryConfig: {
     maxRetries: number;
     initialDelayMs: number;
@@ -29,8 +29,8 @@ export class ProxmoxClient {
 
     // Handle self-signed SSL certificates
     if (config.verifySsl === false) {
-      this.agent = new https.Agent({
-        rejectUnauthorized: false,
+      this.dispatcher = new UndiciAgent({
+        connect: { rejectUnauthorized: false },
       });
     }
 
@@ -102,11 +102,10 @@ export class ProxmoxClient {
       "Content-Type": "application/json",
     };
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions: RequestInit & { dispatcher?: UndiciAgent } = {
       method,
       headers,
-      // @ts-expect-error - Node.js fetch supports agent option
-      agent: this.agent,
+      dispatcher: this.dispatcher,
     };
 
     if (body !== undefined && method !== "GET") {
