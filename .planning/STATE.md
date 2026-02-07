@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 02-template-system — Complete
-**Plan:** 5 of 5 in current phase
-**Status:** Phase 02 complete
-**Last activity:** 2026-02-06 — Completed 02-05-PLAN.md
+**Phase:** 03-container-creation — In progress
+**Plan:** 1 of 4 in current phase
+**Status:** In progress
+**Last activity:** 2026-02-07 — Completed 03-01-PLAN.md
 
-Progress: █████░░░░░ 47% (7/15 plans)
+Progress: █████░░░░░ 53% (8/15 plans)
 
 ## Completed Work
 
@@ -33,6 +33,16 @@ Progress: █████░░░░░ 47% (7/15 plans)
 - ScriptEditor/FileEditor controlled sub-components
 - /templates/new and /templates/[id]/edit pages
 
+### Phase 3: Container Creation (In Progress)
+
+**03-01 — Infrastructure** ✓
+
+- Removed server-only from 9 shared modules for worker process compatibility
+- SSHSession class with exec, execStreaming, uploadFile, connectWithRetry
+- BullMQ queue definition with typed job data and progress events
+- DatabaseService Container/ContainerEvent/ContainerService CRUD methods
+- dev:worker and dev:all scripts with concurrently
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -50,10 +60,14 @@ Progress: █████░░░░░ 47% (7/15 plans)
 - Bucket selection copies packages into template (template owns its package list)
 - **CONVENTION: Always use shadcn/ui components** — never create custom HTML elements (badges, alerts, forms, selects, etc.) when a shadcn component exists or can be installed. Custom implementations only as last resort. Forms must use shadcn Form (react-hook-form) not raw `<form>` tags. Documented in `apps/dashboard/CLAUDE.md`. (#102)
 - **CONVENTION: Cookie writes forbidden in RSC** — never call session.destroy() or modify cookies in Server Components or layouts. Cookie mutations only in Server Actions, Route Handlers, or middleware. (Next.js 16+ requirement)
+- Removed server-only from shared modules (kept in session.ts, discovery.ts, parser.ts — Next.js-only)
+- Lazy-initialized queue pattern for BullMQ (matches getRedis approach)
+- connectWithRetry: 5 attempts, 2s initial delay, exponential backoff for SSH readiness
+- Re-exported Prisma enums from db.ts for consumer convenience
 
 ## Pending Work
 
-- Phase 3: Container Creation (#80-82)
+- Phase 3: Container Creation — Plans 02-04 (#80-82)
 - Phase 4: Container Management (#83-86)
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
@@ -70,6 +84,6 @@ Progress: █████░░░░░ 47% (7/15 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-06T14:21:55Z
-Stopped at: Completed 02-05-PLAN.md (Phase 02 complete)
+Last session: 2026-02-07T18:33:19Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None
