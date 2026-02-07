@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 03-container-creation — In progress
-**Plan:** 1 of 4 in current phase
+**Plan:** 2 of 4 in current phase
 **Status:** In progress
-**Last activity:** 2026-02-07 — Completed 03-01-PLAN.md
+**Last activity:** 2026-02-07 — Completed 03-02-PLAN.md
 
-Progress: █████░░░░░ 53% (8/15 plans)
+Progress: ██████░░░░ 60% (9/15 plans)
 
 ## Completed Work
 
@@ -43,6 +43,14 @@ Progress: █████░░░░░ 53% (8/15 plans)
 - DatabaseService Container/ContainerEvent/ContainerService CRUD methods
 - dev:worker and dev:all scripts with concurrently
 
+**03-02 — Container creation worker** ✓
+
+- BullMQ Worker with 5-phase pipeline: Create → Start → Deploy config-manager → Run scripts → Discover services
+- Config-manager infrastructure: /etc/config-manager/, config.env, config-sync.sh, systemd service
+- Real-time progress via Redis Pub/Sub + DB persistence for step/error/complete events
+- Service/credential discovery from running containers → ContainerService records
+- Graceful shutdown on SIGTERM/SIGINT
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -64,6 +72,10 @@ Progress: █████░░░░░ 53% (8/15 plans)
 - Lazy-initialized queue pattern for BullMQ (matches getRedis approach)
 - connectWithRetry: 5 attempts, 2s initial delay, exponential backoff for SSH readiness
 - Re-exported Prisma enums from db.ts for consumer convenience
+- Dual Redis connections in worker: workerConnection (maxRetriesPerRequest: null) + publisher (Pub/Sub)
+- Log events Redis-only; step/complete/error events persisted to ContainerEvent table
+- Static IP extraction from ipConfig; DHCP discovery deferred
+- Config-manager as systemd oneshot service with config.env and config-sync.sh
 
 ## Pending Work
 
@@ -84,6 +96,6 @@ Progress: █████░░░░░ 53% (8/15 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-07T18:33:19Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-02-07T18:40:43Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
