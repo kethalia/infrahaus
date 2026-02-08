@@ -144,7 +144,7 @@ Plans:
 
 **Goal:** Reusable, config-driven template system that deploys fully provisioned LXC containers on Proxmox via declarative YAML config and convention-based directory structure, shipping "forge-shield" as the first template — a full-stack + EVM dev environment with GSD/OpenCode and integrated security tooling
 **Depends on:** Phase 07
-**Plans:** 8 plans
+**Plans:** 9 plans
 
 Plans:
 
@@ -153,6 +153,7 @@ Plans:
 - [ ] 08-03-PLAN.md — forge-shield template.yaml + base system and user creation scripts
 - [ ] 08-04-PLAN.md — forge-shield language runtime scripts (Node, Python, Go, Rust)
 - [ ] 08-05-PLAN.md — forge-shield EVM tools (Foundry, solc-select) + AI tools (Claude Code, OpenCode, GSD)
-- [ ] 08-06-PLAN.md — forge-shield security tools (web + Solidity + ZAP) + Claude skills + shell + verify
-- [ ] 08-07-PLAN.md — forge-shield files/ (commands, scripts, CLAUDE.md) + hooks/ + minimal/ template
+- [ ] 08-06-PLAN.md — forge-shield security tool scripts (web + Solidity + ZAP)
+- [ ] 08-07-PLAN.md — forge-shield files/ (commands, scripts, CLAUDE.md, tmux.conf) + hooks/ + minimal/ template
 - [ ] 08-08-PLAN.md — Engine README + integration verification checkpoint
+- [ ] 08-09-PLAN.md — forge-shield setup scripts (Claude skills, shell config, verification)
