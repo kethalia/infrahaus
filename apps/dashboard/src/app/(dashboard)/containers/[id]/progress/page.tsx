@@ -86,7 +86,7 @@ export default function ContainerProgressPage() {
   // --- Connecting state ---
   if (status === "connecting") {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto w-full max-w-2xl space-y-6">
         <div className="flex items-center gap-3">
           <Loader2 className="text-muted-foreground size-5 animate-spin" />
           <h1 className="text-2xl font-bold">Creating Container</h1>
@@ -114,7 +114,7 @@ export default function ContainerProgressPage() {
   // --- Error state ---
   if (isError) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto w-full max-w-2xl space-y-6">
         <div className="flex items-center gap-3">
           <XCircle className="text-destructive size-6" />
           <h1 className="text-2xl font-bold">Creation Failed</h1>
@@ -158,7 +158,7 @@ export default function ContainerProgressPage() {
   // --- Complete state ---
   if (isComplete) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto w-full max-w-2xl space-y-6">
         <div className="flex items-center gap-3">
           <CheckCircle2 className="size-6 text-green-500" />
           <h1 className="text-2xl font-bold">Container Ready</h1>
@@ -218,7 +218,7 @@ export default function ContainerProgressPage() {
 
   // --- Streaming state (default) ---
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6">
       <div className="flex items-center gap-3">
         <Loader2 className="text-primary size-5 animate-spin" />
         <h1 className="text-2xl font-bold">Creating Container</h1>

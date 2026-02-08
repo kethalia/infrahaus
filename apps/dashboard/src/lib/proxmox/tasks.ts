@@ -96,8 +96,11 @@ export async function waitForTask(
         }
       }
 
-      // Check if task succeeded
-      if (status.exitstatus === "OK") {
+      // Check if task succeeded (OK or WARNINGS are both success)
+      if (
+        status.exitstatus === "OK" ||
+        status.exitstatus?.startsWith("WARNINGS:")
+      ) {
         return status;
       } else {
         // Task failed - get full log for error details

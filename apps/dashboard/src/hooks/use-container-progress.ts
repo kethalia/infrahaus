@@ -55,6 +55,7 @@ export function useContainerProgress(containerId: string) {
   const [isComplete, setIsComplete] = useState(false);
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [seenSteps, setSeenSteps] = useState<Set<StepName>>(new Set());
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const processEvent = useCallback((event: ProgressEvent) => {
@@ -62,7 +63,10 @@ export function useContainerProgress(containerId: string) {
 
     switch (event.type) {
       case "step":
-        if (event.step) setCurrentStep(event.step);
+        if (event.step) {
+          setCurrentStep(event.step);
+          setSeenSteps((prev) => new Set(prev).add(event.step!));
+        }
         if (event.percent != null) setPercent(event.percent);
         break;
 
@@ -73,6 +77,8 @@ export function useContainerProgress(containerId: string) {
       case "complete":
         setIsComplete(true);
         setPercent(100);
+        // Mark all steps as seen on complete
+        setSeenSteps(new Set(PIPELINE_STEPS.map((s) => s.name)));
         break;
 
       case "error":
@@ -123,21 +129,18 @@ export function useContainerProgress(containerId: string) {
     };
   }, [containerId, processEvent]);
 
-  // Derive step statuses
+  // Derive step statuses from explicitly seen steps
   const steps: StepInfo[] = PIPELINE_STEPS.map((step) => {
-    const stepIndex = PIPELINE_STEPS.findIndex((s) => s.name === step.name);
-    const currentIndex = currentStep
-      ? PIPELINE_STEPS.findIndex((s) => s.name === currentStep)
-      : -1;
-
     let stepStatus: StepInfo["status"] = "pending";
 
     if (isError && step.name === currentStep) {
       stepStatus = "error";
-    } else if (isComplete || stepIndex < currentIndex) {
-      stepStatus = "completed";
-    } else if (stepIndex === currentIndex) {
+    } else if (step.name === currentStep && !isComplete) {
       stepStatus = "active";
+    } else if (seenSteps.has(step.name)) {
+      // Only mark as completed if we've actually received an event for this step
+      stepStatus =
+        step.name === currentStep && !isComplete ? "active" : "completed";
     }
 
     return {
