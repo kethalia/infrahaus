@@ -18,6 +18,7 @@ import type {
   WizardTemplate,
   WizardStorage,
   WizardBridge,
+  WizardOsTemplate,
 } from "@/lib/containers/actions";
 import type {
   TemplateSelection,
@@ -32,6 +33,7 @@ interface ContainerWizardProps {
   bridges: WizardBridge[];
   nextVmid: number;
   noNodeConfigured: boolean;
+  osTemplates: WizardOsTemplate[];
 }
 
 export function ContainerWizard({
@@ -40,6 +42,7 @@ export function ContainerWizard({
   bridges,
   nextVmid,
   noNodeConfigured,
+  osTemplates,
 }: ContainerWizardProps) {
   const [step, setStep] = useState(1);
   const [templateData, setTemplateData] = useState<TemplateSelection | null>(
@@ -169,6 +172,7 @@ export function ContainerWizard({
           storages={storages}
           bridges={bridges}
           nextVmid={nextVmid}
+          osTemplates={osTemplates}
           onNext={handleConfigNext}
           onBack={handleBack}
         />

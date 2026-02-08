@@ -32,7 +32,11 @@ import {
   type ContainerConfig,
   type ContainerConfigFormValues,
 } from "@/lib/containers/schemas";
-import type { WizardStorage, WizardBridge } from "@/lib/containers/actions";
+import type {
+  WizardStorage,
+  WizardBridge,
+  WizardOsTemplate,
+} from "@/lib/containers/actions";
 
 interface ConfigureStepProps {
   data: ContainerConfig | null;
@@ -51,6 +55,7 @@ interface ConfigureStepProps {
   storages: WizardStorage[];
   bridges: WizardBridge[];
   nextVmid: number;
+  osTemplates: WizardOsTemplate[];
   onNext: (data: ContainerConfig) => void;
   onBack: () => void;
 }
@@ -72,6 +77,7 @@ export function ConfigureStep({
   storages,
   bridges,
   nextVmid,
+  osTemplates,
   onNext,
   onBack,
 }: ConfigureStepProps) {
@@ -100,7 +106,11 @@ export function ConfigureStep({
       nesting: data?.nesting ?? defaultsFromTemplate?.nesting ?? false,
       sshPublicKey: data?.sshPublicKey ?? "",
       tags: data?.tags ?? defaultsFromTemplate?.tags ?? "",
-      ostemplate: data?.ostemplate ?? "",
+      ostemplate:
+        data?.ostemplate ??
+        defaultsFromTemplate?.osTemplate ??
+        osTemplates[0]?.volid ??
+        "",
     },
   });
 
@@ -129,6 +139,8 @@ export function ConfigureStep({
         form.setValue("nesting", defaultsFromTemplate.nesting);
       if (defaultsFromTemplate.tags)
         form.setValue("tags", defaultsFromTemplate.tags);
+      if (defaultsFromTemplate.osTemplate)
+        form.setValue("ostemplate", defaultsFromTemplate.osTemplate);
     }
   }, [defaultsFromTemplate, data, form]);
 
@@ -169,6 +181,55 @@ export function ConfigureStep({
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          {/* OS Template Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+              OS Template
+            </h3>
+            <FormField
+              control={form.control}
+              name="ostemplate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Template</FormLabel>
+                  {osTemplates.length > 0 ? (
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select an OS template" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {osTemplates.map((t) => (
+                          <SelectItem key={t.volid} value={t.volid}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <FormControl>
+                      <Input
+                        placeholder="local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"
+                        {...field}
+                      />
+                    </FormControl>
+                  )}
+                  <FormDescription>
+                    The OS template to use for the container. Only downloaded
+                    templates are shown.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <Separator />
+
           {/* Identity Section */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">

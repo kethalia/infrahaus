@@ -87,8 +87,12 @@ export function ReviewStep({
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">Template</CardTitle>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent className="pt-0 space-y-1">
             <p className="font-medium">{templateName ?? "From Scratch"}</p>
+            <ReviewItem
+              label="OS Template"
+              value={config.ostemplate || "Not set"}
+            />
           </CardContent>
         </Card>
 

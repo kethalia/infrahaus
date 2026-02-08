@@ -7,8 +7,14 @@ export const metadata = {
 };
 
 export default async function NewContainerPage() {
-  const { templates, storages, bridges, nextVmid, noNodeConfigured } =
-    await getWizardData();
+  const {
+    templates,
+    storages,
+    bridges,
+    nextVmid,
+    noNodeConfigured,
+    osTemplates,
+  } = await getWizardData();
 
   return (
     <div className="flex flex-1 flex-col gap-6">
@@ -24,6 +30,7 @@ export default async function NewContainerPage() {
         bridges={bridges}
         nextVmid={nextVmid}
         noNodeConfigured={noNodeConfigured}
+        osTemplates={osTemplates}
       />
     </div>
   );
