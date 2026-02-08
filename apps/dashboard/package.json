@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "dev:worker": "tsx --watch src/workers/container-creation.ts",
+    "dev:worker": "tsx --env-file .env --watch src/workers/container-creation.ts",
     "dev:all": "concurrently --names next,worker --prefix-colors blue,green \"pnpm dev\" \"pnpm dev:worker\""
   },
   "prisma": {
