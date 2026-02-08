@@ -24,6 +24,7 @@ export const templateSelectionSchema = z.object({
  * (required for zodResolver compatibility with react-hook-form).
  */
 export const containerConfigBaseSchema = z.object({
+  targetNode: z.string().min(1, "Target node is required"),
   hostname: z
     .string()
     .min(1, "Hostname is required")
@@ -124,6 +125,7 @@ export const wizardStateSchema = z.object({
 
 export const createContainerInputSchema = z.object({
   templateId: z.string().nullable(),
+  targetNode: z.string().optional(),
   hostname: z.string().min(1),
   vmid: z.coerce.number().int().min(100),
   rootPassword: z.string().min(5),

@@ -19,6 +19,7 @@ import type {
   WizardStorage,
   WizardBridge,
   WizardOsTemplate,
+  WizardNode,
 } from "@/lib/containers/actions";
 import type {
   TemplateSelection,
@@ -34,6 +35,7 @@ interface ContainerWizardProps {
   nextVmid: number;
   noNodeConfigured: boolean;
   osTemplates: WizardOsTemplate[];
+  clusterNodes: WizardNode[];
 }
 
 export function ContainerWizard({
@@ -43,6 +45,7 @@ export function ContainerWizard({
   nextVmid,
   noNodeConfigured,
   osTemplates,
+  clusterNodes,
 }: ContainerWizardProps) {
   const [step, setStep] = useState(1);
   const [templateData, setTemplateData] = useState<TemplateSelection | null>(
@@ -105,6 +108,7 @@ export function ContainerWizard({
     startTransition(async () => {
       const result = await createContainerAction({
         templateId: templateData?.templateId ?? null,
+        targetNode: configData.targetNode,
         hostname: configData.hostname,
         vmid: configData.vmid,
         rootPassword: configData.rootPassword,
@@ -173,6 +177,7 @@ export function ContainerWizard({
           bridges={bridges}
           nextVmid={nextVmid}
           osTemplates={osTemplates}
+          clusterNodes={clusterNodes}
           onNext={handleConfigNext}
           onBack={handleBack}
         />
@@ -203,6 +208,7 @@ export function ContainerWizard({
           packages={packagesData}
           scripts={scriptsData}
           templatePackages={selectedTemplate?.packages ?? []}
+          clusterNodes={clusterNodes}
           isPending={isPending}
           onDeploy={handleDeploy}
           onBack={handleBack}

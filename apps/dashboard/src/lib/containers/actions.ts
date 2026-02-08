@@ -69,6 +69,13 @@ export interface WizardOsTemplate {
   size: number; // bytes
 }
 
+export interface WizardNode {
+  node: string; // Proxmox node name (e.g., "pve-04")
+  status: string; // "online" | "offline" | "unknown"
+  maxcpu?: number;
+  maxmem?: number; // bytes
+}
+
 export interface WizardData {
   templates: WizardTemplate[];
   storages: WizardStorage[];
@@ -76,6 +83,7 @@ export interface WizardData {
   nextVmid: number;
   noNodeConfigured: boolean;
   osTemplates: WizardOsTemplate[];
+  clusterNodes: WizardNode[];
 }
 
 // ============================================================================
@@ -90,19 +98,32 @@ export interface WizardData {
  *
  * Returns the node and the Proxmox node name (for API paths).
  */
-async function getOrCreateSessionNode(sessionData: {
-  ticket: string;
-  csrfToken: string;
-  username: string;
-  expiresAt: string;
-}): Promise<{ nodeId: string; nodeName: string }> {
+async function getOrCreateSessionNode(
+  sessionData: {
+    ticket: string;
+    csrfToken: string;
+    username: string;
+    expiresAt: string;
+  },
+  targetNode?: string,
+): Promise<{ nodeId: string; nodeName: string }> {
+  // If a target node is specified, look for it in DB first
+  if (targetNode) {
+    const existing = await DatabaseService.getNodeByName(targetNode);
+    if (existing) {
+      return { nodeId: existing.id, nodeName: existing.name };
+    }
+  }
+
   // Check if any nodes exist in DB
   const existingNodes = await DatabaseService.listNodes();
-  if (existingNodes.length > 0) {
+
+  // If no target specified, use existing DB node (backward compat)
+  if (!targetNode && existingNodes.length > 0) {
     return { nodeId: existingNodes[0].id, nodeName: existingNodes[0].name };
   }
 
-  // No DB nodes — auto-create from env vars
+  // Need to create a DB record for the target node (or first discovered node)
   const host = process.env.PVE_HOST;
   if (!host) {
     throw new Error(
@@ -111,16 +132,18 @@ async function getOrCreateSessionNode(sessionData: {
   }
   const port = process.env.PVE_PORT ? parseInt(process.env.PVE_PORT, 10) : 8006;
 
-  // Discover the node name from Proxmox API using session ticket
-  const client = createProxmoxClientFromTicket(
-    sessionData.ticket,
-    sessionData.csrfToken,
-    sessionData.username,
-    new Date(sessionData.expiresAt),
-  );
-
-  const clusterNodes = await proxmoxNodes.listNodes(client);
-  const nodeName = clusterNodes[0]?.node || "pve";
+  // Use target node name, or discover from API
+  let nodeName = targetNode;
+  if (!nodeName) {
+    const client = createProxmoxClientFromTicket(
+      sessionData.ticket,
+      sessionData.csrfToken,
+      sessionData.username,
+      new Date(sessionData.expiresAt),
+    );
+    const clusterNodes = await proxmoxNodes.listNodes(client);
+    nodeName = clusterNodes[0]?.node || "pve";
+  }
 
   // Create a DB record with placeholder token fields (ticket auth used instead)
   const placeholderToken = encrypt("session-auth-no-token");
@@ -213,6 +236,7 @@ export async function getWizardData(): Promise<WizardData> {
       nextVmid: 100,
       noNodeConfigured: true,
       osTemplates: [],
+      clusterNodes: [],
     };
   }
 
@@ -245,25 +269,28 @@ export async function getWizardData(): Promise<WizardData> {
         nextVmid: 100,
         noNodeConfigured: false,
         osTemplates: [],
+        clusterNodes: [],
       };
     }
 
-    // Fetch storages, bridges, and next VMID in parallel
-    const [storageList, networkList, nextVmidResponse] = await Promise.all([
-      storage.listStorage(client, nodeName),
-      client.get(
-        `/nodes/${nodeName}/network`,
-        z.array(
-          z
-            .object({
-              iface: z.string(),
-              type: z.string(),
-            })
-            .passthrough(),
+    // Fetch cluster nodes, storages, bridges, and next VMID in parallel
+    const [clusterNodeList, storageList, networkList, nextVmidResponse] =
+      await Promise.all([
+        proxmoxNodes.listNodes(client),
+        storage.listStorage(client, nodeName),
+        client.get(
+          `/nodes/${nodeName}/network`,
+          z.array(
+            z
+              .object({
+                iface: z.string(),
+                type: z.string(),
+              })
+              .passthrough(),
+          ),
         ),
-      ),
-      client.get("/cluster/nextid", z.coerce.number()),
-    ]);
+        client.get("/cluster/nextid", z.coerce.number()),
+      ]);
 
     // Filter storages that support container rootdir/images content
     const containerStorages = storageList.filter(
@@ -316,6 +343,14 @@ export async function getWizardData(): Promise<WizardData> {
       nextVmid: nextVmidResponse,
       noNodeConfigured: false,
       osTemplates,
+      clusterNodes: clusterNodeList
+        .filter((n) => n.status === "online")
+        .map((n) => ({
+          node: n.node,
+          status: n.status,
+          maxcpu: n.maxcpu,
+          maxmem: n.maxmem,
+        })),
     };
   } catch (error) {
     console.error("Failed to fetch Proxmox data for wizard:", error);
@@ -327,6 +362,7 @@ export async function getWizardData(): Promise<WizardData> {
       nextVmid: 100,
       noNodeConfigured: false,
       osTemplates: [],
+      clusterNodes: [],
     };
   }
 }
@@ -410,8 +446,11 @@ export const createContainerAction = authActionClient
       throw new ActionError("Session expired. Please log in again.");
     }
 
-    // Get or create a Proxmox node (auto-creates from env if no DB nodes exist)
-    const { nodeId, nodeName } = await getOrCreateSessionNode(sessionData);
+    // Get or create a Proxmox node for the target node
+    const { nodeId, nodeName } = await getOrCreateSessionNode(
+      sessionData,
+      data.targetNode,
+    );
 
     // Encrypt password for DB storage
     const encryptedPassword = encrypt(data.rootPassword);

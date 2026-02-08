@@ -36,6 +36,7 @@ import type {
   WizardStorage,
   WizardBridge,
   WizardOsTemplate,
+  WizardNode,
 } from "@/lib/containers/actions";
 
 interface ConfigureStepProps {
@@ -56,6 +57,7 @@ interface ConfigureStepProps {
   bridges: WizardBridge[];
   nextVmid: number;
   osTemplates: WizardOsTemplate[];
+  clusterNodes: WizardNode[];
   onNext: (data: ContainerConfig) => void;
   onBack: () => void;
 }
@@ -78,12 +80,14 @@ export function ConfigureStep({
   bridges,
   nextVmid,
   osTemplates,
+  clusterNodes,
   onNext,
   onBack,
 }: ConfigureStepProps) {
   const form = useForm<ContainerConfigFormValues>({
     resolver: zodResolver(containerConfigBaseSchema),
     defaultValues: {
+      targetNode: data?.targetNode ?? clusterNodes[0]?.node ?? "",
       hostname: data?.hostname ?? "",
       vmid: data?.vmid ?? nextVmid,
       rootPassword: data?.rootPassword ?? "",
@@ -181,6 +185,54 @@ export function ConfigureStep({
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          {/* Target Node Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+              Target Node
+            </h3>
+            <FormField
+              control={form.control}
+              name="targetNode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Proxmox Node</FormLabel>
+                  {clusterNodes.length > 0 ? (
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a node" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {clusterNodes.map((n) => (
+                          <SelectItem key={n.node} value={n.node}>
+                            {n.node}
+                            {n.maxcpu != null && n.maxmem != null
+                              ? ` (${n.maxcpu} CPU, ${Math.round((n.maxmem ?? 0) / 1024 / 1024 / 1024)} GB RAM)`
+                              : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <FormControl>
+                      <Input placeholder="pve" {...field} />
+                    </FormControl>
+                  )}
+                  <FormDescription>
+                    The cluster node where the container will be created
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <Separator />
+
           {/* OS Template Section */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">

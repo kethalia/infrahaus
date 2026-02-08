@@ -14,6 +14,7 @@ export default async function NewContainerPage() {
     nextVmid,
     noNodeConfigured,
     osTemplates,
+    clusterNodes,
   } = await getWizardData();
 
   return (
@@ -31,6 +32,7 @@ export default async function NewContainerPage() {
         nextVmid={nextVmid}
         noNodeConfigured={noNodeConfigured}
         osTemplates={osTemplates}
+        clusterNodes={clusterNodes}
       />
     </div>
   );
