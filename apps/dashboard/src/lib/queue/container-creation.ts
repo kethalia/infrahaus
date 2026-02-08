@@ -11,7 +11,17 @@ import { getRedis } from "../redis";
 export interface ContainerJobData {
   containerId: string; // Prisma Container ID (cuid)
   nodeId: string; // Prisma ProxmoxNode ID
+  nodeName: string; // Proxmox node name (e.g., "pve") for API paths
   templateId: string | null; // Prisma Template ID (null = "From Scratch" mode)
+  /** Proxmox ticket credentials for session-based auth (worker fallback) */
+  proxmoxCredentials?: {
+    host: string;
+    port: number;
+    ticket: string;
+    csrfToken: string;
+    username: string;
+    expiresAt: string; // ISO string
+  };
   config: {
     hostname: string;
     vmid: number;

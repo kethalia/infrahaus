@@ -27,7 +27,11 @@ import {
   ServiceStatus,
   prisma,
 } from "../lib/db";
-import { createProxmoxClientFromNode } from "../lib/proxmox";
+import {
+  createProxmoxClient,
+  createProxmoxClientFromNode,
+} from "../lib/proxmox";
+import type { ProxmoxTicketCredentials } from "../lib/proxmox";
 import { createContainer, startContainer } from "../lib/proxmox/containers";
 import { waitForTask } from "../lib/proxmox/tasks";
 import { connectWithRetry, type SSHSession } from "../lib/ssh";
@@ -141,8 +145,10 @@ async function processContainerCreation(
   const {
     containerId,
     nodeId,
+    nodeName,
     templateId,
     config,
+    proxmoxCredentials,
     enabledBuckets,
     additionalPackages,
     scripts: scriptSelections,
@@ -154,12 +160,39 @@ async function processContainerCreation(
     // Phase 1: Create Container (0-20%)
     // ========================================================================
 
+    // Build Proxmox client — prefer DB node with real API token, fall back to ticket auth
     const node = await DatabaseService.getNodeById(nodeId);
     if (!node) {
       throw new Error(`Proxmox node not found: ${nodeId}`);
     }
 
-    const client = createProxmoxClientFromNode(node);
+    let client;
+    let pveNodeName = nodeName;
+
+    if (!node.tokenId.endsWith("!session")) {
+      // DB node has a real API token — use it
+      client = createProxmoxClientFromNode(node);
+      pveNodeName = node.name;
+    } else if (proxmoxCredentials) {
+      // Fall back to session ticket credentials from job payload
+      const ticketCreds: ProxmoxTicketCredentials = {
+        type: "ticket",
+        ticket: proxmoxCredentials.ticket,
+        csrfToken: proxmoxCredentials.csrfToken,
+        username: proxmoxCredentials.username,
+        expiresAt: new Date(proxmoxCredentials.expiresAt),
+      };
+      client = createProxmoxClient({
+        host: proxmoxCredentials.host,
+        port: proxmoxCredentials.port,
+        credentials: ticketCreds,
+        verifySsl: false,
+      });
+    } else {
+      throw new Error(
+        "No valid Proxmox credentials available. DB node has placeholder token and no session credentials in job.",
+      );
+    }
 
     await publishProgress(containerId, {
       type: "step",
@@ -173,7 +206,7 @@ async function processContainerCreation(
     if (config.nesting) features.push("nesting=1");
     const featuresStr = features.length > 0 ? features.join(",") : undefined;
 
-    const createUpid = await createContainer(client, node.name, {
+    const createUpid = await createContainer(client, pveNodeName, {
       vmid: config.vmid,
       ostemplate: config.ostemplate,
       hostname: config.hostname,
@@ -191,7 +224,7 @@ async function processContainerCreation(
       tags: config.tags,
     });
 
-    await waitForTask(client, node.name, createUpid, {
+    await waitForTask(client, pveNodeName, createUpid, {
       interval: 2000,
       timeout: 120_000,
     });
@@ -214,9 +247,9 @@ async function processContainerCreation(
       message: "Starting container...",
     });
 
-    const startUpid = await startContainer(client, node.name, config.vmid);
+    const startUpid = await startContainer(client, pveNodeName, config.vmid);
 
-    await waitForTask(client, node.name, startUpid, {
+    await waitForTask(client, pveNodeName, startUpid, {
       interval: 2000,
       timeout: 60_000,
     });

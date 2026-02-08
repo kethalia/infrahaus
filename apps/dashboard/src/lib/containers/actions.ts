@@ -14,8 +14,13 @@ import { authActionClient } from "@/lib/safe-action";
 import { DatabaseService, prisma } from "@/lib/db";
 import { encrypt } from "@/lib/encryption";
 import { getContainerCreationQueue } from "@/lib/queue/container-creation";
-import { createProxmoxClientFromNode } from "@/lib/proxmox";
-import { storage } from "@/lib/proxmox";
+import {
+  createProxmoxClientFromNode,
+  createProxmoxClientFromTicket,
+  storage,
+  nodes as proxmoxNodes,
+} from "@/lib/proxmox";
+import { getSessionData } from "@/lib/session";
 import { createContainerInputSchema } from "./schemas";
 
 // ============================================================================
@@ -66,6 +71,100 @@ export interface WizardData {
 }
 
 // ============================================================================
+// Proxmox Node Helpers (session-based fallback)
+// ============================================================================
+
+/**
+ * Get or create a ProxmoxNode DB record for the env-configured PVE host.
+ * When no nodes exist in the DB, auto-creates one using PVE_HOST/PVE_PORT
+ * from env vars. The tokenId/tokenSecret are set to placeholders since
+ * we use ticket auth from the session instead.
+ *
+ * Returns the node and the Proxmox node name (for API paths).
+ */
+async function getOrCreateSessionNode(sessionData: {
+  ticket: string;
+  csrfToken: string;
+  username: string;
+  expiresAt: string;
+}): Promise<{ nodeId: string; nodeName: string }> {
+  // Check if any nodes exist in DB
+  const existingNodes = await DatabaseService.listNodes();
+  if (existingNodes.length > 0) {
+    return { nodeId: existingNodes[0].id, nodeName: existingNodes[0].name };
+  }
+
+  // No DB nodes — auto-create from env vars
+  const host = process.env.PVE_HOST;
+  if (!host) {
+    throw new Error(
+      "No Proxmox nodes configured and PVE_HOST env var is not set.",
+    );
+  }
+  const port = process.env.PVE_PORT ? parseInt(process.env.PVE_PORT, 10) : 8006;
+
+  // Discover the node name from Proxmox API using session ticket
+  const client = createProxmoxClientFromTicket(
+    sessionData.ticket,
+    sessionData.csrfToken,
+    sessionData.username,
+    new Date(sessionData.expiresAt),
+  );
+
+  const clusterNodes = await proxmoxNodes.listNodes(client);
+  const nodeName = clusterNodes[0]?.node || "pve";
+
+  // Create a DB record with placeholder token fields (ticket auth used instead)
+  const placeholderToken = encrypt("session-auth-no-token");
+  const node = await DatabaseService.createNode({
+    name: nodeName,
+    host,
+    port,
+    tokenId: `${sessionData.username}!session`,
+    tokenSecret: placeholderToken,
+  });
+
+  return { nodeId: node.id, nodeName: node.name };
+}
+
+/**
+ * Get a Proxmox client, preferring DB node (API token) but falling back
+ * to session ticket auth when the DB node has placeholder credentials.
+ */
+async function getProxmoxClientWithFallback(
+  nodeName: string,
+  sessionData: {
+    ticket: string;
+    csrfToken: string;
+    username: string;
+    expiresAt: string;
+  },
+) {
+  // Try DB node first
+  const nodes = await DatabaseService.listNodes();
+  const node = nodes[0];
+
+  // If node has a real API token (not our placeholder), use it
+  if (node && !node.tokenId.endsWith("!session")) {
+    return {
+      client: createProxmoxClientFromNode(node),
+      nodeName: node.name,
+    };
+  }
+
+  // Fall back to session ticket auth
+  return {
+    client: createProxmoxClientFromTicket(
+      sessionData.ticket,
+      sessionData.csrfToken,
+      sessionData.username,
+      new Date(sessionData.expiresAt),
+    ),
+    nodeName,
+  };
+}
+
+// ============================================================================
 // Fetch wizard initialization data
 // ============================================================================
 
@@ -86,10 +185,19 @@ export async function getWizardData(): Promise<WizardData> {
     orderBy: { name: "asc" },
   });
 
+  // Try to get a Proxmox client — either from DB node or session credentials
+  const sessionData = await getSessionData();
+
   // Get first configured Proxmox node
   const nodes = await DatabaseService.listNodes();
+  const node = nodes[0];
 
-  if (nodes.length === 0) {
+  // Determine if we can connect to Proxmox at all
+  const hasDbNode = !!node;
+  const hasSessionCreds = !!sessionData;
+  const hasEnvHost = !!process.env.PVE_HOST;
+
+  if (!hasDbNode && (!hasSessionCreds || !hasEnvHost)) {
     return {
       templates: templates.map(mapTemplate),
       storages: [],
@@ -99,16 +207,42 @@ export async function getWizardData(): Promise<WizardData> {
     };
   }
 
-  const node = nodes[0];
-
   try {
-    const client = createProxmoxClientFromNode(node);
+    // Build a Proxmox client: prefer DB node with real API token, fall back to session
+    let client;
+    let nodeName: string;
+
+    if (hasDbNode && !node.tokenId.endsWith("!session")) {
+      // DB node with real API token
+      client = createProxmoxClientFromNode(node);
+      nodeName = node.name;
+    } else if (hasSessionCreds && hasEnvHost) {
+      // Session ticket auth fallback
+      client = createProxmoxClientFromTicket(
+        sessionData.ticket,
+        sessionData.csrfToken,
+        sessionData.username,
+        new Date(sessionData.expiresAt),
+      );
+      // Discover node name from Proxmox API
+      const clusterNodes = await proxmoxNodes.listNodes(client);
+      nodeName = clusterNodes[0]?.node || node?.name || "pve";
+    } else {
+      // DB node exists but has placeholder token and no session — can't connect
+      return {
+        templates: templates.map(mapTemplate),
+        storages: [],
+        bridges: [],
+        nextVmid: 100,
+        noNodeConfigured: false,
+      };
+    }
 
     // Fetch storages, bridges, and next VMID in parallel
     const [storageList, networkList, nextVmidResponse] = await Promise.all([
-      storage.listStorage(client, node.name),
+      storage.listStorage(client, nodeName),
       client.get(
-        `/nodes/${node.name}/network`,
+        `/nodes/${nodeName}/network`,
         z.array(
           z
             .object({
@@ -229,14 +363,14 @@ function mapTemplate(t: {
 export const createContainerAction = authActionClient
   .schema(createContainerInputSchema)
   .action(async ({ parsedInput: data }) => {
-    // Get first available node
-    const nodes = await DatabaseService.listNodes();
-    if (nodes.length === 0) {
-      throw new Error(
-        "No Proxmox nodes configured. Please add a node in Settings first.",
-      );
+    // Get session for Proxmox credentials
+    const sessionData = await getSessionData();
+    if (!sessionData) {
+      throw new Error("Session expired. Please log in again.");
     }
-    const node = nodes[0];
+
+    // Get or create a Proxmox node (auto-creates from env if no DB nodes exist)
+    const { nodeId, nodeName } = await getOrCreateSessionNode(sessionData);
 
     // Encrypt password for DB storage
     const encryptedPassword = encrypt(data.rootPassword);
@@ -245,7 +379,7 @@ export const createContainerAction = authActionClient
     const container = await DatabaseService.createContainer({
       vmid: data.vmid,
       rootPassword: encryptedPassword,
-      nodeId: node.id,
+      nodeId,
       templateId: data.templateId || undefined,
     });
 
@@ -266,12 +400,29 @@ export const createContainerAction = authActionClient
       ostemplate = "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst";
     }
 
+    // Build Proxmox credentials for the worker (ticket auth fallback)
+    const host = process.env.PVE_HOST;
+    const port = process.env.PVE_PORT
+      ? parseInt(process.env.PVE_PORT, 10)
+      : 8006;
+
     // Enqueue creation job
     const queue = getContainerCreationQueue();
     await queue.add("create-container", {
       containerId: container.id,
-      nodeId: node.id,
+      nodeId,
+      nodeName,
       templateId: data.templateId || null,
+      proxmoxCredentials: host
+        ? {
+            host,
+            port,
+            ticket: sessionData.ticket,
+            csrfToken: sessionData.csrfToken,
+            username: sessionData.username,
+            expiresAt: sessionData.expiresAt,
+          }
+        : undefined,
       config: {
         hostname: data.hostname,
         vmid: data.vmid,
