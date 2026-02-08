@@ -83,54 +83,79 @@ export async function GET(
         }
       }
 
-      // Replay existing events
+      // Build snapshot from persisted events: derive current state instead of
+      // replaying individual events (which arrive in a burst and break the UI).
+      const lastStepEvent = [...existingEvents].reverse().find(
+        (e) =>
+          e.type !== "error" &&
+          e.metadata &&
+          (() => {
+            try {
+              return JSON.parse(e.metadata).step;
+            } catch {
+              return false;
+            }
+          })(),
+      );
+      const lastPercent = lastStepEvent?.metadata
+        ? (() => {
+            try {
+              return JSON.parse(lastStepEvent.metadata!).percent ?? 0;
+            } catch {
+              return 0;
+            }
+          })()
+        : 0;
+      const lastStep = lastStepEvent?.metadata
+        ? (() => {
+            try {
+              return JSON.parse(lastStepEvent.metadata!).step ?? null;
+            } catch {
+              return null;
+            }
+          })()
+        : null;
+
+      // Compute which steps have been seen from persisted events
+      const seenSteps: string[] = [];
       for (const event of existingEvents) {
-        const replayEvent: ContainerProgressEvent = {
-          type:
-            event.type === "error"
-              ? "error"
-              : event.type === "created"
-                ? "complete"
-                : "step",
-          message: event.message,
-          timestamp: event.createdAt.toISOString(),
-          ...(event.metadata
-            ? (() => {
-                try {
-                  const meta = JSON.parse(event.metadata);
-                  return {
-                    step: meta.step,
-                    percent: meta.percent,
-                  };
-                } catch {
-                  return {};
-                }
-              })()
-            : {}),
-        };
-        send("progress", JSON.stringify(replayEvent));
+        if (event.metadata) {
+          try {
+            const meta = JSON.parse(event.metadata);
+            if (meta.step && !seenSteps.includes(meta.step)) {
+              seenSteps.push(meta.step);
+            }
+          } catch {
+            // ignore
+          }
+        }
       }
 
-      // If container is already in terminal state, close after replay
+      // Check terminal state
+      const hasError = existingEvents.some((e) => e.type === "error");
+      const hasComplete = existingEvents.some((e) => e.type === "created");
+      const errorEvent = existingEvents.find((e) => e.type === "error");
+
+      // Send a single snapshot event with the current state
+      send(
+        "snapshot",
+        JSON.stringify({
+          step: lastStep,
+          percent: isTerminal && !hasError ? 100 : lastPercent,
+          seenSteps,
+          isComplete:
+            hasComplete || (isTerminal && container.lifecycle === "ready"),
+          isError: hasError || (isTerminal && container.lifecycle === "error"),
+          errorMessage:
+            errorEvent?.message ||
+            (isTerminal && container.lifecycle === "error"
+              ? "Container creation failed"
+              : null),
+        }),
+      );
+
+      // If container is already in terminal state, close after snapshot
       if (isTerminal) {
-        // Send a final terminal event if not already present
-        const hasTerminal = existingEvents.some(
-          (e) => e.type === "error" || e.type === "created",
-        );
-        if (!hasTerminal) {
-          send(
-            "progress",
-            JSON.stringify({
-              type: container.lifecycle === "ready" ? "complete" : "error",
-              message:
-                container.lifecycle === "ready"
-                  ? "Container ready!"
-                  : "Container creation failed",
-              percent: container.lifecycle === "ready" ? 100 : undefined,
-              timestamp: new Date().toISOString(),
-            } satisfies ContainerProgressEvent),
-          );
-        }
         send("done", JSON.stringify({ reason: "terminal" }));
         cleanup();
         return;

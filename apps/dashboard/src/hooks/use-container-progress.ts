@@ -97,6 +97,30 @@ export function useContainerProgress(containerId: string) {
       setStatus("connected");
     });
 
+    // Snapshot event — server sends a single state summary from persisted events
+    eventSource.addEventListener("snapshot", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data) as {
+          step: StepName | null;
+          percent: number;
+          seenSteps: StepName[];
+          isComplete: boolean;
+          isError: boolean;
+          errorMessage: string | null;
+        };
+        if (data.step) setCurrentStep(data.step);
+        setPercent(data.percent);
+        setSeenSteps(new Set(data.seenSteps));
+        if (data.isComplete) setIsComplete(true);
+        if (data.isError) {
+          setIsError(true);
+          setErrorMessage(data.errorMessage);
+        }
+      } catch {
+        // Ignore invalid JSON
+      }
+    });
+
     eventSource.addEventListener("progress", (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data) as ProgressEvent;
