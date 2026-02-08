@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useCallback, useEffect, useMemo } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Copy, RefreshCw } from "lucide-react";
 
@@ -117,6 +117,44 @@ export function ConfigureStep({
         "",
     },
   });
+
+  // Watch target node to filter storages, bridges, and OS templates per-node
+  const selectedNode = useWatch({ control: form.control, name: "targetNode" });
+
+  const filteredStorages = useMemo(
+    () => storages.filter((s) => s.node === selectedNode),
+    [storages, selectedNode],
+  );
+  const filteredBridges = useMemo(
+    () => bridges.filter((b) => b.node === selectedNode),
+    [bridges, selectedNode],
+  );
+  const filteredOsTemplates = useMemo(
+    () => osTemplates.filter((t) => t.node === selectedNode),
+    [osTemplates, selectedNode],
+  );
+
+  // When target node changes, reset storage/bridge/ostemplate to first available for that node
+  useEffect(() => {
+    if (!selectedNode) return;
+    const nodeStorages = storages.filter((s) => s.node === selectedNode);
+    const nodeBridges = bridges.filter((b) => b.node === selectedNode);
+    const nodeOsTemplates = osTemplates.filter((t) => t.node === selectedNode);
+
+    // Only reset if current value is not valid for the new node
+    const currentStorage = form.getValues("storage");
+    if (!nodeStorages.some((s) => s.storage === currentStorage)) {
+      form.setValue("storage", nodeStorages[0]?.storage ?? "");
+    }
+    const currentBridge = form.getValues("bridge");
+    if (!nodeBridges.some((b) => b.iface === currentBridge)) {
+      form.setValue("bridge", nodeBridges[0]?.iface ?? "");
+    }
+    const currentOstemplate = form.getValues("ostemplate");
+    if (!nodeOsTemplates.some((t) => t.volid === currentOstemplate)) {
+      form.setValue("ostemplate", nodeOsTemplates[0]?.volid ?? "");
+    }
+  }, [selectedNode, storages, bridges, osTemplates, form]);
 
   // When template defaults change (e.g., user went back and selected a different template),
   // we DON'T reset if user already has data (they manually edited)
@@ -244,18 +282,15 @@ export function ConfigureStep({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Template</FormLabel>
-                  {osTemplates.length > 0 ? (
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+                  {filteredOsTemplates.length > 0 ? (
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select an OS template" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {osTemplates.map((t) => (
+                        {filteredOsTemplates.map((t) => (
                           <SelectItem key={t.volid} value={t.volid}>
                             {t.name}
                           </SelectItem>
@@ -510,10 +545,10 @@ export function ConfigureStep({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Storage</FormLabel>
-                    {storages.length > 0 ? (
+                    {filteredStorages.length > 0 ? (
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -521,7 +556,7 @@ export function ConfigureStep({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {storages.map((s) => (
+                          {filteredStorages.map((s) => (
                             <SelectItem key={s.storage} value={s.storage}>
                               {s.storage} ({s.type})
                             </SelectItem>
@@ -543,10 +578,10 @@ export function ConfigureStep({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Network Bridge</FormLabel>
-                    {bridges.length > 0 ? (
+                    {filteredBridges.length > 0 ? (
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -554,7 +589,7 @@ export function ConfigureStep({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {bridges.map((b) => (
+                          {filteredBridges.map((b) => (
                             <SelectItem key={b.iface} value={b.iface}>
                               {b.iface}
                             </SelectItem>

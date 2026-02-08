@@ -53,17 +53,20 @@ export interface WizardTemplate {
 }
 
 export interface WizardStorage {
+  node: string; // which Proxmox node this storage is on
   storage: string;
   type: string;
   content?: string;
 }
 
 export interface WizardBridge {
+  node: string; // which Proxmox node this bridge is on
   iface: string;
   type: string;
 }
 
 export interface WizardOsTemplate {
+  node: string; // which Proxmox node this template is on
   volid: string; // "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"
   name: string; // "debian-12-standard_12.7-1_amd64" (human-readable, extracted from volid)
   size: number; // bytes
@@ -273,84 +276,106 @@ export async function getWizardData(): Promise<WizardData> {
       };
     }
 
-    // Fetch cluster nodes, storages, bridges, and next VMID in parallel
-    const [clusterNodeList, storageList, networkList, nextVmidResponse] =
-      await Promise.all([
-        proxmoxNodes.listNodes(client),
-        storage.listStorage(client, nodeName),
-        client.get(
-          `/nodes/${nodeName}/network`,
-          z.array(
-            z
-              .object({
-                iface: z.string(),
-                type: z.string(),
-              })
-              .passthrough(),
+    // Fetch cluster nodes and next VMID
+    const [clusterNodeList, nextVmidResponse] = await Promise.all([
+      proxmoxNodes.listNodes(client),
+      client.get("/cluster/nextid", z.coerce.number()),
+    ]);
+
+    const onlineNodes = clusterNodeList.filter((n) => n.status === "online");
+
+    // Fetch storages, bridges, and OS templates for EACH online node in parallel
+    const perNodeData = await Promise.all(
+      onlineNodes.map(async (clusterNode) => {
+        const nn = clusterNode.node;
+
+        const [storageList, networkList] = await Promise.all([
+          storage.listStorage(client, nn),
+          client.get(
+            `/nodes/${nn}/network`,
+            z.array(
+              z
+                .object({
+                  iface: z.string(),
+                  type: z.string(),
+                })
+                .passthrough(),
+            ),
           ),
-        ),
-        client.get("/cluster/nextid", z.coerce.number()),
-      ]);
+        ]);
 
-    // Filter storages that support container rootdir/images content
-    const containerStorages = storageList.filter(
-      (s) => s.content?.includes("rootdir") || s.content?.includes("images"),
-    );
+        // Filter storages that support container rootdir/images content
+        const containerStorages = storageList.filter(
+          (s) =>
+            s.content?.includes("rootdir") || s.content?.includes("images"),
+        );
 
-    // Filter for bridge interfaces only
-    const bridges = networkList.filter((n) => n.type === "bridge");
+        // Filter for bridge interfaces only
+        const bridges = networkList.filter((n) => n.type === "bridge");
 
-    // Find storages that support vztmpl content
-    const vztmplStorages = storageList.filter((s) =>
-      s.content?.includes("vztmpl"),
-    );
+        // Find storages that support vztmpl content and fetch their templates
+        const vztmplStorages = storageList.filter((s) =>
+          s.content?.includes("vztmpl"),
+        );
+        const osTemplatesResults = await Promise.all(
+          vztmplStorages.map((s) =>
+            proxmoxTemplates
+              .listDownloadedTemplates(client, nn, s.storage)
+              .catch(() => []),
+          ),
+        );
 
-    // Fetch downloaded templates from all vztmpl-capable storages
-    const osTemplatesPromises = vztmplStorages.map((s) =>
-      proxmoxTemplates.listDownloadedTemplates(client, nodeName, s.storage),
-    );
-    const osTemplatesResults = await Promise.all(osTemplatesPromises);
-
-    // Flatten and map to WizardOsTemplate format
-    const osTemplates: WizardOsTemplate[] = osTemplatesResults
-      .flat()
-      .map((template) => {
-        // Extract human-readable name from volid
-        // "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst" → "debian-12-standard_12.7-1_amd64"
-        const volidParts = template.volid.split("/");
-        let name = volidParts[volidParts.length - 1];
-        // Remove file extensions
-        name = name.replace(/\.(tar\.zst|tar\.gz|tar\.xz)$/, "");
+        // Map OS templates with node info
+        const osTemplates: WizardOsTemplate[] = osTemplatesResults
+          .flat()
+          .map((template) => {
+            const volidParts = template.volid.split("/");
+            let name = volidParts[volidParts.length - 1];
+            name = name.replace(/\.(tar\.zst|tar\.gz|tar\.xz)$/, "");
+            return {
+              node: nn,
+              volid: template.volid,
+              name,
+              size: template.size,
+            };
+          });
 
         return {
-          volid: template.volid,
-          name,
-          size: template.size,
+          node: nn,
+          storages: containerStorages.map((s) => ({
+            node: nn,
+            storage: s.storage,
+            type: s.type,
+            content: s.content,
+          })),
+          bridges: bridges.map((b) => ({
+            node: nn,
+            iface: b.iface,
+            type: b.type,
+          })),
+          osTemplates,
         };
-      });
+      }),
+    );
+
+    // Flatten per-node data into single arrays
+    const allStorages = perNodeData.flatMap((d) => d.storages);
+    const allBridges = perNodeData.flatMap((d) => d.bridges);
+    const allOsTemplates = perNodeData.flatMap((d) => d.osTemplates);
 
     return {
       templates: templates.map(mapTemplate),
-      storages: containerStorages.map((s) => ({
-        storage: s.storage,
-        type: s.type,
-        content: s.content,
-      })),
-      bridges: bridges.map((b) => ({
-        iface: b.iface,
-        type: b.type,
-      })),
+      storages: allStorages,
+      bridges: allBridges,
       nextVmid: nextVmidResponse,
       noNodeConfigured: false,
-      osTemplates,
-      clusterNodes: clusterNodeList
-        .filter((n) => n.status === "online")
-        .map((n) => ({
-          node: n.node,
-          status: n.status,
-          maxcpu: n.maxcpu,
-          maxmem: n.maxmem,
-        })),
+      osTemplates: allOsTemplates,
+      clusterNodes: onlineNodes.map((n) => ({
+        node: n.node,
+        status: n.status,
+        maxcpu: n.maxcpu,
+        maxmem: n.maxmem,
+      })),
     };
   } catch (error) {
     console.error("Failed to fetch Proxmox data for wizard:", error);
