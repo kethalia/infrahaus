@@ -206,6 +206,15 @@ export const StorageSchema = z.object({
 // Template (aplinfo)
 // ============================================================================
 
+export const StorageContentSchema = z
+  .object({
+    volid: z.string(), // e.g. "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"
+    format: z.string(), // e.g. "tar.zst", "tar.gz"
+    size: z.number(), // bytes
+    content: z.string(), // "vztmpl"
+  })
+  .passthrough();
+
 export const TemplateSchema = z.object({
   package: z.string(),
   template: z.string(),

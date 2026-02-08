@@ -69,7 +69,7 @@ export const containerConfigBaseSchema = z.object({
   nesting: z.boolean(),
   sshPublicKey: z.string().optional(),
   tags: z.string().optional(),
-  ostemplate: z.string().optional(),
+  ostemplate: z.string().min(1, "OS template is required"),
 });
 
 /** Full schema with password confirmation refinement */

@@ -19,6 +19,7 @@ import {
   createProxmoxClientFromTicket,
   storage,
   nodes as proxmoxNodes,
+  templates as proxmoxTemplates,
 } from "@/lib/proxmox";
 import { getSessionData } from "@/lib/session";
 import { createContainerInputSchema } from "./schemas";
@@ -62,12 +63,19 @@ export interface WizardBridge {
   type: string;
 }
 
+export interface WizardOsTemplate {
+  volid: string; // "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"
+  name: string; // "debian-12-standard_12.7-1_amd64" (human-readable, extracted from volid)
+  size: number; // bytes
+}
+
 export interface WizardData {
   templates: WizardTemplate[];
   storages: WizardStorage[];
   bridges: WizardBridge[];
   nextVmid: number;
   noNodeConfigured: boolean;
+  osTemplates: WizardOsTemplate[];
 }
 
 // ============================================================================
@@ -204,6 +212,7 @@ export async function getWizardData(): Promise<WizardData> {
       bridges: [],
       nextVmid: 100,
       noNodeConfigured: true,
+      osTemplates: [],
     };
   }
 
@@ -235,6 +244,7 @@ export async function getWizardData(): Promise<WizardData> {
         bridges: [],
         nextVmid: 100,
         noNodeConfigured: false,
+        osTemplates: [],
       };
     }
 
@@ -263,6 +273,35 @@ export async function getWizardData(): Promise<WizardData> {
     // Filter for bridge interfaces only
     const bridges = networkList.filter((n) => n.type === "bridge");
 
+    // Find storages that support vztmpl content
+    const vztmplStorages = storageList.filter((s) =>
+      s.content?.includes("vztmpl"),
+    );
+
+    // Fetch downloaded templates from all vztmpl-capable storages
+    const osTemplatesPromises = vztmplStorages.map((s) =>
+      proxmoxTemplates.listDownloadedTemplates(client, nodeName, s.storage),
+    );
+    const osTemplatesResults = await Promise.all(osTemplatesPromises);
+
+    // Flatten and map to WizardOsTemplate format
+    const osTemplates: WizardOsTemplate[] = osTemplatesResults
+      .flat()
+      .map((template) => {
+        // Extract human-readable name from volid
+        // "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst" → "debian-12-standard_12.7-1_amd64"
+        const volidParts = template.volid.split("/");
+        let name = volidParts[volidParts.length - 1];
+        // Remove file extensions
+        name = name.replace(/\.(tar\.zst|tar\.gz|tar\.xz)$/, "");
+
+        return {
+          volid: template.volid,
+          name,
+          size: template.size,
+        };
+      });
+
     return {
       templates: templates.map(mapTemplate),
       storages: containerStorages.map((s) => ({
@@ -276,6 +315,7 @@ export async function getWizardData(): Promise<WizardData> {
       })),
       nextVmid: nextVmidResponse,
       noNodeConfigured: false,
+      osTemplates,
     };
   } catch (error) {
     console.error("Failed to fetch Proxmox data for wizard:", error);
@@ -286,6 +326,7 @@ export async function getWizardData(): Promise<WizardData> {
       bridges: [],
       nextVmid: 100,
       noNodeConfigured: false,
+      osTemplates: [],
     };
   }
 }
@@ -384,20 +425,11 @@ export const createContainerAction = authActionClient
     });
 
     // Resolve OS template path
-    let ostemplate = data.ostemplate || "";
-    if (!ostemplate && data.templateId) {
-      // Look up the template's osTemplate field
-      const template = await prisma.template.findUnique({
-        where: { id: data.templateId },
-        select: { osTemplate: true },
-      });
-      if (template?.osTemplate) {
-        ostemplate = `local:vztmpl/${template.osTemplate}_amd64.tar.zst`;
-      }
-    }
-    // Fallback default if still empty
+    const ostemplate = data.ostemplate || "";
     if (!ostemplate) {
-      ostemplate = "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst";
+      throw new Error(
+        "OS template is required. Please select an OS template in the Configure step.",
+      );
     }
 
     // Build Proxmox credentials for the worker (ticket auth fallback)
