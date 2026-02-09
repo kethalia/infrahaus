@@ -95,7 +95,7 @@ export function ContainerDetail({
         <TabsContent value="services">
           <ServicesTab
             containerId={container.id}
-            services={container.services}
+            services={container.servicesWithCredentials}
             status={container.status}
             nodeHost={container.node.host}
           />
