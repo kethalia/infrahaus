@@ -38,6 +38,7 @@ import {
   type ContainerConfig,
   type ContainerConfigFormValues,
 } from "@/lib/containers/schemas";
+import { generatePassword } from "@/lib/utils/crypto";
 import type {
   WizardStorage,
   WizardBridge,
@@ -66,17 +67,6 @@ interface ConfigureStepProps {
   clusterNodes: WizardNode[];
   onNext: (data: ContainerConfig) => void;
   onBack: () => void;
-}
-
-const PASSWORD_CHARSET =
-  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-
-function generatePassword(length = 16): string {
-  const array = new Uint8Array(length);
-  crypto.getRandomValues(array);
-  return Array.from(array)
-    .map((byte) => PASSWORD_CHARSET[byte % PASSWORD_CHARSET.length])
-    .join("");
 }
 
 export function ConfigureStep({

@@ -29,7 +29,8 @@ import {
   getContainer,
 } from "@/lib/proxmox/containers";
 import { waitForTask } from "@/lib/proxmox/tasks";
-import { getRedis } from "@/lib/redis";
+import { acquireLock, releaseLock } from "@/lib/utils/redis-lock";
+import { extractIpFromNet0 } from "@/lib/proxmox/utils";
 import { createContainerInputSchema } from "./schemas";
 
 // ============================================================================
@@ -518,19 +519,6 @@ const LOCK_PREFIX = "container-lock:";
 const LOCK_TTL = 300;
 
 /**
- * Lua script for compare-and-delete: only deletes the key if its value
- * matches the ownership token. Prevents one action from releasing another
- * action's lock after TTL-based expiry and re-acquisition.
- */
-const RELEASE_LOCK_SCRIPT = `
-  if redis.call("get", KEYS[1]) == ARGV[1] then
-    return redis.call("del", KEYS[1])
-  else
-    return 0
-  end
-`;
-
-/**
  * Acquire a Redis lock for a container. Prevents concurrent lifecycle
  * actions on the same container.
  * @returns the ownership token if lock acquired, null if already locked
@@ -538,33 +526,18 @@ const RELEASE_LOCK_SCRIPT = `
 async function acquireContainerLock(
   containerId: string,
 ): Promise<string | null> {
-  const redis = getRedis();
-  const token = crypto.randomUUID();
-  const result = await redis.set(
-    `${LOCK_PREFIX}${containerId}`,
-    token,
-    "EX",
-    LOCK_TTL,
-    "NX",
-  );
-  return result === "OK" ? token : null;
+  return acquireLock(`${LOCK_PREFIX}${containerId}`, LOCK_TTL);
 }
 
 /**
  * Release a Redis lock for a container.
- * Uses a Lua compare-and-delete script to ensure we only release our own lock.
+ * Uses compare-and-delete to ensure we only release our own lock.
  */
 async function releaseContainerLock(
   containerId: string,
   token: string,
 ): Promise<void> {
-  const redis = getRedis();
-  await redis.eval(
-    RELEASE_LOCK_SCRIPT,
-    1,
-    `${LOCK_PREFIX}${containerId}`,
-    token,
-  );
+  await releaseLock(`${LOCK_PREFIX}${containerId}`, token);
 }
 
 /**
@@ -814,19 +787,6 @@ export const deleteContainerAction = authActionClient
 // ============================================================================
 // Service Refresh Action
 // ============================================================================
-
-/**
- * Extract IP address from Proxmox net0 config string.
- * Format: "name=eth0,bridge=vmbr0,ip=10.0.0.5/24,..." or "ip=dhcp"
- * Returns the IP without CIDR mask, or null if not found / DHCP.
- */
-function extractIpFromNet0(net0: string): string | null {
-  const ipMatch = net0.match(/ip=([^,/]+)/);
-  if (!ipMatch) return null;
-  const ip = ipMatch[1];
-  if (ip === "dhcp" || ip === "manual") return null;
-  return ip;
-}
 
 /**
  * Refresh container service data by connecting via SSH and running monitoring checks.

@@ -16,6 +16,7 @@ import {
 } from "@/lib/db";
 import type { ServiceType, ServiceStatus } from "@/generated/prisma/client";
 import { getProxmoxClient } from "@/lib/proxmox";
+import { parseKeyValueString } from "@/lib/utils/parse";
 import {
   listContainers,
   getContainer,
@@ -213,53 +214,6 @@ export async function getContainersWithStatus(): Promise<DashboardData> {
 }
 
 /**
- * Parse decrypted credential string in multiple formats:
- * 1. JSON object: `{"username":"root","password":"secret"}`
- * 2. Key=value lines: `username=root\npassword=secret`
- * 3. Raw password fallback: treats the entire string as a password
- */
-function parseCredentials(decrypted: string): Record<string, string> | null {
-  // Try JSON first
-  try {
-    const parsed = JSON.parse(decrypted);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      !Array.isArray(parsed)
-    ) {
-      return parsed as Record<string, string>;
-    }
-  } catch {
-    // Not JSON — try other formats
-  }
-
-  // Try key=value lines (e.g. "username=root\npassword=secret")
-  if (decrypted.includes("=")) {
-    const result: Record<string, string> = {};
-    for (const line of decrypted.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx > 0) {
-        result[trimmed.slice(0, eqIdx).trim()] = trimmed
-          .slice(eqIdx + 1)
-          .trim();
-      }
-    }
-    if (Object.keys(result).length > 0) {
-      return result;
-    }
-  }
-
-  // Raw password fallback
-  if (decrypted.trim()) {
-    return { password: decrypted.trim() };
-  }
-
-  return null;
-}
-
-/**
  * Fetch a single container with full detail data for the detail page.
  * Includes full events list and Proxmox config.
  */
@@ -304,7 +258,7 @@ export async function getContainerDetailData(
     if (s.credentials) {
       try {
         const decrypted = decrypt(s.credentials);
-        credentials = parseCredentials(decrypted);
+        credentials = parseKeyValueString(decrypted);
       } catch {
         // Decryption or parse failure — skip credentials
         credentials = null;

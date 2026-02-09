@@ -4,6 +4,7 @@ import {
   createSafeActionClient,
   DEFAULT_SERVER_ERROR_MESSAGE,
 } from "next-safe-action";
+import { isNetworkError } from "@/lib/utils/errors";
 
 /**
  * Error class for user-facing action errors.
@@ -17,31 +18,6 @@ export class ActionError extends Error {
     super(message);
     this.name = "ActionError";
   }
-}
-
-/**
- * Classify errors for safe client responses.
- * Network/TLS errors → "Unable to reach Proxmox server"
- * Everything else → generic message (don't leak internals)
- */
-function isNetworkError(error: Error): boolean {
-  const msg = (
-    error.message +
-    (error.cause instanceof Error ? " " + error.cause.message : "")
-  ).toLowerCase();
-
-  return (
-    msg.includes("fetch") ||
-    msg.includes("econnrefused") ||
-    msg.includes("enotfound") ||
-    msg.includes("etimedout") ||
-    msg.includes("ehostunreach") ||
-    msg.includes("cert") ||
-    msg.includes("certificate") ||
-    msg.includes("self-signed") ||
-    msg.includes("ssl") ||
-    msg.includes("unable to verify")
-  );
 }
 
 /**
