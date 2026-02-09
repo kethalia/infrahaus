@@ -134,7 +134,7 @@ export async function getContainersWithStatus(): Promise<DashboardData> {
   }
 
   // Try to fetch Proxmox live status
-  let proxmoxStatusMap: Map<number, ProxmoxContainerStatus> = new Map();
+  const proxmoxStatusMap: Map<number, ProxmoxContainerStatus> = new Map();
   let proxmoxReachable = true;
 
   try {
