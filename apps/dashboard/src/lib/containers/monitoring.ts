@@ -5,6 +5,10 @@ import { SSHSession, connectWithRetry } from "@/lib/ssh";
 import type { SSHExecResult } from "@/lib/ssh";
 import { isSafeShellArg } from "@/lib/utils/validation";
 import { CREDENTIALS_DIR } from "@/lib/constants/infrastructure";
+import {
+  MONITORING_SSH_MAX_ATTEMPTS,
+  MONITORING_SSH_INITIAL_DELAY_MS,
+} from "@/lib/constants/timeouts";
 
 // ============================================================================
 // Types
@@ -380,7 +384,10 @@ export async function monitorContainer(
         username: "root",
         password: rootPassword,
       },
-      { maxAttempts: 2, initialDelay: 1000 },
+      {
+        maxAttempts: MONITORING_SSH_MAX_ATTEMPTS,
+        initialDelay: MONITORING_SSH_INITIAL_DELAY_MS,
+      },
     );
 
     // Run all checks in parallel where possible

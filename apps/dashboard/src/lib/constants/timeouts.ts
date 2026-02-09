@@ -51,3 +51,30 @@ export const AUTO_REFRESH_INTERVAL_S = 30;
 
 /** Duration to show "refreshing" animation before resetting countdown (ms) */
 export const REFRESH_ANIMATION_MS = 500;
+
+// ============================================================================
+// Container Provisioning
+// ============================================================================
+
+/** Max attempts to check if container filesystem is ready after start */
+export const CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS = 15;
+
+/** Delay between container filesystem ready checks (ms) */
+export const CONTAINER_FILESYSTEM_CHECK_DELAY_MS = 1000;
+
+// ============================================================================
+// Monitoring & SSH
+// ============================================================================
+
+/** Max SSH connection attempts for service monitoring */
+export const MONITORING_SSH_MAX_ATTEMPTS = 2;
+
+/** Initial delay for monitoring SSH connection retry (ms) */
+export const MONITORING_SSH_INITIAL_DELAY_MS = 1000;
+
+// ============================================================================
+// Redis
+// ============================================================================
+
+/** Redis retry delay multiplier (ms per attempt) */
+export const REDIS_RETRY_DELAY_MULTIPLIER_MS = 50;

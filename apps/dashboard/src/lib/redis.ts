@@ -1,6 +1,7 @@
 // No "server-only" — used by worker process (runs outside Next.js via tsx)
 
 import Redis from "ioredis";
+import { REDIS_RETRY_DELAY_MULTIPLIER_MS } from "@/lib/constants/timeouts";
 
 let redis: Redis | null = null;
 
@@ -17,7 +18,7 @@ export function getRedis(): Redis {
     redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
       retryStrategy: (times: number) => {
-        const delay = Math.min(times * 50, 2000);
+        const delay = Math.min(times * REDIS_RETRY_DELAY_MULTIPLIER_MS, 2000);
         return delay;
       },
       lazyConnect: true,

@@ -74,3 +74,10 @@ export const CONFIG_MANAGER_DIRS =
 
 /** Heartbeat interval for SSE connections (ms) */
 export const SSE_HEARTBEAT_INTERVAL_MS = 15_000;
+
+// ============================================================================
+// Task Logging
+// ============================================================================
+
+/** Max log lines to fetch when a Proxmox task fails */
+export const TASK_ERROR_LOG_LIMIT = 1000;

@@ -42,6 +42,8 @@ import {
   TASK_POLL_INTERVAL_MS,
   TASK_TIMEOUT_LONG_MS,
   TASK_TIMEOUT_MS,
+  CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS,
+  CONTAINER_FILESYSTEM_CHECK_DELAY_MS,
 } from "../lib/constants/timeouts";
 
 // ============================================================================
@@ -285,17 +287,23 @@ async function processContainerCreation(
       message: "Waiting for container filesystem to be ready...",
     });
 
-    for (let attempt = 1; attempt <= 15; attempt++) {
+    for (
+      let attempt = 1;
+      attempt <= CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS;
+      attempt++
+    ) {
       const check = await ssh.exec(
         "test -d /etc/systemd/system && echo ready || echo not-ready",
       );
       if (check.stdout.trim() === "ready") break;
-      if (attempt === 15) {
+      if (attempt === CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS) {
         throw new Error(
-          "Container filesystem not ready after 15 attempts — /etc/systemd/system not found",
+          `Container filesystem not ready after ${CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS} attempts — /etc/systemd/system not found`,
         );
       }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) =>
+        setTimeout(resolve, CONTAINER_FILESYSTEM_CHECK_DELAY_MS),
+      );
     }
 
     await publishProgress(containerId, {

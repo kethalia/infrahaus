@@ -16,6 +16,7 @@ import {
   TASK_POLL_INTERVAL_MS,
   TASK_TIMEOUT_DEFAULT_MS,
 } from "@/lib/constants/timeouts";
+import { TASK_ERROR_LOG_LIMIT } from "@/lib/constants/infrastructure";
 
 /**
  * Get status of a task
@@ -110,7 +111,13 @@ export async function waitForTask(
         // Task failed - get full log for error details
         let errorLog: string[] = [];
         try {
-          const fullLog = await getTaskLog(client, node, upid, 0, 1000);
+          const fullLog = await getTaskLog(
+            client,
+            node,
+            upid,
+            0,
+            TASK_ERROR_LOG_LIMIT,
+          );
           errorLog = fullLog.map((entry) => entry.t);
         } catch {
           // If we can't get the log, continue with empty array
