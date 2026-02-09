@@ -29,7 +29,20 @@ import {
   getContainer,
 } from "@/lib/proxmox/containers";
 import { waitForTask } from "@/lib/proxmox/tasks";
-import { getRedis } from "@/lib/redis";
+import { acquireLock, releaseLock } from "@/lib/utils/redis-lock";
+import { extractIpFromNet0 } from "@/lib/proxmox/utils";
+import {
+  DEFAULT_PVE_PORT,
+  DEFAULT_NEXT_VMID,
+  CONTAINER_LOCK_PREFIX,
+  CONTAINER_LOCK_TTL,
+} from "@/lib/constants/infrastructure";
+import {
+  TASK_TIMEOUT_MS,
+  SHUTDOWN_TIMEOUT_S,
+  SHUTDOWN_WAIT_MS,
+  DELETE_TIMEOUT_MS,
+} from "@/lib/constants/timeouts";
 import { createContainerInputSchema } from "./schemas";
 
 // ============================================================================
@@ -128,7 +141,9 @@ async function getOrCreateNode(
   if (!host) {
     throw new Error("PVE_HOST env var is not set.");
   }
-  const port = process.env.PVE_PORT ? parseInt(process.env.PVE_PORT, 10) : 8006;
+  const port = process.env.PVE_PORT
+    ? parseInt(process.env.PVE_PORT, 10)
+    : DEFAULT_PVE_PORT;
 
   // Use target node name, or discover from API
   let nodeName = targetNode;
@@ -173,7 +188,7 @@ export async function getWizardData(): Promise<WizardData> {
     templates: templates.map(mapTemplate),
     storages: [],
     bridges: [],
-    nextVmid: 100,
+    nextVmid: DEFAULT_NEXT_VMID,
     noNodeConfigured: true,
     osTemplates: [],
     clusterNodes: [],
@@ -295,7 +310,7 @@ export async function getWizardData(): Promise<WizardData> {
       templates: templates.map(mapTemplate),
       storages: [],
       bridges: [],
-      nextVmid: 100,
+      nextVmid: DEFAULT_NEXT_VMID,
       noNodeConfigured: false,
       osTemplates: [],
       clusterNodes: [],
@@ -506,30 +521,6 @@ const containerIdSchema = z.object({
   containerId: z.string(),
 });
 
-/** Redis lock key prefix for container lifecycle operations */
-const LOCK_PREFIX = "container-lock:";
-
-/**
- * Lock TTL in seconds — prevents stuck locks from blocking forever.
- * Must exceed the longest possible action duration. The delete action
- * waits up to 120s for stop + 120s for delete = 240s, so 300s provides
- * a comfortable margin.
- */
-const LOCK_TTL = 300;
-
-/**
- * Lua script for compare-and-delete: only deletes the key if its value
- * matches the ownership token. Prevents one action from releasing another
- * action's lock after TTL-based expiry and re-acquisition.
- */
-const RELEASE_LOCK_SCRIPT = `
-  if redis.call("get", KEYS[1]) == ARGV[1] then
-    return redis.call("del", KEYS[1])
-  else
-    return 0
-  end
-`;
-
 /**
  * Acquire a Redis lock for a container. Prevents concurrent lifecycle
  * actions on the same container.
@@ -538,33 +529,21 @@ const RELEASE_LOCK_SCRIPT = `
 async function acquireContainerLock(
   containerId: string,
 ): Promise<string | null> {
-  const redis = getRedis();
-  const token = crypto.randomUUID();
-  const result = await redis.set(
-    `${LOCK_PREFIX}${containerId}`,
-    token,
-    "EX",
-    LOCK_TTL,
-    "NX",
+  return acquireLock(
+    `${CONTAINER_LOCK_PREFIX}${containerId}`,
+    CONTAINER_LOCK_TTL,
   );
-  return result === "OK" ? token : null;
 }
 
 /**
  * Release a Redis lock for a container.
- * Uses a Lua compare-and-delete script to ensure we only release our own lock.
+ * Uses compare-and-delete to ensure we only release our own lock.
  */
 async function releaseContainerLock(
   containerId: string,
   token: string,
 ): Promise<void> {
-  const redis = getRedis();
-  await redis.eval(
-    RELEASE_LOCK_SCRIPT,
-    1,
-    `${LOCK_PREFIX}${containerId}`,
-    token,
-  );
+  await releaseLock(`${CONTAINER_LOCK_PREFIX}${containerId}`, token);
 }
 
 /**
@@ -611,7 +590,7 @@ export const startContainerAction = authActionClient
 
       // Start the container
       const upid = await startContainer(client, nodeName, vmid);
-      await waitForTask(client, nodeName, upid, { timeout: 60_000 });
+      await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
       // Create audit event
       await DatabaseService.createContainerEvent({
@@ -654,7 +633,7 @@ export const stopContainerAction = authActionClient
 
       // Stop the container (forceful)
       const upid = await stopContainer(client, nodeName, vmid);
-      await waitForTask(client, nodeName, upid, { timeout: 60_000 });
+      await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
       // Create audit event
       await DatabaseService.createContainerEvent({
@@ -699,14 +678,23 @@ export const shutdownContainerAction = authActionClient
       let method = "graceful";
 
       try {
-        // Attempt graceful shutdown with 30s timeout
-        const upid = await shutdownContainer(client, nodeName, vmid, 30);
-        await waitForTask(client, nodeName, upid, { timeout: 45_000 });
+        // Attempt graceful shutdown
+        const upid = await shutdownContainer(
+          client,
+          nodeName,
+          vmid,
+          SHUTDOWN_TIMEOUT_S,
+        );
+        await waitForTask(client, nodeName, upid, {
+          timeout: SHUTDOWN_WAIT_MS,
+        });
       } catch {
         // Graceful shutdown failed or timed out — fall back to force stop
         method = "forced";
         const stopUpid = await stopContainer(client, nodeName, vmid);
-        await waitForTask(client, nodeName, stopUpid, { timeout: 60_000 });
+        await waitForTask(client, nodeName, stopUpid, {
+          timeout: TASK_TIMEOUT_MS,
+        });
       }
 
       // Create audit event
@@ -748,12 +736,16 @@ export const restartContainerAction = authActionClient
       // Stop first if running
       if (status.status === "running") {
         const stopUpid = await stopContainer(client, nodeName, vmid);
-        await waitForTask(client, nodeName, stopUpid, { timeout: 60_000 });
+        await waitForTask(client, nodeName, stopUpid, {
+          timeout: TASK_TIMEOUT_MS,
+        });
       }
 
       // Start the container
       const startUpid = await startContainer(client, nodeName, vmid);
-      await waitForTask(client, nodeName, startUpid, { timeout: 60_000 });
+      await waitForTask(client, nodeName, startUpid, {
+        timeout: TASK_TIMEOUT_MS,
+      });
 
       // Create audit event
       await DatabaseService.createContainerEvent({
@@ -792,12 +784,16 @@ export const deleteContainerAction = authActionClient
       const status = await getContainer(client, nodeName, vmid);
       if (status.status === "running") {
         const stopUpid = await stopContainer(client, nodeName, vmid);
-        await waitForTask(client, nodeName, stopUpid, { timeout: 60_000 });
+        await waitForTask(client, nodeName, stopUpid, {
+          timeout: TASK_TIMEOUT_MS,
+        });
       }
 
       // Delete from Proxmox (with purge to clean up all data)
       const deleteUpid = await deleteContainer(client, nodeName, vmid, true);
-      await waitForTask(client, nodeName, deleteUpid, { timeout: 120_000 });
+      await waitForTask(client, nodeName, deleteUpid, {
+        timeout: DELETE_TIMEOUT_MS,
+      });
 
       // Delete from database (cascade handles services and events)
       await DatabaseService.deleteContainerById(containerId);
@@ -809,4 +805,153 @@ export const deleteContainerAction = authActionClient
     } finally {
       await releaseContainerLock(containerId, token);
     }
+  });
+
+// ============================================================================
+// Service Refresh Action
+// ============================================================================
+
+/**
+ * Refresh container service data by connecting via SSH and running monitoring checks.
+ * Triggers the monitoring engine, then updates service records in the database.
+ */
+export const refreshContainerServicesAction = authActionClient
+  .schema(containerIdSchema)
+  .action(async ({ parsedInput: { containerId } }) => {
+    // Get container with details (services for existing service names)
+    const container = await DatabaseService.getContainerById(containerId);
+    if (!container) {
+      throw new ActionError("Container not found");
+    }
+
+    // Only allow refresh on ready containers
+    if (container.lifecycle !== "ready") {
+      throw new ActionError(
+        "Container is not ready. Services can only be refreshed on ready containers.",
+      );
+    }
+
+    // Check container is running on Proxmox
+    const client = await getProxmoxClient();
+    const nodeName = container.node.name;
+    const vmid = container.vmid;
+
+    let status;
+    try {
+      status = await getContainer(client, nodeName, vmid);
+    } catch {
+      throw new ActionError(
+        "Unable to reach container on Proxmox. Please check the Proxmox connection.",
+      );
+    }
+
+    if (status.status !== "running") {
+      throw new ActionError("Container must be running to refresh services.");
+    }
+
+    // Get IP from Proxmox config
+    const { getContainerConfig: getConfig } =
+      await import("@/lib/proxmox/containers");
+    const config = await getConfig(client, nodeName, vmid);
+    const net0 = (config as Record<string, unknown>)["net0"] as
+      | string
+      | undefined;
+    if (!net0) {
+      throw new ActionError(
+        "No network configuration found for container. Cannot determine IP address.",
+      );
+    }
+
+    const containerIp = extractIpFromNet0(net0);
+    if (!containerIp) {
+      throw new ActionError(
+        "Unable to determine container IP address. DHCP containers require manual IP discovery.",
+      );
+    }
+
+    // Decrypt root password for SSH
+    const { decrypt } = await import("@/lib/encryption");
+    const rootPassword = decrypt(container.rootPassword);
+
+    // Get existing service names for targeted checking
+    const serviceNames = container.services.map((s) => s.name);
+
+    // Run monitoring
+    const { monitorContainer } = await import("@/lib/containers/monitoring");
+    const result = await monitorContainer(
+      containerId,
+      containerIp,
+      rootPassword,
+      serviceNames,
+    );
+
+    if (result.error) {
+      throw new ActionError(`Service refresh failed: ${result.error}`);
+    }
+
+    // Map monitoring results to service records
+    const { ServiceType, ServiceStatus } = await import("@/lib/db");
+    const { encrypt: encryptFn } = await import("@/lib/encryption");
+
+    // Build service records from monitoring data
+    const serviceRecords: Array<{
+      name: string;
+      type: (typeof ServiceType)[keyof typeof ServiceType];
+      port?: number;
+      webUrl?: string;
+      status?: (typeof ServiceStatus)[keyof typeof ServiceStatus];
+      credentials?: string;
+    }> = [];
+
+    // Map systemd services
+    for (const svc of result.services) {
+      const portInfo = result.ports.find(
+        (p) => p.process === svc.name || p.process.includes(svc.name),
+      );
+      const creds = result.credentials.filter((c) => c.service === svc.name);
+
+      let credentialsJson: string | undefined;
+      if (creds.length > 0) {
+        const credObj: Record<string, string> = {};
+        for (const c of creds) {
+          credObj[c.key] = c.value;
+        }
+        credentialsJson = encryptFn(JSON.stringify(credObj));
+      }
+
+      serviceRecords.push({
+        name: svc.name,
+        type: ServiceType.systemd,
+        port: portInfo?.port,
+        webUrl: portInfo?.port
+          ? `http://${containerIp}:${portInfo.port}`
+          : undefined,
+        status: svc.active ? ServiceStatus.running : ServiceStatus.stopped,
+        credentials: credentialsJson,
+      });
+    }
+
+    // Add ports not associated with known services as process-type services
+    const knownPorts = new Set(
+      serviceRecords.map((s) => s.port).filter(Boolean),
+    );
+    for (const port of result.ports) {
+      if (!knownPorts.has(port.port)) {
+        serviceRecords.push({
+          name: port.process || `port-${port.port}`,
+          type: ServiceType.process,
+          port: port.port,
+          webUrl: `http://${containerIp}:${port.port}`,
+          status: ServiceStatus.running,
+        });
+      }
+    }
+
+    // Update services in database
+    await DatabaseService.updateContainerServices(containerId, serviceRecords);
+
+    revalidatePath(`/containers/${containerId}`);
+    revalidatePath("/");
+
+    return { success: true as const, serviceCount: serviceRecords.length };
   });

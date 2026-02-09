@@ -12,6 +12,8 @@ import type { ProxmoxNode } from "@/generated/prisma/client";
 import { decrypt } from "../encryption";
 import { ProxmoxClient } from "./client";
 import { login } from "./auth";
+import { DEFAULT_PVE_PORT } from "@/lib/constants/infrastructure";
+import { TICKET_CACHE_BUFFER_MS } from "@/lib/constants/timeouts";
 import type {
   ProxmoxApiTokenCredentials,
   ProxmoxClientConfig,
@@ -66,16 +68,20 @@ export async function getProxmoxClient(): Promise<ProxmoxClient> {
     );
   }
 
-  const port = process.env.PVE_PORT ? parseInt(process.env.PVE_PORT, 10) : 8006;
+  const port = process.env.PVE_PORT
+    ? parseInt(process.env.PVE_PORT, 10)
+    : DEFAULT_PVE_PORT;
 
-  // Reuse cached ticket if still valid (with 5 min buffer)
+  // Reuse cached ticket if still valid
   if (
     cachedTicket &&
     cachedTicket.host === host &&
     cachedTicket.port === port
   ) {
-    const bufferMs = 5 * 60 * 1000;
-    if (cachedTicket.credentials.expiresAt.getTime() - Date.now() > bufferMs) {
+    if (
+      cachedTicket.credentials.expiresAt.getTime() - Date.now() >
+      TICKET_CACHE_BUFFER_MS
+    ) {
       return new ProxmoxClient({
         host,
         port,
@@ -126,7 +132,9 @@ export function createProxmoxClientFromTicket(
     throw new Error("PVE_HOST environment variable is not set");
   }
 
-  const port = process.env.PVE_PORT ? parseInt(process.env.PVE_PORT, 10) : 8006;
+  const port = process.env.PVE_PORT
+    ? parseInt(process.env.PVE_PORT, 10)
+    : DEFAULT_PVE_PORT;
 
   const credentials: ProxmoxTicketCredentials = {
     type: "ticket",

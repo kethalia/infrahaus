@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 04-container-management — In progress
-**Plan:** 3 of 4 in current phase
-**Status:** In progress
-**Last activity:** 2026-02-09 — Completed 04-03-PLAN.md
+**Phase:** 04-container-management — Complete
+**Plan:** 4 of 4 in current phase
+**Status:** Phase complete
+**Last activity:** 2026-02-09 — Completed 04-04-PLAN.md
 
-Progress: ████████░░ 79% (15/19 plans)
+Progress: ████████░░ 84% (16/19 plans)
 
 ## Completed Work
 
@@ -21,81 +21,28 @@ Progress: ████████░░ 79% (15/19 plans)
 
 ### Phase 2: Template System ✓
 
-**02-01 — Template discovery engine** ✓
-**02-02 — Template browser page** ✓
-**02-03 — Package bucket CRUD** ✓
-**02-04 — Template detail page** ✓
-**02-05 — Template creator and editor forms** ✓
-
+- Template discovery, browser, detail, creator/editor pages
 - DatabaseService.createTemplate/updateTemplate with atomic transactions
-- createTemplateAction/updateTemplateAction with Zod validation
-- TemplateForm shared component (6 sections: basics, resources, features, scripts, packages, files)
-- ScriptEditor/FileEditor controlled sub-components
-- /templates/new and /templates/[id]/edit pages
+- Package bucket CRUD with bulk operations
 
 ### Phase 3: Container Creation ✓
 
-**03-01 — Infrastructure** ✓
+- BullMQ Worker with 5-phase pipeline
+- 5-step creation wizard with progress tracking via SSE
+- OS template selector, service/credential discovery
 
-- Removed server-only from 9 shared modules for worker process compatibility
-- SSHSession class with exec, execStreaming, uploadFile, connectWithRetry
-- BullMQ queue definition with typed job data and progress events
-- DatabaseService Container/ContainerEvent/ContainerService CRUD methods
-- dev:worker and dev:all scripts with concurrently
-
-**03-02 — Container creation worker** ✓
-
-- BullMQ Worker with 5-phase pipeline: Create → Start → Deploy config-manager → Run scripts → Discover services
-- Config-manager infrastructure: /etc/config-manager/, config.env, config-sync.sh, systemd service
-- Real-time progress via Redis Pub/Sub + DB persistence for step/error/complete events
-- Service/credential discovery from running containers → ContainerService records
-- Graceful shutdown on SIGTERM/SIGINT
-
-**03-03 — Container creation wizard UI** ✓
-
-- 5-step wizard: Template → Configure → Packages → Scripts → Review & Deploy
-- Zod validation schemas for each step with react-hook-form zodResolver
-- Server action creates Container DB record + enqueues BullMQ job
-- Password auto-generate (16-char) with clipboard copy
-- Template selection pre-populates downstream step defaults
-
-**03-04 — Container progress tracking** ✓
-
-- SSE endpoint with ContainerEvent replay on connect + Redis Pub/Sub live subscription
-- useContainerProgress EventSource hook with reactive state management
-- Progress page: 5-phase stepper, terminal-style log viewer, completion/error states
-- Service and credential display on completion with show/copy functionality
-- Services API route for fetching discovered services
-
-**03-05 — OS template selector (gap closure)** ✓
-
-- OS template dropdown in Configure step shows downloaded templates from Proxmox storage
-- StorageContentSchema and listDownloadedTemplates for fetching vztmpl content
-- WizardOsTemplate interface with human-readable template names
-- Selected ostemplate flows through wizard to createContainerAction
-- Removed hardcoded Debian fallback - user must select real template
-
-### Phase 4: Container Management (In Progress)
+### Phase 4: Container Management ✓
 
 **04-01 — Lifecycle actions + DB queries + client helper** ✓
-
-- createProxmoxClientFromSession helper for session-based Proxmox access
-- 5 lifecycle server actions (start/stop/shutdown/restart/delete) with Redis lock
-- DatabaseService extended: listContainersWithRelations, getContainerCounts, getContainerWithDetails, deleteContainerById, updateContainerServices
-
 **04-02 — Service monitoring engine** ✓
-
-- SSH-based monitoring: checkSystemdServices, discoverPorts, readCredentials, checkConfigManagerStatus
-- monitorContainer orchestrator with connectWithRetry (2 attempts) and graceful failure handling
-- Pure library module — no server-only, worker-compatible
-
 **04-03 — Container dashboard page** ✓
+**04-04 — Container detail page** ✓
 
-- Dashboard page with summary bar (4 stat cards), responsive container grid, status filters
-- getContainersWithStatus/getContainerDetailData merging DB + Proxmox live status
-- useAutoRefresh hook (30s countdown, visibilitychange, Refresh Now)
-- ContainerCard with service dots, resource summary, dropdown actions with AlertDialog
-- Proxmox-unreachable warning banner, empty state linking to creation wizard
+- Container detail page at /containers/[id] with Overview, Services, Events tabs
+- refreshContainerServicesAction wiring SSH monitoring → DB
+- Full lifecycle action buttons in header with AlertDialog for destructive actions
+- Server-side credential decryption for per-service credential reveal
+- 30s auto-refresh, event timeline with filters, resource usage bars
 
 ## Decisions Made
 
@@ -135,10 +82,12 @@ Progress: ████████░░ 79% (15/19 plans)
 - getContainersWithStatus fetches all node containers in parallel → VMID→status map for O(1) lookup
 - useAutoRefresh with router.refresh() for server component re-fetching
 - ContainerActions uses useTransition for non-blocking action calls
+- Full lifecycle buttons in detail header (not dropdown) for better UX
+- Server-side credential decryption in getContainerDetailData
+- Dynamic imports for monitoring/encryption in refreshContainerServicesAction
 
 ## Pending Work
 
-- Phase 4: Container Management (#83-86)
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -155,6 +104,6 @@ Progress: ████████░░ 79% (15/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-09T07:36:32Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-02-09T07:46:25Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None

@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import Redis from "ioredis";
+import { SSE_HEARTBEAT_INTERVAL_MS } from "@/lib/constants/infrastructure";
 import { DatabaseService } from "@/lib/db";
 import {
   getProgressChannel,
@@ -196,10 +197,10 @@ export async function GET(
         cleanup();
       });
 
-      // Heartbeat every 15s to keep connection alive
+      // Heartbeat to keep connection alive
       heartbeatInterval = setInterval(() => {
         send("heartbeat", JSON.stringify({ time: new Date().toISOString() }));
-      }, 15_000);
+      }, SSE_HEARTBEAT_INTERVAL_MS);
 
       // Clean up on client disconnect
       _request.signal.addEventListener("abort", () => {

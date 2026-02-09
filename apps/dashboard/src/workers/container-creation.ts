@@ -32,6 +32,19 @@ import { createContainer, startContainer } from "../lib/proxmox/containers";
 import { waitForTask } from "../lib/proxmox/tasks";
 import { connectWithRetry, PctExecSession, type SSHSession } from "../lib/ssh";
 import { encrypt } from "../lib/encryption";
+import {
+  CONTAINER_CREATION_QUEUE,
+  WORKER_CONCURRENCY,
+  CREDENTIALS_DIR,
+  CONFIG_MANAGER_DIRS,
+} from "../lib/constants/infrastructure";
+import {
+  TASK_POLL_INTERVAL_MS,
+  TASK_TIMEOUT_LONG_MS,
+  TASK_TIMEOUT_MS,
+  CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS,
+  CONTAINER_FILESYSTEM_CHECK_DELAY_MS,
+} from "../lib/constants/timeouts";
 
 // ============================================================================
 // Redis Connections
@@ -189,8 +202,8 @@ async function processContainerCreation(
     });
 
     await waitForTask(client, pveNodeName, createUpid, {
-      interval: 2000,
-      timeout: 120_000,
+      interval: TASK_POLL_INTERVAL_MS,
+      timeout: TASK_TIMEOUT_LONG_MS,
     });
 
     await publishProgress(containerId, {
@@ -214,8 +227,8 @@ async function processContainerCreation(
     const startUpid = await startContainer(client, pveNodeName, config.vmid);
 
     await waitForTask(client, pveNodeName, startUpid, {
-      interval: 2000,
-      timeout: 60_000,
+      interval: TASK_POLL_INTERVAL_MS,
+      timeout: TASK_TIMEOUT_MS,
     });
 
     await publishProgress(containerId, {
@@ -274,17 +287,23 @@ async function processContainerCreation(
       message: "Waiting for container filesystem to be ready...",
     });
 
-    for (let attempt = 1; attempt <= 15; attempt++) {
+    for (
+      let attempt = 1;
+      attempt <= CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS;
+      attempt++
+    ) {
       const check = await ssh.exec(
         "test -d /etc/systemd/system && echo ready || echo not-ready",
       );
       if (check.stdout.trim() === "ready") break;
-      if (attempt === 15) {
+      if (attempt === CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS) {
         throw new Error(
-          "Container filesystem not ready after 15 attempts — /etc/systemd/system not found",
+          `Container filesystem not ready after ${CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS} attempts — /etc/systemd/system not found`,
         );
       }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) =>
+        setTimeout(resolve, CONTAINER_FILESYSTEM_CHECK_DELAY_MS),
+      );
     }
 
     await publishProgress(containerId, {
@@ -293,9 +312,7 @@ async function processContainerCreation(
     });
 
     // Phase 3a: Deploy config-manager infrastructure
-    await ssh.exec(
-      "mkdir -p /etc/config-manager /etc/infrahaus/credentials /var/log/config-manager",
-    );
+    await ssh.exec(`mkdir -p ${CONFIG_MANAGER_DIRS}`);
 
     await publishProgress(containerId, {
       type: "log",
@@ -630,9 +647,9 @@ WantedBy=multi-user.target
 
     // Phase 5a: Service and credential discovery
 
-    // Read credentials from /etc/infrahaus/credentials/
+    // Read credentials from credentials directory
     const credResult = await ssh.exec(
-      "ls /etc/infrahaus/credentials/ 2>/dev/null || echo 'empty'",
+      `ls ${CREDENTIALS_DIR} 2>/dev/null || echo 'empty'`,
     );
 
     if (credResult.stdout.trim() !== "empty" && credResult.stdout.trim()) {
@@ -642,9 +659,7 @@ WantedBy=multi-user.target
         .filter((f) => f.trim());
       for (const file of files) {
         try {
-          const content = await ssh.exec(
-            `cat "/etc/infrahaus/credentials/${file}"`,
-          );
+          const content = await ssh.exec(`cat "${CREDENTIALS_DIR}${file}"`);
           if (content.stdout.trim()) {
             // Encrypt credentials before storing
             const encryptedCreds = encrypt(content.stdout.trim());
@@ -806,11 +821,11 @@ WantedBy=multi-user.target
 // ============================================================================
 
 const worker = new Worker<ContainerJobData, ContainerJobResult>(
-  "container-creation",
+  CONTAINER_CREATION_QUEUE,
   processContainerCreation,
   {
     connection: workerConnection,
-    concurrency: 2, // Process up to 2 containers simultaneously
+    concurrency: WORKER_CONCURRENCY,
   },
 );
 

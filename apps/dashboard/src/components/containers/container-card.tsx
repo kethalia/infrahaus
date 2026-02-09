@@ -6,14 +6,8 @@ import { StatusBadge } from "./status-badge";
 import { ContainerActions } from "./container-actions";
 import type { ContainerWithStatus } from "@/lib/containers/data";
 import type { ServiceStatus } from "@/generated/prisma/client";
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const value = bytes / Math.pow(1024, i);
-  return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[i]}`;
-}
+import { formatBytes } from "@/lib/utils/format";
+import { MAX_PREVIEW_ITEMS } from "@/lib/constants/display";
 
 /** Color dot for service status */
 function ServiceDot({ status }: { status: ServiceStatus }) {
@@ -42,9 +36,9 @@ export function ContainerCard({ container }: ContainerCardProps) {
 
   const displayName = hostname ?? `CT ${vmid}`;
 
-  // Show first 2-3 services with colored dots
-  const visibleServices = services.slice(0, 3);
-  const remainingCount = Math.max(0, services.length - 3);
+  // Show first N services with colored dots
+  const visibleServices = services.slice(0, MAX_PREVIEW_ITEMS);
+  const remainingCount = Math.max(0, services.length - MAX_PREVIEW_ITEMS);
 
   // Resource summary text
   const resourceText =

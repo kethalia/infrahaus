@@ -12,6 +12,11 @@ import type {
   ProxmoxTaskStatus,
   ProxmoxTaskWaitOptions,
 } from "./types";
+import {
+  TASK_POLL_INTERVAL_MS,
+  TASK_TIMEOUT_DEFAULT_MS,
+} from "@/lib/constants/timeouts";
+import { TASK_ERROR_LOG_LIMIT } from "@/lib/constants/infrastructure";
 
 /**
  * Get status of a task
@@ -56,8 +61,8 @@ export async function waitForTask(
   upid: string,
   options: ProxmoxTaskWaitOptions = {},
 ): Promise<ProxmoxTaskStatus> {
-  const interval = options.interval ?? 2000; // 2 seconds
-  const timeout = options.timeout ?? 300000; // 5 minutes
+  const interval = options.interval ?? TASK_POLL_INTERVAL_MS;
+  const timeout = options.timeout ?? TASK_TIMEOUT_DEFAULT_MS;
   const startTime = Date.now();
 
   let lastLogLine = 0;
@@ -106,7 +111,13 @@ export async function waitForTask(
         // Task failed - get full log for error details
         let errorLog: string[] = [];
         try {
-          const fullLog = await getTaskLog(client, node, upid, 0, 1000);
+          const fullLog = await getTaskLog(
+            client,
+            node,
+            upid,
+            0,
+            TASK_ERROR_LOG_LIMIT,
+          );
           errorLog = fullLog.map((entry) => entry.t);
         } catch {
           // If we can't get the log, continue with empty array

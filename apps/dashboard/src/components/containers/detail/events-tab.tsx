@@ -1,0 +1,222 @@
+"use client";
+
+import { useState } from "react";
+import {
+  CheckCircle2,
+  XCircle,
+  Play,
+  Square,
+  AlertTriangle,
+  Cog,
+  Clock,
+  History,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { formatRelativeTime } from "@/lib/utils/format";
+import { eventTypeConfig, defaultEventConfig } from "@/lib/constants/display";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface EventInfo {
+  id: string;
+  type: string;
+  message: string;
+  metadata: string | null;
+  createdAt: Date;
+}
+
+interface EventsTabProps {
+  events: EventInfo[];
+}
+
+// ============================================================================
+// Event type icons (color/label imported from constants)
+// ============================================================================
+
+const eventTypeIcons: Record<string, React.ElementType> = {
+  created: CheckCircle2,
+  started: Play,
+  stopped: Square,
+  error: XCircle,
+  service_ready: Cog,
+  script_completed: CheckCircle2,
+};
+
+const defaultIcon = AlertTriangle;
+
+// ============================================================================
+// Events Tab
+// ============================================================================
+
+export function EventsTab({ events }: EventsTabProps) {
+  const [filter, setFilter] = useState<string | null>(null);
+
+  // Get unique event types
+  const eventTypes = Array.from(new Set(events.map((e) => e.type)));
+
+  // Filter events
+  const filteredEvents = filter
+    ? events.filter((e) => e.type === filter)
+    : events;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <History className="size-4" />
+              Events
+            </CardTitle>
+            <CardDescription>
+              {events.length > 0
+                ? `${events.length} event${events.length !== 1 ? "s" : ""} recorded`
+                : "No events recorded yet"}
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {events.length === 0 ? (
+          <div className="text-muted-foreground flex flex-col items-center justify-center py-12 text-center">
+            <History className="mb-3 size-8 opacity-30" />
+            <p className="text-sm">No events yet</p>
+            <p className="mt-1 text-xs">
+              Events will appear as the container lifecycle progresses.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Filter buttons */}
+            {eventTypes.length > 1 && (
+              <div className="mb-4 flex flex-wrap gap-1.5">
+                <Button
+                  variant={filter === null ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter(null)}
+                >
+                  All ({events.length})
+                </Button>
+                {eventTypes.map((type) => {
+                  const conf = eventTypeConfig[type] ?? defaultEventConfig;
+                  const count = events.filter((e) => e.type === type).length;
+                  return (
+                    <Button
+                      key={type}
+                      variant={filter === type ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFilter(filter === type ? null : type)}
+                    >
+                      {conf.label} ({count})
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Timeline */}
+            <div className="relative space-y-0">
+              {/* Vertical line */}
+              <div className="border-muted absolute top-2 bottom-2 left-3 border-l-2" />
+
+              {filteredEvents.map((event) => (
+                <EventRow key={event.id} event={event} />
+              ))}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================================
+// EventRow Sub-component
+// ============================================================================
+
+function EventRow({ event }: { event: EventInfo }) {
+  const [expanded, setExpanded] = useState(false);
+  const conf = eventTypeConfig[event.type] ?? defaultEventConfig;
+  const Icon = eventTypeIcons[event.type] ?? defaultIcon;
+
+  const hasMetadata = event.metadata !== null;
+
+  // Format relative timestamp
+  const timeAgo = formatRelativeTime(event.createdAt);
+
+  // Parse metadata
+  let metadata: Record<string, unknown> | null = null;
+  if (hasMetadata) {
+    try {
+      metadata = JSON.parse(event.metadata!) as Record<string, unknown>;
+    } catch {
+      metadata = null;
+    }
+  }
+
+  return (
+    <div className="relative flex gap-3 py-2 pl-1">
+      {/* Icon */}
+      <div
+        className={`bg-background z-10 flex size-6 shrink-0 items-center justify-center rounded-full ${conf.color}`}
+      >
+        <Icon className="size-3.5" />
+      </div>
+
+      {/* Content */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm">{event.message}</p>
+            <div className="mt-0.5 flex items-center gap-2">
+              <Badge variant="outline" className="text-xs">
+                {conf.label}
+              </Badge>
+              <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                <Clock className="size-3" />
+                {timeAgo}
+              </span>
+            </div>
+          </div>
+
+          {/* Expand metadata */}
+          {metadata && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? (
+                <ChevronDown className="size-3.5" />
+              ) : (
+                <ChevronRight className="size-3.5" />
+              )}
+            </Button>
+          )}
+        </div>
+
+        {/* Expanded metadata */}
+        {expanded && metadata && (
+          <div className="mt-2 rounded-md bg-zinc-950 p-3 font-mono text-xs">
+            <pre className="overflow-x-auto text-zinc-300">
+              {JSON.stringify(metadata, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -14,8 +14,9 @@ import {
   type ContainerWithDetails,
   type ContainerCounts,
 } from "@/lib/db";
-import type { ServiceStatus } from "@/generated/prisma/client";
+import type { ServiceType, ServiceStatus } from "@/generated/prisma/client";
 import { getProxmoxClient } from "@/lib/proxmox";
+import { parseKeyValueString } from "@/lib/utils/parse";
 import {
   listContainers,
   getContainer,
@@ -99,6 +100,16 @@ export interface ContainerDetailData {
     }>;
     /** Proxmox configuration (if available) */
     config: ProxmoxContainerConfig | null;
+    /** Services with decrypted credentials for detail view */
+    servicesWithCredentials: Array<{
+      id: string;
+      name: string;
+      type: ServiceType;
+      port: number | null;
+      webUrl: string | null;
+      status: ServiceStatus;
+      credentials: Record<string, string> | null;
+    }>;
   };
   proxmoxReachable: boolean;
 }
@@ -240,6 +251,30 @@ export async function getContainerDetailData(
     proxmoxReachable,
   );
 
+  // Decrypt service credentials for detail view
+  const { decrypt } = await import("@/lib/encryption");
+  const servicesWithCredentials = dbContainer.services.map((s) => {
+    let credentials: Record<string, string> | null = null;
+    if (s.credentials) {
+      try {
+        const decrypted = decrypt(s.credentials);
+        credentials = parseKeyValueString(decrypted);
+      } catch {
+        // Decryption or parse failure — skip credentials
+        credentials = null;
+      }
+    }
+    return {
+      id: s.id,
+      name: s.name,
+      type: s.type,
+      port: s.port,
+      webUrl: s.webUrl,
+      status: s.status,
+      credentials,
+    };
+  });
+
   return {
     container: {
       ...merged,
@@ -251,6 +286,7 @@ export async function getContainerDetailData(
         createdAt: e.createdAt,
       })),
       config: proxmoxConfig,
+      servicesWithCredentials,
     },
     proxmoxReachable,
   };

@@ -3,22 +3,12 @@
 
 import { SSHSession, connectWithRetry } from "@/lib/ssh";
 import type { SSHExecResult } from "@/lib/ssh";
-
-// ============================================================================
-// Input Sanitization
-// ============================================================================
-
-/**
- * Validate that a string is safe for use in a shell command.
- * Allows only alphanumeric characters, hyphens, underscores, dots, and @.
- * This covers valid systemd unit names and filesystem paths without
- * shell metacharacters.
- */
-const SAFE_SHELL_ARG = /^[a-zA-Z0-9._@-]+$/;
-
-function isSafeShellArg(value: string): boolean {
-  return SAFE_SHELL_ARG.test(value);
-}
+import { isSafeShellArg } from "@/lib/utils/validation";
+import { CREDENTIALS_DIR } from "@/lib/constants/infrastructure";
+import {
+  MONITORING_SSH_MAX_ATTEMPTS,
+  MONITORING_SSH_INITIAL_DELAY_MS,
+} from "@/lib/constants/timeouts";
 
 // ============================================================================
 // Types
@@ -226,7 +216,7 @@ export async function readCredentials(
   let lsResult: SSHExecResult;
   try {
     lsResult = await ssh.exec(
-      "ls /etc/infrahaus/credentials/ 2>/dev/null || echo '__EMPTY__'",
+      `ls ${CREDENTIALS_DIR} 2>/dev/null || echo '__EMPTY__'`,
     );
   } catch {
     return [];
@@ -244,9 +234,7 @@ export async function readCredentials(
   for (const file of files) {
     let catResult: SSHExecResult;
     try {
-      catResult = await ssh.exec(
-        `cat "/etc/infrahaus/credentials/${file}" 2>/dev/null`,
-      );
+      catResult = await ssh.exec(`cat "${CREDENTIALS_DIR}${file}" 2>/dev/null`);
     } catch {
       // Non-fatal: skip unreadable files
       continue;
@@ -396,7 +384,10 @@ export async function monitorContainer(
         username: "root",
         password: rootPassword,
       },
-      { maxAttempts: 2, initialDelay: 1000 },
+      {
+        maxAttempts: MONITORING_SSH_MAX_ATTEMPTS,
+        initialDelay: MONITORING_SSH_INITIAL_DELAY_MS,
+      },
     );
 
     // Run all checks in parallel where possible

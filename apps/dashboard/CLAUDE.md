@@ -63,6 +63,71 @@ Add `import "server-only"` to any module that must never run in client bundles. 
 
 **`"use server"` action files** (`lib/*/actions.ts`) — `server-only` is optional since `"use server"` already enforces the server boundary. They transitively import `safe-action.ts` which has `server-only`.
 
+## Utility & Helper Function Organization
+
+Helper functions MUST be placed according to these rules — never scatter generic utilities inside component files or domain modules.
+
+### `lib/utils/` — Generic, reusable utilities (no domain knowledge)
+
+| File            | Purpose                  | Examples                                                                         |
+| --------------- | ------------------------ | -------------------------------------------------------------------------------- |
+| `format.ts`     | Display formatting       | `formatBytes`, `formatUptime`, `formatRelativeTime`, `formatMemory`, `parseTags` |
+| `crypto.ts`     | Client-side cryptography | `generatePassword`                                                               |
+| `parse.ts`      | Generic string parsing   | `parseKeyValueString` (JSON/key=value/raw)                                       |
+| `errors.ts`     | Error classification     | `isNetworkError`                                                                 |
+| `validation.ts` | Input sanitization       | `isSafeShellArg`                                                                 |
+| `redis-lock.ts` | Distributed locking      | `acquireLock`, `releaseLock`                                                     |
+| `packages.ts`   | Package display helpers  | `managerLabels`, `groupByManager`                                                |
+
+### `lib/{domain}/` — Domain-specific helpers (stay in their module)
+
+Helpers that require domain knowledge and are only used within their module are correctly placed inline:
+
+- `lib/containers/data.ts` — `mergeContainerStatus()` (Proxmox + DB merge logic)
+- `lib/containers/actions.ts` — `getContainerContext()`, `acquireContainerLock()` (thin wrappers)
+- `lib/proxmox/utils.ts` — `extractIpFromNet0()` (Proxmox config parsing)
+- `lib/templates/parser.ts` — `resolveBashValue()` (bash-specific parsing)
+
+### Decision rule: Where does a new helper go?
+
+1. **Could another domain module use it?** → `lib/utils/{category}.ts`
+2. **Is it duplicated in 2+ files?** → Extract to `lib/utils/` immediately
+3. **Does it parse/format a generic data type** (bytes, dates, strings)? → `lib/utils/format.ts` or `lib/utils/parse.ts`
+4. **Is it tightly coupled to one domain's data structures?** → Keep in `lib/{domain}/`
+5. **Does it belong to a specific infrastructure concern** (Proxmox, Redis)? → `lib/{infra}/utils.ts`
+
+### Never do
+
+- Define formatters (`formatBytes`, `formatUptime`, etc.) inside component files
+- Duplicate the same helper across multiple files
+- Put domain-agnostic utilities (error classification, input validation) inside domain modules
+
+## Constants Organization
+
+All shared constants live in `lib/constants/`. No "server-only" — these are plain values safe for any context (server, client, worker).
+
+### `lib/constants/` — Centralized constant files
+
+| File                | Purpose                              | Examples                                                                            |
+| ------------------- | ------------------------------------ | ----------------------------------------------------------------------------------- |
+| `infrastructure.ts` | Ports, paths, prefixes, queue names  | `DEFAULT_PVE_PORT`, `CREDENTIALS_DIR`, `CONTAINER_CREATION_QUEUE`, `SESSION_PREFIX` |
+| `timeouts.ts`       | Timing: timeouts, intervals, retries | `TASK_TIMEOUT_MS`, `TASK_POLL_INTERVAL_MS`, `AUTO_REFRESH_INTERVAL_S`               |
+| `display.ts`        | UI config: status colors, thresholds | `containerStatusConfig`, `serviceStatusConfig`, `RESOURCE_CRITICAL_THRESHOLD`       |
+
+### Decision rule: When to add a constant here
+
+1. **Used in 2+ files?** → Extract to `lib/constants/` immediately
+2. **A timeout, interval, or retry value?** → `timeouts.ts`
+3. **A port, path, prefix, or queue name?** → `infrastructure.ts`
+4. **A status color map, UI threshold, or display limit?** → `display.ts`
+5. **Only used in one file and unlikely to be reused?** → Keep inline (with a descriptive name, not a magic number)
+
+### Never do
+
+- Hardcode the same magic number (like `8006`, `60_000`, or `100`) in multiple files
+- Put timeout values inline without a named constant — use `TASK_TIMEOUT_MS` not `60_000`
+- Duplicate status color maps across components — import from `display.ts`
+
 ## Cookie Writes Forbidden in RSC
 
 Never call `session.destroy()` or modify cookies in Server Components or layouts. Cookie mutations only in Server Actions, Route Handlers, or middleware (Next.js 16+ requirement).
