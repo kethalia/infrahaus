@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04-container-management — In progress
-**Plan:** 2 of 4 in current phase
+**Plan:** 3 of 4 in current phase
 **Status:** In progress
-**Last activity:** 2026-02-09 — Completed 04-01-PLAN.md and 04-02-PLAN.md
+**Last activity:** 2026-02-09 — Completed 04-03-PLAN.md
 
-Progress: ███████░░░ 74% (14/19 plans)
+Progress: ████████░░ 79% (15/19 plans)
 
 ## Completed Work
 
@@ -89,6 +89,14 @@ Progress: ███████░░░ 74% (14/19 plans)
 - monitorContainer orchestrator with connectWithRetry (2 attempts) and graceful failure handling
 - Pure library module — no server-only, worker-compatible
 
+**04-03 — Container dashboard page** ✓
+
+- Dashboard page with summary bar (4 stat cards), responsive container grid, status filters
+- getContainersWithStatus/getContainerDetailData merging DB + Proxmox live status
+- useAutoRefresh hook (30s countdown, visibilitychange, Refresh Now)
+- ContainerCard with service dots, resource summary, dropdown actions with AlertDialog
+- Proxmox-unreachable warning banner, empty state linking to creation wizard
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -124,6 +132,9 @@ Progress: ███████░░░ 74% (14/19 plans)
 - Redis NX+EX lock (300s TTL, ownership token + Lua compare-and-delete) prevents concurrent lifecycle actions on same container
 - Shutdown: 30s graceful timeout, fallback to force stop
 - Delete: purge=true on Proxmox API, then cascade delete in DB
+- getContainersWithStatus fetches all node containers in parallel → VMID→status map for O(1) lookup
+- useAutoRefresh with router.refresh() for server component re-fetching
+- ContainerActions uses useTransition for non-blocking action calls
 
 ## Pending Work
 
@@ -144,6 +155,6 @@ Progress: ███████░░░ 74% (14/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-09T07:27:53Z
-Stopped at: Completed 04-01-PLAN.md and 04-02-PLAN.md
+Last session: 2026-02-09T07:36:32Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
