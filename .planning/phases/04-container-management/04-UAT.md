@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 04-container-management
 source: [04-01-SUMMARY.md, 04-02-SUMMARY.md, 04-03-SUMMARY.md, 04-04-SUMMARY.md]
 started: 2026-02-09T18:49:03Z
@@ -172,27 +172,53 @@ skipped: 9
   reason: "User reported: [safe-action] Unhandled server error: Error [ProxmoxError]: Request failed after 3 retries: Zod validation error - ha.managed expects boolean but receives number from Proxmox API. Confirmation dialog shows correctly but action execution fails with ProxmoxError."
   severity: blocker
   test: 4
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "ContainerStatusSchema.ha.managed field expects boolean type but Proxmox API returns integers (0/1), causing Zod validation to fail when lifecycle actions query container status"
+  artifacts:
+  - path: "apps/dashboard/src/lib/proxmox/schemas.ts"
+    issue: "Line 144: ha.managed uses z.boolean() instead of pveBoolean helper"
+  - path: "apps/dashboard/src/lib/containers/actions.ts"
+    issue: "Line 629: Stop action calls getContainer() which triggers validation failure"
+  - path: "apps/dashboard/src/lib/proxmox/containers.ts"
+    issue: "Lines 88-91: getContainer() validates response with broken schema"
+    missing:
+  - "Replace z.boolean() with pveBoolean for ha.managed field in ContainerStatusSchema"
+  - "Audit other boolean fields (template, onboot, console, protection, unprivileged) for same issue"
+    debug_session: ".planning/debug/lifecycle-actions-zod-error.md"
 
 - truth: "Container detail page header shows hostname and all lifecycle action buttons"
   status: failed
   reason: "User reported: Page loads with tabs (Overview, Services, Events) but header is incomplete: shows 'CT 600' with only Delete button. Missing Start/Shutdown/Stop/Restart buttons. Hostname displays as '—' instead of 'test-container'."
   severity: major
   test: 5
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Container status set to 'unknown' when Proxmox API is unreachable, causing conditional rendering logic to hide all lifecycle buttons except Delete; hostname unavailable because only sourced from Proxmox live data, not stored in database"
+  artifacts:
+  - path: "apps/dashboard/src/lib/containers/data.ts"
+    issue: "Line 326: sets status='unknown' when !proxmoxReachable; Line 333: hostname extracted only from Proxmox data with no DB fallback"
+  - path: "apps/dashboard/src/components/containers/detail/container-header.tsx"
+    issue: "Line 58: isActionable excludes 'unknown' status; Lines 184-225: buttons conditionally render only for running/stopped"
+  - path: "apps/dashboard/prisma/schema.prisma"
+    issue: "Lines 153-172: Container model lacks hostname field for fallback storage"
+    missing:
+  - "Add hostname field to Container database schema and populate during creation"
+  - "Modify mergeContainerStatus() to use DB hostname as fallback"
+  - "Update conditional rendering for 'unknown' status (show disabled buttons or let actions fail gracefully)"
+    debug_session: ".planning/debug/missing-lifecycle-buttons.md"
 
 - truth: "Overview tab displays complete configuration data and live resource usage"
   status: failed
   reason: "User reported: Shows 'Unable to reach Proxmox API. Live status and resource data may be stale. Actions may not work until connectivity is restored.' Config grid loads but shows missing values (hostname/OS template/cores/memory as '—'). Resource usage section shows 'Container is stopped or data unavailable'."
   severity: blocker
   test: 6
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Zod schema validation error in ContainerStatusSchema - ha.managed field expects boolean but Proxmox API returns number (0 or 1), causing all container detail page requests to fail and be misinterpreted as 'Proxmox API unreachable'"
+  artifacts:
+  - path: "apps/dashboard/src/lib/proxmox/schemas.ts"
+    issue: "Lines 142-146: ha.managed: z.boolean() should be pveBoolean to coerce number to boolean"
+  - path: "apps/dashboard/src/lib/containers/data.ts"
+    issue: "Lines 243-244: catch block silently swallows Zod errors, making debugging difficult"
+  - path: "apps/dashboard/src/lib/proxmox/containers.ts"
+    issue: "Lines 83-92: getContainer() uses broken schema"
+    missing:
+  - "Change ContainerStatusSchema.ha.managed from z.boolean() to pveBoolean helper"
+  - "Add better error logging in data.ts catch block to surface validation errors"
+  - "Consider caching Proxmox config data in database for graceful degradation"
+    debug_session: ".planning/debug/proxmox-api-connectivity-failure.md"
