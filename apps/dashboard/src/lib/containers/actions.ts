@@ -810,3 +810,167 @@ export const deleteContainerAction = authActionClient
       await releaseContainerLock(containerId, token);
     }
   });
+
+// ============================================================================
+// Service Refresh Action
+// ============================================================================
+
+/**
+ * Extract IP address from Proxmox net0 config string.
+ * Format: "name=eth0,bridge=vmbr0,ip=10.0.0.5/24,..." or "ip=dhcp"
+ * Returns the IP without CIDR mask, or null if not found / DHCP.
+ */
+function extractIpFromNet0(net0: string): string | null {
+  const ipMatch = net0.match(/ip=([^,/]+)/);
+  if (!ipMatch) return null;
+  const ip = ipMatch[1];
+  if (ip === "dhcp" || ip === "manual") return null;
+  return ip;
+}
+
+/**
+ * Refresh container service data by connecting via SSH and running monitoring checks.
+ * Triggers the monitoring engine, then updates service records in the database.
+ */
+export const refreshContainerServicesAction = authActionClient
+  .schema(containerIdSchema)
+  .action(async ({ parsedInput: { containerId } }) => {
+    // Get container with details (services for existing service names)
+    const container = await DatabaseService.getContainerById(containerId);
+    if (!container) {
+      throw new ActionError("Container not found");
+    }
+
+    // Only allow refresh on ready containers
+    if (container.lifecycle !== "ready") {
+      throw new ActionError(
+        "Container is not ready. Services can only be refreshed on ready containers.",
+      );
+    }
+
+    // Check container is running on Proxmox
+    const client = await getProxmoxClient();
+    const nodeName = container.node.name;
+    const vmid = container.vmid;
+
+    let status;
+    try {
+      status = await getContainer(client, nodeName, vmid);
+    } catch {
+      throw new ActionError(
+        "Unable to reach container on Proxmox. Please check the Proxmox connection.",
+      );
+    }
+
+    if (status.status !== "running") {
+      throw new ActionError("Container must be running to refresh services.");
+    }
+
+    // Get IP from Proxmox config
+    const { getContainerConfig: getConfig } =
+      await import("@/lib/proxmox/containers");
+    const config = await getConfig(client, nodeName, vmid);
+    const net0 = (config as Record<string, unknown>)["net0"] as
+      | string
+      | undefined;
+    if (!net0) {
+      throw new ActionError(
+        "No network configuration found for container. Cannot determine IP address.",
+      );
+    }
+
+    const containerIp = extractIpFromNet0(net0);
+    if (!containerIp) {
+      throw new ActionError(
+        "Unable to determine container IP address. DHCP containers require manual IP discovery.",
+      );
+    }
+
+    // Decrypt root password for SSH
+    const { decrypt } = await import("@/lib/encryption");
+    const rootPassword = decrypt(container.rootPassword);
+
+    // Get existing service names for targeted checking
+    const serviceNames = container.services.map((s) => s.name);
+
+    // Run monitoring
+    const { monitorContainer } = await import("@/lib/containers/monitoring");
+    const result = await monitorContainer(
+      containerId,
+      containerIp,
+      rootPassword,
+      serviceNames,
+    );
+
+    if (result.error) {
+      throw new ActionError(`Service refresh failed: ${result.error}`);
+    }
+
+    // Map monitoring results to service records
+    const { ServiceType, ServiceStatus } = await import("@/lib/db");
+    const { encrypt: encryptFn } = await import("@/lib/encryption");
+
+    // Build service records from monitoring data
+    const serviceRecords: Array<{
+      name: string;
+      type: "systemd" | "docker" | "process";
+      port?: number;
+      webUrl?: string;
+      status?: "installing" | "running" | "stopped" | "error";
+      credentials?: string;
+    }> = [];
+
+    // Map systemd services
+    for (const svc of result.services) {
+      const portInfo = result.ports.find(
+        (p) => p.process === svc.name || p.process.includes(svc.name),
+      );
+      const creds = result.credentials.filter((c) => c.service === svc.name);
+
+      let credentialsJson: string | undefined;
+      if (creds.length > 0) {
+        const credObj: Record<string, string> = {};
+        for (const c of creds) {
+          credObj[c.key] = c.value;
+        }
+        credentialsJson = encryptFn(JSON.stringify(credObj));
+      }
+
+      serviceRecords.push({
+        name: svc.name,
+        type: ServiceType.systemd as "systemd",
+        port: portInfo?.port,
+        webUrl: portInfo?.port
+          ? `http://${containerIp}:${portInfo.port}`
+          : undefined,
+        status: svc.active
+          ? (ServiceStatus.running as "running")
+          : (ServiceStatus.stopped as "stopped"),
+        credentials: credentialsJson,
+      });
+    }
+
+    // Add ports not associated with known services as process-type services
+    const knownPorts = new Set(
+      serviceRecords.map((s) => s.port).filter(Boolean),
+    );
+    for (const port of result.ports) {
+      if (!knownPorts.has(port.port)) {
+        serviceRecords.push({
+          name: port.process || `port-${port.port}`,
+          type: ServiceType.process as "process",
+          port: port.port,
+          webUrl: `http://${containerIp}:${port.port}`,
+          status: ServiceStatus.running as "running",
+        });
+      }
+    }
+
+    // Update services in database
+    await DatabaseService.updateContainerServices(containerId, serviceRecords);
+
+    revalidatePath(`/containers/${containerId}`);
+    revalidatePath("/");
+
+    return { success: true as const, serviceCount: serviceRecords.length };
+  });
