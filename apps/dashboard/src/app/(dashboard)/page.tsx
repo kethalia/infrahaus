@@ -2,6 +2,8 @@ import { getContainersWithStatus } from "@/lib/containers/data";
 import { SummaryBar } from "@/components/containers/summary-bar";
 import { ContainerGrid } from "@/components/containers/container-grid";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const { containers, counts, proxmoxReachable } =
     await getContainersWithStatus();
