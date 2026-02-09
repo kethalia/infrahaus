@@ -5,6 +5,22 @@ import { SSHSession, connectWithRetry } from "@/lib/ssh";
 import type { SSHExecResult } from "@/lib/ssh";
 
 // ============================================================================
+// Input Sanitization
+// ============================================================================
+
+/**
+ * Validate that a string is safe for use in a shell command.
+ * Allows only alphanumeric characters, hyphens, underscores, dots, and @.
+ * This covers valid systemd unit names and filesystem paths without
+ * shell metacharacters.
+ */
+const SAFE_SHELL_ARG = /^[a-zA-Z0-9._@-]+$/;
+
+function isSafeShellArg(value: string): boolean {
+  return SAFE_SHELL_ARG.test(value);
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -59,8 +75,12 @@ export async function checkSystemdServices(
 ): Promise<ServiceCheckResult[]> {
   if (serviceNames.length === 0) return [];
 
+  // Validate service names to prevent shell injection
+  const safeNames = serviceNames.filter((n) => isSafeShellArg(n));
+  if (safeNames.length === 0) return [];
+
   // Append .service if not already present
-  const units = serviceNames.map((n) =>
+  const units = safeNames.map((n) =>
     n.endsWith(".service") ? n : `${n}.service`,
   );
 
@@ -215,7 +235,10 @@ export async function readCredentials(
   const output = lsResult.stdout.trim();
   if (!output || output === "__EMPTY__") return [];
 
-  const files = output.split("\n").filter((f) => f.trim());
+  const files = output
+    .split("\n")
+    .map((f) => f.trim())
+    .filter((f) => f && isSafeShellArg(f));
   const credentials: CredentialEntry[] = [];
 
   for (const file of files) {

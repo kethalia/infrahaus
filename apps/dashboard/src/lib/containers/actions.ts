@@ -509,32 +509,62 @@ const containerIdSchema = z.object({
 /** Redis lock key prefix for container lifecycle operations */
 const LOCK_PREFIX = "container-lock:";
 
-/** Lock TTL in seconds — prevents stuck locks from blocking forever */
-const LOCK_TTL = 120;
+/**
+ * Lock TTL in seconds — prevents stuck locks from blocking forever.
+ * Must exceed the longest possible action duration. The delete action
+ * waits up to 120s for stop + 120s for delete = 240s, so 300s provides
+ * a comfortable margin.
+ */
+const LOCK_TTL = 300;
+
+/**
+ * Lua script for compare-and-delete: only deletes the key if its value
+ * matches the ownership token. Prevents one action from releasing another
+ * action's lock after TTL-based expiry and re-acquisition.
+ */
+const RELEASE_LOCK_SCRIPT = `
+  if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+  else
+    return 0
+  end
+`;
 
 /**
  * Acquire a Redis lock for a container. Prevents concurrent lifecycle
  * actions on the same container.
- * @returns true if lock acquired, false if already locked
+ * @returns the ownership token if lock acquired, null if already locked
  */
-async function acquireContainerLock(containerId: string): Promise<boolean> {
+async function acquireContainerLock(
+  containerId: string,
+): Promise<string | null> {
   const redis = getRedis();
+  const token = crypto.randomUUID();
   const result = await redis.set(
     `${LOCK_PREFIX}${containerId}`,
-    Date.now().toString(),
+    token,
     "EX",
     LOCK_TTL,
     "NX",
   );
-  return result === "OK";
+  return result === "OK" ? token : null;
 }
 
 /**
  * Release a Redis lock for a container.
+ * Uses a Lua compare-and-delete script to ensure we only release our own lock.
  */
-async function releaseContainerLock(containerId: string): Promise<void> {
+async function releaseContainerLock(
+  containerId: string,
+  token: string,
+): Promise<void> {
   const redis = getRedis();
-  await redis.del(`${LOCK_PREFIX}${containerId}`);
+  await redis.eval(
+    RELEASE_LOCK_SCRIPT,
+    1,
+    `${LOCK_PREFIX}${containerId}`,
+    token,
+  );
 }
 
 /**
@@ -563,8 +593,8 @@ async function getContainerContext(containerId: string) {
 export const startContainerAction = authActionClient
   .schema(containerIdSchema)
   .action(async ({ parsedInput: { containerId } }) => {
-    const locked = await acquireContainerLock(containerId);
-    if (!locked) {
+    const token = await acquireContainerLock(containerId);
+    if (!token) {
       throw new ActionError(
         "Another operation is in progress on this container. Please wait.",
       );
@@ -595,7 +625,7 @@ export const startContainerAction = authActionClient
 
       return { success: true as const };
     } finally {
-      await releaseContainerLock(containerId);
+      await releaseContainerLock(containerId, token);
     }
   });
 
@@ -606,8 +636,8 @@ export const startContainerAction = authActionClient
 export const stopContainerAction = authActionClient
   .schema(containerIdSchema)
   .action(async ({ parsedInput: { containerId } }) => {
-    const locked = await acquireContainerLock(containerId);
-    if (!locked) {
+    const token = await acquireContainerLock(containerId);
+    if (!token) {
       throw new ActionError(
         "Another operation is in progress on this container. Please wait.",
       );
@@ -638,7 +668,7 @@ export const stopContainerAction = authActionClient
 
       return { success: true as const };
     } finally {
-      await releaseContainerLock(containerId);
+      await releaseContainerLock(containerId, token);
     }
   });
 
@@ -650,8 +680,8 @@ export const stopContainerAction = authActionClient
 export const shutdownContainerAction = authActionClient
   .schema(containerIdSchema)
   .action(async ({ parsedInput: { containerId } }) => {
-    const locked = await acquireContainerLock(containerId);
-    if (!locked) {
+    const token = await acquireContainerLock(containerId);
+    if (!token) {
       throw new ActionError(
         "Another operation is in progress on this container. Please wait.",
       );
@@ -691,7 +721,7 @@ export const shutdownContainerAction = authActionClient
 
       return { success: true as const, method };
     } finally {
-      await releaseContainerLock(containerId);
+      await releaseContainerLock(containerId, token);
     }
   });
 
@@ -702,8 +732,8 @@ export const shutdownContainerAction = authActionClient
 export const restartContainerAction = authActionClient
   .schema(containerIdSchema)
   .action(async ({ parsedInput: { containerId } }) => {
-    const locked = await acquireContainerLock(containerId);
-    if (!locked) {
+    const token = await acquireContainerLock(containerId);
+    if (!token) {
       throw new ActionError(
         "Another operation is in progress on this container. Please wait.",
       );
@@ -737,7 +767,7 @@ export const restartContainerAction = authActionClient
 
       return { success: true as const };
     } finally {
-      await releaseContainerLock(containerId);
+      await releaseContainerLock(containerId, token);
     }
   });
 
@@ -748,8 +778,8 @@ export const restartContainerAction = authActionClient
 export const deleteContainerAction = authActionClient
   .schema(containerIdSchema)
   .action(async ({ parsedInput: { containerId } }) => {
-    const locked = await acquireContainerLock(containerId);
-    if (!locked) {
+    const token = await acquireContainerLock(containerId);
+    if (!token) {
       throw new ActionError(
         "Another operation is in progress on this container. Please wait.",
       );
@@ -777,6 +807,6 @@ export const deleteContainerAction = authActionClient
 
       return { success: true as const };
     } finally {
-      await releaseContainerLock(containerId);
+      await releaseContainerLock(containerId, token);
     }
   });

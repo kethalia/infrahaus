@@ -10,6 +10,7 @@ import "server-only";
 import { ProxmoxClient } from "@/lib/proxmox/client";
 import { getProxmoxCredentials } from "@/lib/session";
 import { DatabaseService } from "@/lib/db";
+import { ActionError } from "@/lib/safe-action";
 
 /**
  * Create an authenticated ProxmoxClient from the current user session.
@@ -22,14 +23,14 @@ export async function createProxmoxClientFromSession(): Promise<{
 }> {
   const credentials = await getProxmoxCredentials();
   if (!credentials) {
-    throw new Error("Not authenticated");
+    throw new ActionError("Not authenticated");
   }
 
   // Get the first configured node (single-node setup)
   const nodes = await DatabaseService.listNodes();
   const pveNode = nodes[0];
   if (!pveNode) {
-    throw new Error("No Proxmox node configured");
+    throw new ActionError("No Proxmox node configured");
   }
 
   const client = new ProxmoxClient({
