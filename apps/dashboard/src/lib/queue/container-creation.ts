@@ -2,6 +2,11 @@
 
 import { Queue } from "bullmq";
 import { getRedis } from "../redis";
+import {
+  CONTAINER_CREATION_QUEUE,
+  QUEUE_REMOVE_ON_COMPLETE,
+  QUEUE_REMOVE_ON_FAIL,
+} from "@/lib/constants/infrastructure";
 
 // ============================================================================
 // Types
@@ -75,12 +80,12 @@ export function getContainerCreationQueue(): Queue<
 > {
   if (!queue) {
     queue = new Queue<ContainerJobData, ContainerJobResult>(
-      "container-creation",
+      CONTAINER_CREATION_QUEUE,
       {
         connection: getRedis(),
         defaultJobOptions: {
-          removeOnComplete: { count: 100 },
-          removeOnFail: { count: 500 },
+          removeOnComplete: { count: QUEUE_REMOVE_ON_COMPLETE },
+          removeOnFail: { count: QUEUE_REMOVE_ON_FAIL },
           attempts: 1, // No auto-retry — container creation is not idempotent
         },
       },

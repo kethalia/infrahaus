@@ -4,6 +4,7 @@
 import { SSHSession, connectWithRetry } from "@/lib/ssh";
 import type { SSHExecResult } from "@/lib/ssh";
 import { isSafeShellArg } from "@/lib/utils/validation";
+import { CREDENTIALS_DIR } from "@/lib/constants/infrastructure";
 
 // ============================================================================
 // Types
@@ -211,7 +212,7 @@ export async function readCredentials(
   let lsResult: SSHExecResult;
   try {
     lsResult = await ssh.exec(
-      "ls /etc/infrahaus/credentials/ 2>/dev/null || echo '__EMPTY__'",
+      `ls ${CREDENTIALS_DIR} 2>/dev/null || echo '__EMPTY__'`,
     );
   } catch {
     return [];
@@ -229,9 +230,7 @@ export async function readCredentials(
   for (const file of files) {
     let catResult: SSHExecResult;
     try {
-      catResult = await ssh.exec(
-        `cat "/etc/infrahaus/credentials/${file}" 2>/dev/null`,
-      );
+      catResult = await ssh.exec(`cat "${CREDENTIALS_DIR}${file}" 2>/dev/null`);
     } catch {
       // Non-fatal: skip unreadable files
       continue;

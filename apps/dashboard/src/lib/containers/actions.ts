@@ -31,6 +31,18 @@ import {
 import { waitForTask } from "@/lib/proxmox/tasks";
 import { acquireLock, releaseLock } from "@/lib/utils/redis-lock";
 import { extractIpFromNet0 } from "@/lib/proxmox/utils";
+import {
+  DEFAULT_PVE_PORT,
+  DEFAULT_NEXT_VMID,
+  CONTAINER_LOCK_PREFIX,
+  CONTAINER_LOCK_TTL,
+} from "@/lib/constants/infrastructure";
+import {
+  TASK_TIMEOUT_MS,
+  SHUTDOWN_TIMEOUT_S,
+  SHUTDOWN_WAIT_MS,
+  DELETE_TIMEOUT_MS,
+} from "@/lib/constants/timeouts";
 import { createContainerInputSchema } from "./schemas";
 
 // ============================================================================
@@ -129,7 +141,9 @@ async function getOrCreateNode(
   if (!host) {
     throw new Error("PVE_HOST env var is not set.");
   }
-  const port = process.env.PVE_PORT ? parseInt(process.env.PVE_PORT, 10) : 8006;
+  const port = process.env.PVE_PORT
+    ? parseInt(process.env.PVE_PORT, 10)
+    : DEFAULT_PVE_PORT;
 
   // Use target node name, or discover from API
   let nodeName = targetNode;
@@ -174,7 +188,7 @@ export async function getWizardData(): Promise<WizardData> {
     templates: templates.map(mapTemplate),
     storages: [],
     bridges: [],
-    nextVmid: 100,
+    nextVmid: DEFAULT_NEXT_VMID,
     noNodeConfigured: true,
     osTemplates: [],
     clusterNodes: [],
@@ -296,7 +310,7 @@ export async function getWizardData(): Promise<WizardData> {
       templates: templates.map(mapTemplate),
       storages: [],
       bridges: [],
-      nextVmid: 100,
+      nextVmid: DEFAULT_NEXT_VMID,
       noNodeConfigured: false,
       osTemplates: [],
       clusterNodes: [],
@@ -507,17 +521,6 @@ const containerIdSchema = z.object({
   containerId: z.string(),
 });
 
-/** Redis lock key prefix for container lifecycle operations */
-const LOCK_PREFIX = "container-lock:";
-
-/**
- * Lock TTL in seconds — prevents stuck locks from blocking forever.
- * Must exceed the longest possible action duration. The delete action
- * waits up to 120s for stop + 120s for delete = 240s, so 300s provides
- * a comfortable margin.
- */
-const LOCK_TTL = 300;
-
 /**
  * Acquire a Redis lock for a container. Prevents concurrent lifecycle
  * actions on the same container.
@@ -526,7 +529,10 @@ const LOCK_TTL = 300;
 async function acquireContainerLock(
   containerId: string,
 ): Promise<string | null> {
-  return acquireLock(`${LOCK_PREFIX}${containerId}`, LOCK_TTL);
+  return acquireLock(
+    `${CONTAINER_LOCK_PREFIX}${containerId}`,
+    CONTAINER_LOCK_TTL,
+  );
 }
 
 /**
@@ -537,7 +543,7 @@ async function releaseContainerLock(
   containerId: string,
   token: string,
 ): Promise<void> {
-  await releaseLock(`${LOCK_PREFIX}${containerId}`, token);
+  await releaseLock(`${CONTAINER_LOCK_PREFIX}${containerId}`, token);
 }
 
 /**
@@ -584,7 +590,7 @@ export const startContainerAction = authActionClient
 
       // Start the container
       const upid = await startContainer(client, nodeName, vmid);
-      await waitForTask(client, nodeName, upid, { timeout: 60_000 });
+      await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
       // Create audit event
       await DatabaseService.createContainerEvent({
@@ -627,7 +633,7 @@ export const stopContainerAction = authActionClient
 
       // Stop the container (forceful)
       const upid = await stopContainer(client, nodeName, vmid);
-      await waitForTask(client, nodeName, upid, { timeout: 60_000 });
+      await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
       // Create audit event
       await DatabaseService.createContainerEvent({
@@ -672,14 +678,23 @@ export const shutdownContainerAction = authActionClient
       let method = "graceful";
 
       try {
-        // Attempt graceful shutdown with 30s timeout
-        const upid = await shutdownContainer(client, nodeName, vmid, 30);
-        await waitForTask(client, nodeName, upid, { timeout: 45_000 });
+        // Attempt graceful shutdown
+        const upid = await shutdownContainer(
+          client,
+          nodeName,
+          vmid,
+          SHUTDOWN_TIMEOUT_S,
+        );
+        await waitForTask(client, nodeName, upid, {
+          timeout: SHUTDOWN_WAIT_MS,
+        });
       } catch {
         // Graceful shutdown failed or timed out — fall back to force stop
         method = "forced";
         const stopUpid = await stopContainer(client, nodeName, vmid);
-        await waitForTask(client, nodeName, stopUpid, { timeout: 60_000 });
+        await waitForTask(client, nodeName, stopUpid, {
+          timeout: TASK_TIMEOUT_MS,
+        });
       }
 
       // Create audit event
@@ -721,12 +736,16 @@ export const restartContainerAction = authActionClient
       // Stop first if running
       if (status.status === "running") {
         const stopUpid = await stopContainer(client, nodeName, vmid);
-        await waitForTask(client, nodeName, stopUpid, { timeout: 60_000 });
+        await waitForTask(client, nodeName, stopUpid, {
+          timeout: TASK_TIMEOUT_MS,
+        });
       }
 
       // Start the container
       const startUpid = await startContainer(client, nodeName, vmid);
-      await waitForTask(client, nodeName, startUpid, { timeout: 60_000 });
+      await waitForTask(client, nodeName, startUpid, {
+        timeout: TASK_TIMEOUT_MS,
+      });
 
       // Create audit event
       await DatabaseService.createContainerEvent({
@@ -765,12 +784,16 @@ export const deleteContainerAction = authActionClient
       const status = await getContainer(client, nodeName, vmid);
       if (status.status === "running") {
         const stopUpid = await stopContainer(client, nodeName, vmid);
-        await waitForTask(client, nodeName, stopUpid, { timeout: 60_000 });
+        await waitForTask(client, nodeName, stopUpid, {
+          timeout: TASK_TIMEOUT_MS,
+        });
       }
 
       // Delete from Proxmox (with purge to clean up all data)
       const deleteUpid = await deleteContainer(client, nodeName, vmid, true);
-      await waitForTask(client, nodeName, deleteUpid, { timeout: 120_000 });
+      await waitForTask(client, nodeName, deleteUpid, {
+        timeout: DELETE_TIMEOUT_MS,
+      });
 
       // Delete from database (cascade handles services and events)
       await DatabaseService.deleteContainerById(containerId);

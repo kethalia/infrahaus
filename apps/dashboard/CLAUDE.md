@@ -102,6 +102,32 @@ Helpers that require domain knowledge and are only used within their module are 
 - Duplicate the same helper across multiple files
 - Put domain-agnostic utilities (error classification, input validation) inside domain modules
 
+## Constants Organization
+
+All shared constants live in `lib/constants/`. No "server-only" — these are plain values safe for any context (server, client, worker).
+
+### `lib/constants/` — Centralized constant files
+
+| File                | Purpose                              | Examples                                                                            |
+| ------------------- | ------------------------------------ | ----------------------------------------------------------------------------------- |
+| `infrastructure.ts` | Ports, paths, prefixes, queue names  | `DEFAULT_PVE_PORT`, `CREDENTIALS_DIR`, `CONTAINER_CREATION_QUEUE`, `SESSION_PREFIX` |
+| `timeouts.ts`       | Timing: timeouts, intervals, retries | `TASK_TIMEOUT_MS`, `TASK_POLL_INTERVAL_MS`, `AUTO_REFRESH_INTERVAL_S`               |
+| `display.ts`        | UI config: status colors, thresholds | `containerStatusConfig`, `serviceStatusConfig`, `RESOURCE_CRITICAL_THRESHOLD`       |
+
+### Decision rule: When to add a constant here
+
+1. **Used in 2+ files?** → Extract to `lib/constants/` immediately
+2. **A timeout, interval, or retry value?** → `timeouts.ts`
+3. **A port, path, prefix, or queue name?** → `infrastructure.ts`
+4. **A status color map, UI threshold, or display limit?** → `display.ts`
+5. **Only used in one file and unlikely to be reused?** → Keep inline (with a descriptive name, not a magic number)
+
+### Never do
+
+- Hardcode the same magic number (like `8006`, `60_000`, or `100`) in multiple files
+- Put timeout values inline without a named constant — use `TASK_TIMEOUT_MS` not `60_000`
+- Duplicate status color maps across components — import from `display.ts`
+
 ## Cookie Writes Forbidden in RSC
 
 Never call `session.destroy()` or modify cookies in Server Components or layouts. Cookie mutations only in Server Actions, Route Handlers, or middleware (Next.js 16+ requirement).

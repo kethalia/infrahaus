@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import {
+  AUTO_REFRESH_INTERVAL_S,
+  REFRESH_ANIMATION_MS,
+} from "@/lib/constants/timeouts";
 
 interface UseAutoRefreshOptions {
   /** Interval in seconds (default: 30) */
@@ -35,7 +39,7 @@ interface UseAutoRefreshReturn {
 export function useAutoRefresh(
   options: UseAutoRefreshOptions = {},
 ): UseAutoRefreshReturn {
-  const { intervalSeconds = 30, enabled = true } = options;
+  const { intervalSeconds = AUTO_REFRESH_INTERVAL_S, enabled = true } = options;
   const router = useRouter();
 
   const [countdown, setCountdown] = useState(intervalSeconds);
@@ -53,7 +57,10 @@ export function useAutoRefresh(
     countdownRef.current = intervalSeconds;
     setCountdown(intervalSeconds);
     // Brief delay to show refresh state — tracked in ref for cleanup
-    refreshTimeoutRef.current = setTimeout(() => setIsRefreshing(false), 500);
+    refreshTimeoutRef.current = setTimeout(
+      () => setIsRefreshing(false),
+      REFRESH_ANIMATION_MS,
+    );
   }, [router, intervalSeconds]);
 
   const refreshNow = useCallback(() => {

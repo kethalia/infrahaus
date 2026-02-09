@@ -7,6 +7,7 @@ import { ContainerActions } from "./container-actions";
 import type { ContainerWithStatus } from "@/lib/containers/data";
 import type { ServiceStatus } from "@/generated/prisma/client";
 import { formatBytes } from "@/lib/utils/format";
+import { MAX_PREVIEW_ITEMS } from "@/lib/constants/display";
 
 /** Color dot for service status */
 function ServiceDot({ status }: { status: ServiceStatus }) {
@@ -35,9 +36,9 @@ export function ContainerCard({ container }: ContainerCardProps) {
 
   const displayName = hostname ?? `CT ${vmid}`;
 
-  // Show first 2-3 services with colored dots
-  const visibleServices = services.slice(0, 3);
-  const remainingCount = Math.max(0, services.length - 3);
+  // Show first N services with colored dots
+  const visibleServices = services.slice(0, MAX_PREVIEW_ITEMS);
+  const remainingCount = Math.max(0, services.length - MAX_PREVIEW_ITEMS);
 
   // Resource summary text
   const resourceText =

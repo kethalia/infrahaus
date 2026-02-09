@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import type { ContainerStatus } from "@/lib/containers/data";
 import type { ServiceType, ServiceStatus } from "@/generated/prisma/client";
 import { refreshContainerServicesAction } from "@/lib/containers/actions";
+import { serviceStatusConfig } from "@/lib/constants/display";
 
 // ============================================================================
 // Types
@@ -47,35 +48,6 @@ interface ServicesTabProps {
   services: ServiceWithCredentials[];
   status: ContainerStatus;
 }
-
-// ============================================================================
-// Service status badge config
-// ============================================================================
-
-const serviceStatusConfig: Record<
-  string,
-  { label: string; className: string }
-> = {
-  running: {
-    label: "Running",
-    className:
-      "bg-emerald-500/15 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
-  },
-  stopped: {
-    label: "Stopped",
-    className:
-      "bg-gray-500/15 text-gray-700 border-gray-500/25 dark:text-gray-400",
-  },
-  installing: {
-    label: "Installing",
-    className:
-      "bg-blue-500/15 text-blue-700 border-blue-500/25 dark:text-blue-400",
-  },
-  error: {
-    label: "Error",
-    className: "bg-red-500/15 text-red-700 border-red-500/25 dark:text-red-400",
-  },
-};
 
 // ============================================================================
 // Services Tab

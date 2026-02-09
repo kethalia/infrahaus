@@ -23,6 +23,10 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { ContainerDetailData } from "@/lib/containers/data";
 import { formatBytes, formatUptime } from "@/lib/utils/format";
+import {
+  RESOURCE_WARNING_THRESHOLD,
+  RESOURCE_CRITICAL_THRESHOLD,
+} from "@/lib/constants/display";
 
 // ============================================================================
 // Types
@@ -355,8 +359,8 @@ function ResourceBar({
 
   // Color coding
   let barColor = "bg-primary";
-  if (percent > 90) barColor = "bg-destructive";
-  else if (percent > 70) barColor = "bg-yellow-500";
+  if (percent > RESOURCE_CRITICAL_THRESHOLD) barColor = "bg-destructive";
+  else if (percent > RESOURCE_WARNING_THRESHOLD) barColor = "bg-yellow-500";
 
   return (
     <div className="space-y-1.5">

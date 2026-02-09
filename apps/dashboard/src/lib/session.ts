@@ -9,6 +9,11 @@ import { cookies } from "next/headers";
 import crypto from "crypto";
 import { getRedis } from "@/lib/redis";
 import type { ProxmoxTicketCredentials } from "@/lib/proxmox/types";
+import {
+  SESSION_PREFIX,
+  SESSION_TTL,
+  SESSION_COOKIE_NAME,
+} from "@/lib/constants/infrastructure";
 
 // ============================================================================
 // Session Types
@@ -48,7 +53,7 @@ function getSessionOptions(): SessionOptions {
   }
 
   return {
-    cookieName: "lxc-session",
+    cookieName: SESSION_COOKIE_NAME,
     password: secret || "development-secret-must-be-at-least-32-chars!",
     cookieOptions: {
       httpOnly: true,
@@ -57,12 +62,6 @@ function getSessionOptions(): SessionOptions {
     },
   };
 }
-
-/** Redis key prefix for sessions */
-const SESSION_PREFIX = "session:";
-
-/** Session TTL in seconds (2 hours) */
-const SESSION_TTL = 7200;
 
 // ============================================================================
 // Session Operations

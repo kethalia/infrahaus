@@ -11,6 +11,8 @@ import type {
   ProxmoxClientConfig,
   ProxmoxCredentials,
 } from "./types";
+import { DEFAULT_PVE_PORT } from "@/lib/constants/infrastructure";
+import { TICKET_REFRESH_THRESHOLD_MS } from "@/lib/constants/timeouts";
 
 export class ProxmoxClient {
   private readonly baseUrl: string;
@@ -23,7 +25,7 @@ export class ProxmoxClient {
   };
 
   constructor(config: ProxmoxClientConfig) {
-    const port = config.port ?? 8006;
+    const port = config.port ?? DEFAULT_PVE_PORT;
     this.baseUrl = `https://${config.host}:${port}/api2/json`;
     this.credentials = config.credentials;
 
@@ -63,8 +65,7 @@ export class ProxmoxClient {
       const now = new Date();
       const expiresAt = this.credentials.expiresAt;
       const timeUntilExpiry = expiresAt.getTime() - now.getTime();
-      // Refresh if less than 10 minutes remaining
-      return timeUntilExpiry < 10 * 60 * 1000;
+      return timeUntilExpiry < TICKET_REFRESH_THRESHOLD_MS;
     }
     return false;
   }
