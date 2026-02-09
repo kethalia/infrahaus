@@ -88,3 +88,42 @@ export const RESOURCE_WARNING_THRESHOLD = 70;
 
 /** Resource bar critical threshold (percentage) — shows red/destructive color */
 export const RESOURCE_CRITICAL_THRESHOLD = 90;
+
+// ============================================================================
+// Event Type Colors & Labels
+// ============================================================================
+
+/** Event type → color/label mapping. Used by EventsTab. Icons stay in component. */
+export const eventTypeConfig: Record<string, { color: string; label: string }> =
+  {
+    created: {
+      color: "text-blue-500",
+      label: "Created",
+    },
+    started: {
+      color: "text-emerald-500",
+      label: "Started",
+    },
+    stopped: {
+      color: "text-gray-500",
+      label: "Stopped",
+    },
+    error: {
+      color: "text-red-500",
+      label: "Error",
+    },
+    service_ready: {
+      color: "text-purple-500",
+      label: "Service Ready",
+    },
+    script_completed: {
+      color: "text-teal-500",
+      label: "Script Done",
+    },
+  };
+
+/** Fallback config for unknown event types */
+export const defaultEventConfig = {
+  color: "text-yellow-500",
+  label: "Event",
+};

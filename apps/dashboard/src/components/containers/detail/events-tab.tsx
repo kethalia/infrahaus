@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatRelativeTime } from "@/lib/utils/format";
+import { eventTypeConfig, defaultEventConfig } from "@/lib/constants/display";
 
 // ============================================================================
 // Types
@@ -42,54 +43,19 @@ interface EventsTabProps {
 }
 
 // ============================================================================
-// Event type config
+// Event type icons (color/label imported from constants)
 // ============================================================================
 
-const eventTypeConfig: Record<
-  string,
-  {
-    icon: React.ElementType;
-    color: string;
-    label: string;
-  }
-> = {
-  created: {
-    icon: CheckCircle2,
-    color: "text-blue-500",
-    label: "Created",
-  },
-  started: {
-    icon: Play,
-    color: "text-emerald-500",
-    label: "Started",
-  },
-  stopped: {
-    icon: Square,
-    color: "text-gray-500",
-    label: "Stopped",
-  },
-  error: {
-    icon: XCircle,
-    color: "text-red-500",
-    label: "Error",
-  },
-  service_ready: {
-    icon: Cog,
-    color: "text-purple-500",
-    label: "Service Ready",
-  },
-  script_completed: {
-    icon: CheckCircle2,
-    color: "text-teal-500",
-    label: "Script Done",
-  },
+const eventTypeIcons: Record<string, React.ElementType> = {
+  created: CheckCircle2,
+  started: Play,
+  stopped: Square,
+  error: XCircle,
+  service_ready: Cog,
+  script_completed: CheckCircle2,
 };
 
-const defaultEventConfig = {
-  icon: AlertTriangle,
-  color: "text-yellow-500",
-  label: "Event",
-};
+const defaultIcon = AlertTriangle;
 
 // ============================================================================
 // Events Tab
@@ -184,7 +150,7 @@ export function EventsTab({ events }: EventsTabProps) {
 function EventRow({ event }: { event: EventInfo }) {
   const [expanded, setExpanded] = useState(false);
   const conf = eventTypeConfig[event.type] ?? defaultEventConfig;
-  const Icon = conf.icon;
+  const Icon = eventTypeIcons[event.type] ?? defaultIcon;
 
   const hasMetadata = event.metadata !== null;
 
