@@ -70,6 +70,9 @@ export const NodeStatusSchema = z.object({
 // Container (LXC)
 // ============================================================================
 
+// Proxmox returns booleans as 0/1 integers — coerce to proper booleans
+const pveBoolean = z.union([z.boolean(), z.number()]).transform((v) => !!v);
+
 export const ContainerSchema = z.object({
   vmid: z.number(),
   status: z.enum(["running", "stopped", "mounted", "paused"]),
@@ -88,7 +91,7 @@ export const ContainerSchema = z.object({
   netout: z.number().optional(),
   diskread: z.number().optional(),
   diskwrite: z.number().optional(),
-  template: z.boolean().optional(),
+  template: pveBoolean.optional(),
   lock: z.string().optional(),
   tags: z.string().optional(),
 });
@@ -97,7 +100,7 @@ export const ContainerConfigSchema = z
   .object({
     arch: z.enum(["amd64", "i386", "arm64", "armhf"]).optional(),
     cmode: z.enum(["tty", "console", "shell"]).optional(),
-    console: z.boolean().optional(),
+    console: pveBoolean.optional(),
     cores: z.number().optional(),
     cpulimit: z.number().optional(),
     cpuunits: z.number().optional(),
@@ -108,17 +111,17 @@ export const ContainerConfigSchema = z
     lock: z.string().optional(),
     memory: z.number().optional(),
     nameserver: z.string().optional(),
-    onboot: z.boolean().optional(),
+    onboot: pveBoolean.optional(),
     ostype: z.string().optional(),
-    protection: z.boolean().optional(),
+    protection: pveBoolean.optional(),
     rootfs: z.string().optional(),
     searchdomain: z.string().optional(),
     startup: z.string().optional(),
     swap: z.number().optional(),
     tags: z.string().optional(),
-    template: z.boolean().optional(),
+    template: pveBoolean.optional(),
     tty: z.number().optional(),
-    unprivileged: z.boolean().optional(),
+    unprivileged: pveBoolean.optional(),
   })
   .passthrough(); // Allow dynamic keys like net0, mp0, unused0
 
@@ -141,7 +144,7 @@ export const ContainerStatusSchema = z.object({
   diskwrite: z.number().optional(),
   ha: z
     .object({
-      managed: z.boolean(),
+      managed: pveBoolean,
     })
     .optional(),
   tags: z.string().optional(),
@@ -186,9 +189,6 @@ export const TaskLogEntrySchema = z.object({
 // ============================================================================
 // Storage
 // ============================================================================
-
-// Proxmox returns booleans as 0/1 integers — coerce to proper booleans
-const pveBoolean = z.union([z.boolean(), z.number()]).transform((v) => !!v);
 
 export const StorageSchema = z.object({
   storage: z.string(),
