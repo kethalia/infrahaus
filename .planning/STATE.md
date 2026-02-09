@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 03-container-creation — Complete ✓
-**Plan:** 5 of 5 in current phase
-**Status:** Phase complete
-**Last activity:** 2026-02-08 — Completed 03-05-PLAN.md
+**Phase:** 04-container-management — In progress
+**Plan:** 2 of 4 in current phase (04-01 pending summary, 04-02 complete)
+**Status:** In progress
+**Last activity:** 2026-02-09 — Completed 04-02-PLAN.md
 
-Progress: ████████░░ 80% (12/15 plans)
+Progress: ██████░░░░ 68% (13/19 plans)
 
 ## Completed Work
 
@@ -75,6 +75,14 @@ Progress: ████████░░ 80% (12/15 plans)
 - Selected ostemplate flows through wizard to createContainerAction
 - Removed hardcoded Debian fallback - user must select real template
 
+### Phase 4: Container Management (In Progress)
+
+**04-02 — Service monitoring engine** ✓
+
+- SSH-based monitoring: checkSystemdServices, discoverPorts, readCredentials, checkConfigManagerStatus
+- monitorContainer orchestrator with connectWithRetry (2 attempts) and graceful failure handling
+- Pure library module — no server-only, worker-compatible
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -106,6 +114,7 @@ Progress: ████████░░ 80% (12/15 plans)
 - SSE replay pattern: replay persisted ContainerEvent rows on connect before Redis Pub/Sub subscription
 - Terminal state shortcircuit: if container is ready/error, replay and close without Redis subscription
 - Services fetched on completion via /api/containers/[id]/services rather than embedded in SSE stream
+- Monitoring: batch systemctl show for efficiency; port 22 filtered from discovery; error-in-result pattern (never throws)
 
 ## Pending Work
 
@@ -125,6 +134,6 @@ Progress: ████████░░ 80% (12/15 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-08T10:14:59Z
-Stopped at: Completed 03-05-PLAN.md
+Last session: 2026-02-09T07:26:22Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None

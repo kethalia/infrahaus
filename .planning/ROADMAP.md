@@ -84,13 +84,13 @@ Plans:
 ### Phase 04: Container Management
 
 **Goal:** Users can monitor and control container lifecycle with a dashboard overview
-**Status:** Not started
+**Status:** In progress
 **Plans:** 4 plans
 
 Plans:
 
 - [ ] 04-01-PLAN.md — Lifecycle server actions (start/stop/shutdown/restart/delete) + DB query methods + client helper
-- [ ] 04-02-PLAN.md — Service monitoring engine (SSH-based service/port/credential checks)
+- [x] 04-02-PLAN.md — Service monitoring engine (SSH-based service/port/credential checks)
 - [ ] 04-03-PLAN.md — Container dashboard page (summary bar, container cards, filters, auto-refresh)
 - [ ] 04-04-PLAN.md — Container detail page (/containers/[id] with Overview, Services, Events tabs)
 
