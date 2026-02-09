@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04-container-management — In progress
-**Plan:** 2 of 4 in current phase (04-01 pending summary, 04-02 complete)
+**Plan:** 2 of 4 in current phase
 **Status:** In progress
-**Last activity:** 2026-02-09 — Completed 04-02-PLAN.md
+**Last activity:** 2026-02-09 — Completed 04-01-PLAN.md
 
-Progress: ██████░░░░ 68% (13/19 plans)
+Progress: ███████░░░ 74% (14/19 plans)
 
 ## Completed Work
 
@@ -77,6 +77,12 @@ Progress: ██████░░░░ 68% (13/19 plans)
 
 ### Phase 4: Container Management (In Progress)
 
+**04-01 — Lifecycle actions + DB queries + client helper** ✓
+
+- createProxmoxClientFromSession helper for session-based Proxmox access
+- 5 lifecycle server actions (start/stop/shutdown/restart/delete) with Redis lock
+- DatabaseService extended: listContainersWithRelations, getContainerCounts, getContainerWithDetails, deleteContainerById, updateContainerServices
+
 **04-02 — Service monitoring engine** ✓
 
 - SSH-based monitoring: checkSystemdServices, discoverPorts, readCredentials, checkConfigManagerStatus
@@ -115,6 +121,9 @@ Progress: ██████░░░░ 68% (13/19 plans)
 - Terminal state shortcircuit: if container is ready/error, replay and close without Redis subscription
 - Services fetched on completion via /api/containers/[id]/services rather than embedded in SSE stream
 - Monitoring: batch systemctl show for efficiency; port 22 filtered from discovery; error-in-result pattern (never throws)
+- Redis NX+EX lock (120s TTL) prevents concurrent lifecycle actions on same container
+- Shutdown: 30s graceful timeout, fallback to force stop
+- Delete: purge=true on Proxmox API, then cascade delete in DB
 
 ## Pending Work
 
@@ -134,6 +143,6 @@ Progress: ██████░░░░ 68% (13/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-09T07:26:22Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-02-09T07:27:53Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None
