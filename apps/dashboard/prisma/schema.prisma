@@ -153,6 +153,7 @@ model TemplateFile {
 model Container {
   id           String             @id @default(cuid())
   vmid         Int                @unique // Proxmox VM ID
+  hostname     String?            // LXC hostname for display (fallback when Proxmox unreachable)
   lifecycle    ContainerLifecycle @default(creating)
   rootPassword String             // Encrypted via encryption utility
   createdAt    DateTime           @default(now())
