@@ -601,12 +601,12 @@ DRY_RUN=false
 
 usage() {
     cat <<EOF
-Usage: deploy.sh [OPTIONS] <template-dir>
+Usage: deploy.sh [OPTIONS] <template-name>
 
 Deploy an LXC container from a template.
 
 Arguments:
-    template-dir    Path to template directory (e.g., ./forge-shield)
+    template-name   Name of the template (resolved under templates/, e.g., forge-shield)
 
 Options:
     -a, --action ACTION   Action: deploy|destroy|status (default: deploy)
@@ -617,10 +617,10 @@ Options:
     -h, --help            Show this help message
 
 Examples:
-    deploy.sh ./forge-shield
-    deploy.sh --resume ./forge-shield
-    deploy.sh --action destroy ./forge-shield
-    deploy.sh --force --verbose ./forge-shield
+    deploy.sh forge-shield
+    deploy.sh --resume forge-shield
+    deploy.sh --action destroy forge-shield
+    deploy.sh --force --verbose forge-shield
 EOF
     exit 0
 }
@@ -634,12 +634,13 @@ while [[ $# -gt 0 ]]; do
         -n|--dry-run) DRY_RUN=true; shift ;;
         -h|--help)    usage ;;
         -*)           echo "Unknown option: $1" >&2; exit 1 ;;
-        *)            TEMPLATE_DIR="$1"; shift ;;
+        *)            TEMPLATE_NAME="$1"; shift ;;
     esac
 done
 
-[[ -z "$TEMPLATE_DIR" ]] && { echo "Error: template directory required"; usage; }
-[[ -d "$TEMPLATE_DIR" ]] || { echo "Error: directory not found: $TEMPLATE_DIR"; exit 1; }
+[[ -z "$TEMPLATE_NAME" ]] && { echo "Error: template name required"; usage; }
+TEMPLATE_DIR="$TEMPLATES_ROOT/$TEMPLATE_NAME"
+[[ -d "$TEMPLATE_DIR" ]] || { echo "Error: template not found: $TEMPLATE_NAME (looked in $TEMPLATE_DIR)"; exit 1; }
 [[ -f "$TEMPLATE_DIR/template.yaml" ]] || { echo "Error: template.yaml not found in $TEMPLATE_DIR"; exit 1; }
 ```
 
@@ -667,8 +668,8 @@ container:
   unprivileged: true
 
   features:
-    nesting: true
-    keyctl: true
+    - "nesting=1"
+    - "keyctl=1"
 
   network:
     bridge: vmbr0
