@@ -2,10 +2,6 @@ import { Box, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { ContainerCounts } from "@/lib/db";
 
-interface SummaryBarProps {
-  counts: ContainerCounts;
-}
-
 const stats = [
   {
     key: "total" as const,
@@ -48,9 +44,9 @@ const stats = [
  */
 interface SummaryBarWithProxmoxProps {
   counts: ContainerCounts;
-  /** Live running count from Proxmox (overrides DB creating count) */
+  /** Live running count from Proxmox status merge */
   running: number;
-  /** Live stopped count from Proxmox */
+  /** Live stopped count from Proxmox status merge */
   stopped: number;
 }
 

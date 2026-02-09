@@ -179,8 +179,8 @@ export function ContainerActions({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleStop}>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleStop} disabled={isPending}>
               Stop Container
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -202,9 +202,10 @@ export function ContainerActions({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
+              disabled={isPending}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
               Delete Container

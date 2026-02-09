@@ -5,7 +5,6 @@ import Link from "next/link";
 import { RefreshCw, Plus, WifiOff, Pause } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ContainerCard } from "./container-card";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";

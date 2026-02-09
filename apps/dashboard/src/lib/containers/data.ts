@@ -277,7 +277,14 @@ function mergeContainerStatus(
     status = "error";
   } else if (proxmox) {
     // Ready container with live Proxmox status
-    status = proxmox.status === "running" ? "running" : "stopped";
+    if (proxmox.status === "running") {
+      status = "running";
+    } else if (proxmox.status === "stopped") {
+      status = "stopped";
+    } else {
+      // Non-running, non-stopped states (e.g. paused, mounted)
+      status = "unknown";
+    }
   } else if (!proxmoxReachable) {
     // Proxmox API unreachable — can't determine status
     status = "unknown";

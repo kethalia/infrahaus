@@ -44,6 +44,7 @@ export function useAutoRefresh(
 
   const countdownRef = useRef(intervalSeconds);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -51,8 +52,8 @@ export function useAutoRefresh(
     // Reset countdown after refresh
     countdownRef.current = intervalSeconds;
     setCountdown(intervalSeconds);
-    // Brief delay to show refresh state
-    setTimeout(() => setIsRefreshing(false), 500);
+    // Brief delay to show refresh state — tracked in ref for cleanup
+    refreshTimeoutRef.current = setTimeout(() => setIsRefreshing(false), 500);
   }, [router, intervalSeconds]);
 
   const refreshNow = useCallback(() => {
@@ -77,6 +78,9 @@ export function useAutoRefresh(
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+      }
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
       }
     };
   }, [enabled, doRefresh]);

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "./status-badge";
 import { ContainerActions } from "./container-actions";
 import type { ContainerWithStatus } from "@/lib/containers/data";
+import type { ServiceStatus } from "@/generated/prisma/client";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -15,7 +16,7 @@ function formatBytes(bytes: number): string {
 }
 
 /** Color dot for service status */
-function ServiceDot({ status }: { status: string }) {
+function ServiceDot({ status }: { status: ServiceStatus }) {
   return (
     <span
       className={
