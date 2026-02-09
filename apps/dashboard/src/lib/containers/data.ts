@@ -298,6 +298,16 @@ export async function getContainerDetailData(
 
 /**
  * Merge a DB container record with Proxmox live status.
+ *
+ * Hostname resolution priority:
+ * 1. Proxmox live data (most current)
+ * 2. Database hostname field (fallback when Proxmox unreachable)
+ * 3. null (display as "CT {vmid}")
+ *
+ * Status resolution:
+ * - creating/error: from DB lifecycle
+ * - running/stopped: from Proxmox live data
+ * - unknown: Proxmox unreachable or container not found
  */
 function mergeContainerStatus(
   db: ContainerWithRelations | ContainerWithDetails,
@@ -329,8 +339,8 @@ function mergeContainerStatus(
     status = "unknown";
   }
 
-  // Extract hostname from Proxmox data or fallback
-  const hostname = proxmox?.name ?? null;
+  // Extract hostname from Proxmox data or fallback to DB stored hostname
+  const hostname = proxmox?.name || db.hostname || null;
 
   return {
     id: db.id,
