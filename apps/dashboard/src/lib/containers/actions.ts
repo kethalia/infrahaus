@@ -1,9 +1,10 @@
 "use server";
 
 /**
- * Container Creation Server Actions
+ * Container Server Actions
  *
- * Server actions for creating containers and fetching wizard initialization data.
+ * Server actions for creating containers, fetching wizard initialization data,
+ * and managing container lifecycle (start/stop/shutdown/restart/delete).
  * Uses authActionClient for authenticated access and next-safe-action patterns.
  */
 
@@ -11,7 +12,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { authActionClient, ActionError } from "@/lib/safe-action";
-import { DatabaseService, prisma } from "@/lib/db";
+import { DatabaseService, EventType, prisma } from "@/lib/db";
 import { encrypt } from "@/lib/encryption";
 import { getContainerCreationQueue } from "@/lib/queue/container-creation";
 import {
@@ -20,6 +21,15 @@ import {
   nodes as proxmoxNodes,
   templates as proxmoxTemplates,
 } from "@/lib/proxmox";
+import {
+  startContainer,
+  stopContainer,
+  shutdownContainer,
+  deleteContainer,
+  getContainer,
+} from "@/lib/proxmox/containers";
+import { waitForTask } from "@/lib/proxmox/tasks";
+import { getRedis } from "@/lib/redis";
 import { createContainerInputSchema } from "./schemas";
 
 // ============================================================================
@@ -485,4 +495,288 @@ export const createContainerAction = authActionClient
     revalidatePath("/containers");
 
     return { containerId: container.id };
+  });
+
+// ============================================================================
+// Lifecycle Server Actions
+// ============================================================================
+
+/** Shared input schema for lifecycle actions */
+const containerIdSchema = z.object({
+  containerId: z.string(),
+});
+
+/** Redis lock key prefix for container lifecycle operations */
+const LOCK_PREFIX = "container-lock:";
+
+/** Lock TTL in seconds — prevents stuck locks from blocking forever */
+const LOCK_TTL = 120;
+
+/**
+ * Acquire a Redis lock for a container. Prevents concurrent lifecycle
+ * actions on the same container.
+ * @returns true if lock acquired, false if already locked
+ */
+async function acquireContainerLock(containerId: string): Promise<boolean> {
+  const redis = getRedis();
+  const result = await redis.set(
+    `${LOCK_PREFIX}${containerId}`,
+    Date.now().toString(),
+    "EX",
+    LOCK_TTL,
+    "NX",
+  );
+  return result === "OK";
+}
+
+/**
+ * Release a Redis lock for a container.
+ */
+async function releaseContainerLock(containerId: string): Promise<void> {
+  const redis = getRedis();
+  await redis.del(`${LOCK_PREFIX}${containerId}`);
+}
+
+/**
+ * Get Proxmox client and node name for a given container.
+ * Returns the client, node name, and container VMID.
+ */
+async function getContainerContext(containerId: string) {
+  const container = await DatabaseService.getContainerById(containerId);
+  if (!container) {
+    throw new ActionError("Container not found");
+  }
+
+  const client = await getProxmoxClient();
+  return {
+    client,
+    nodeName: container.node.name,
+    vmid: container.vmid,
+    container,
+  };
+}
+
+/**
+ * Start a container.
+ * Validates the container is currently stopped before starting.
+ */
+export const startContainerAction = authActionClient
+  .schema(containerIdSchema)
+  .action(async ({ parsedInput: { containerId } }) => {
+    const locked = await acquireContainerLock(containerId);
+    if (!locked) {
+      throw new ActionError(
+        "Another operation is in progress on this container. Please wait.",
+      );
+    }
+
+    try {
+      const { client, nodeName, vmid } = await getContainerContext(containerId);
+
+      // Validate current state
+      const status = await getContainer(client, nodeName, vmid);
+      if (status.status === "running") {
+        throw new ActionError("Container is already running");
+      }
+
+      // Start the container
+      const upid = await startContainer(client, nodeName, vmid);
+      await waitForTask(client, nodeName, upid, { timeout: 60_000 });
+
+      // Create audit event
+      await DatabaseService.createContainerEvent({
+        containerId,
+        type: EventType.started,
+        message: `Container started (VMID ${vmid})`,
+      });
+
+      revalidatePath("/");
+      revalidatePath(`/containers/${containerId}`);
+
+      return { success: true as const };
+    } finally {
+      await releaseContainerLock(containerId);
+    }
+  });
+
+/**
+ * Stop a container (forceful).
+ * Validates the container is currently running before stopping.
+ */
+export const stopContainerAction = authActionClient
+  .schema(containerIdSchema)
+  .action(async ({ parsedInput: { containerId } }) => {
+    const locked = await acquireContainerLock(containerId);
+    if (!locked) {
+      throw new ActionError(
+        "Another operation is in progress on this container. Please wait.",
+      );
+    }
+
+    try {
+      const { client, nodeName, vmid } = await getContainerContext(containerId);
+
+      // Validate current state
+      const status = await getContainer(client, nodeName, vmid);
+      if (status.status === "stopped") {
+        throw new ActionError("Container is already stopped");
+      }
+
+      // Stop the container (forceful)
+      const upid = await stopContainer(client, nodeName, vmid);
+      await waitForTask(client, nodeName, upid, { timeout: 60_000 });
+
+      // Create audit event
+      await DatabaseService.createContainerEvent({
+        containerId,
+        type: EventType.stopped,
+        message: `Container stopped (VMID ${vmid})`,
+      });
+
+      revalidatePath("/");
+      revalidatePath(`/containers/${containerId}`);
+
+      return { success: true as const };
+    } finally {
+      await releaseContainerLock(containerId);
+    }
+  });
+
+/**
+ * Shutdown a container (graceful with force-stop fallback).
+ * Attempts graceful shutdown first, then falls back to force stop
+ * if the graceful shutdown times out.
+ */
+export const shutdownContainerAction = authActionClient
+  .schema(containerIdSchema)
+  .action(async ({ parsedInput: { containerId } }) => {
+    const locked = await acquireContainerLock(containerId);
+    if (!locked) {
+      throw new ActionError(
+        "Another operation is in progress on this container. Please wait.",
+      );
+    }
+
+    try {
+      const { client, nodeName, vmid } = await getContainerContext(containerId);
+
+      // Validate current state
+      const status = await getContainer(client, nodeName, vmid);
+      if (status.status === "stopped") {
+        throw new ActionError("Container is already stopped");
+      }
+
+      let method = "graceful";
+
+      try {
+        // Attempt graceful shutdown with 30s timeout
+        const upid = await shutdownContainer(client, nodeName, vmid, 30);
+        await waitForTask(client, nodeName, upid, { timeout: 45_000 });
+      } catch {
+        // Graceful shutdown failed or timed out — fall back to force stop
+        method = "forced";
+        const stopUpid = await stopContainer(client, nodeName, vmid);
+        await waitForTask(client, nodeName, stopUpid, { timeout: 60_000 });
+      }
+
+      // Create audit event
+      await DatabaseService.createContainerEvent({
+        containerId,
+        type: EventType.stopped,
+        message: `Container shutdown (${method}) (VMID ${vmid})`,
+      });
+
+      revalidatePath("/");
+      revalidatePath(`/containers/${containerId}`);
+
+      return { success: true as const, method };
+    } finally {
+      await releaseContainerLock(containerId);
+    }
+  });
+
+/**
+ * Restart a container.
+ * Stops the container (if running) then starts it.
+ */
+export const restartContainerAction = authActionClient
+  .schema(containerIdSchema)
+  .action(async ({ parsedInput: { containerId } }) => {
+    const locked = await acquireContainerLock(containerId);
+    if (!locked) {
+      throw new ActionError(
+        "Another operation is in progress on this container. Please wait.",
+      );
+    }
+
+    try {
+      const { client, nodeName, vmid } = await getContainerContext(containerId);
+
+      // Check current state
+      const status = await getContainer(client, nodeName, vmid);
+
+      // Stop first if running
+      if (status.status === "running") {
+        const stopUpid = await stopContainer(client, nodeName, vmid);
+        await waitForTask(client, nodeName, stopUpid, { timeout: 60_000 });
+      }
+
+      // Start the container
+      const startUpid = await startContainer(client, nodeName, vmid);
+      await waitForTask(client, nodeName, startUpid, { timeout: 60_000 });
+
+      // Create audit event
+      await DatabaseService.createContainerEvent({
+        containerId,
+        type: EventType.started,
+        message: `Container restarted (VMID ${vmid})`,
+      });
+
+      revalidatePath("/");
+      revalidatePath(`/containers/${containerId}`);
+
+      return { success: true as const };
+    } finally {
+      await releaseContainerLock(containerId);
+    }
+  });
+
+/**
+ * Delete a container.
+ * Stops the container if running, then removes from both Proxmox and database.
+ */
+export const deleteContainerAction = authActionClient
+  .schema(containerIdSchema)
+  .action(async ({ parsedInput: { containerId } }) => {
+    const locked = await acquireContainerLock(containerId);
+    if (!locked) {
+      throw new ActionError(
+        "Another operation is in progress on this container. Please wait.",
+      );
+    }
+
+    try {
+      const { client, nodeName, vmid } = await getContainerContext(containerId);
+
+      // Stop the container first if it's running
+      const status = await getContainer(client, nodeName, vmid);
+      if (status.status === "running") {
+        const stopUpid = await stopContainer(client, nodeName, vmid);
+        await waitForTask(client, nodeName, stopUpid, { timeout: 60_000 });
+      }
+
+      // Delete from Proxmox (with purge to clean up all data)
+      const deleteUpid = await deleteContainer(client, nodeName, vmid, true);
+      await waitForTask(client, nodeName, deleteUpid, { timeout: 120_000 });
+
+      // Delete from database (cascade handles services and events)
+      await DatabaseService.deleteContainerById(containerId);
+
+      revalidatePath("/");
+      revalidatePath("/containers");
+
+      return { success: true as const };
+    } finally {
+      await releaseContainerLock(containerId);
+    }
   });
