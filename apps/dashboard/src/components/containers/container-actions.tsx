@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { MoreHorizontal, Play, Square, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAction } from "next-safe-action/hooks";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -43,7 +44,6 @@ export function ContainerActions({
   vmid,
   status,
 }: ContainerActionsProps) {
-  const [isPending, startTransition] = useTransition();
   const [confirmDialog, setConfirmDialog] = useState<"stop" | "delete" | null>(
     null,
   );
@@ -51,74 +51,80 @@ export function ContainerActions({
   const displayName = hostname ?? `CT ${vmid}`;
   const isActionable = status === "running" || status === "stopped";
 
-  function handleStart() {
-    startTransition(async () => {
-      const result = await startContainerAction({ containerId });
-      if (result?.serverError) {
-        toast.error(`Failed to start ${displayName}`, {
-          description: result.serverError,
-        });
-      } else if (result?.validationErrors) {
-        toast.error(`Failed to start ${displayName}`, {
-          description: "Invalid request",
-        });
-      } else {
+  const { execute: executeStart, isPending: isStarting } = useAction(
+    startContainerAction,
+    {
+      onSuccess: () => {
         toast.success(`${displayName} started`);
-      }
-    });
+      },
+      onError: ({ error }) => {
+        toast.error(`Failed to start ${displayName}`, {
+          description: error.serverError ?? "An unexpected error occurred",
+        });
+      },
+    },
+  );
+
+  const { execute: executeStop, isPending: isStopping } = useAction(
+    stopContainerAction,
+    {
+      onSuccess: () => {
+        toast.success(`${displayName} stopped`);
+      },
+      onError: ({ error }) => {
+        toast.error(`Failed to stop ${displayName}`, {
+          description: error.serverError ?? "An unexpected error occurred",
+        });
+      },
+    },
+  );
+
+  const { execute: executeRestart, isPending: isRestarting } = useAction(
+    restartContainerAction,
+    {
+      onSuccess: () => {
+        toast.success(`${displayName} restarted`);
+      },
+      onError: ({ error }) => {
+        toast.error(`Failed to restart ${displayName}`, {
+          description: error.serverError ?? "An unexpected error occurred",
+        });
+      },
+    },
+  );
+
+  const { execute: executeDelete, isPending: isDeleting } = useAction(
+    deleteContainerAction,
+    {
+      onSuccess: () => {
+        toast.success(`${displayName} deleted`);
+      },
+      onError: ({ error }) => {
+        toast.error(`Failed to delete ${displayName}`, {
+          description: error.serverError ?? "An unexpected error occurred",
+        });
+      },
+    },
+  );
+
+  const isPending = isStarting || isStopping || isRestarting || isDeleting;
+
+  function handleStart() {
+    executeStart({ containerId });
   }
 
   function handleStop() {
     setConfirmDialog(null);
-    startTransition(async () => {
-      const result = await stopContainerAction({ containerId });
-      if (result?.serverError) {
-        toast.error(`Failed to stop ${displayName}`, {
-          description: result.serverError,
-        });
-      } else if (result?.validationErrors) {
-        toast.error(`Failed to stop ${displayName}`, {
-          description: "Invalid request",
-        });
-      } else {
-        toast.success(`${displayName} stopped`);
-      }
-    });
+    executeStop({ containerId });
   }
 
   function handleRestart() {
-    startTransition(async () => {
-      const result = await restartContainerAction({ containerId });
-      if (result?.serverError) {
-        toast.error(`Failed to restart ${displayName}`, {
-          description: result.serverError,
-        });
-      } else if (result?.validationErrors) {
-        toast.error(`Failed to restart ${displayName}`, {
-          description: "Invalid request",
-        });
-      } else {
-        toast.success(`${displayName} restarted`);
-      }
-    });
+    executeRestart({ containerId });
   }
 
   function handleDelete() {
     setConfirmDialog(null);
-    startTransition(async () => {
-      const result = await deleteContainerAction({ containerId });
-      if (result?.serverError) {
-        toast.error(`Failed to delete ${displayName}`, {
-          description: result.serverError,
-        });
-      } else if (result?.validationErrors) {
-        toast.error(`Failed to delete ${displayName}`, {
-          description: "Invalid request",
-        });
-      } else {
-        toast.success(`${displayName} deleted`);
-      }
-    });
+    executeDelete({ containerId });
   }
 
   return (
