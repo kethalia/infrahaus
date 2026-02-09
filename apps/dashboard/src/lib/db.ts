@@ -81,6 +81,30 @@ export type BucketWithPackages = PackageBucket & {
   packages: Package[];
 };
 
+/** Container with node, template, services, and latest events */
+export type ContainerWithRelations = Container & {
+  node: ProxmoxNode;
+  template: Template | null;
+  services: ContainerService[];
+  events: ContainerEvent[];
+};
+
+/** Container with ALL relations (full events list, all services, node, template) */
+export type ContainerWithDetails = Container & {
+  node: ProxmoxNode;
+  template: Template | null;
+  services: ContainerService[];
+  events: ContainerEvent[];
+};
+
+/** Aggregate counts of containers by lifecycle status */
+export interface ContainerCounts {
+  total: number;
+  creating: number;
+  ready: number;
+  error: number;
+}
+
 /** Input for creating a new template with all related data */
 export interface CreateTemplateInput {
   name: string;
@@ -681,6 +705,113 @@ export class DatabaseService {
   ): Promise<ContainerService[]> {
     return this.prisma.containerService.findMany({
       where: { containerId },
+    });
+  }
+
+  // ============================================================================
+  // Container Query Methods (Dashboard & Detail Page)
+  // ============================================================================
+
+  /**
+   * List all containers with relations (node, template, services, latest 3 events).
+   * Used by the dashboard page for container cards.
+   */
+  static async listContainersWithRelations(): Promise<
+    ContainerWithRelations[]
+  > {
+    return this.prisma.container.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        node: true,
+        template: true,
+        services: true,
+        events: {
+          orderBy: { createdAt: "desc" },
+          take: 3,
+        },
+      },
+    });
+  }
+
+  /**
+   * Get aggregate counts of containers by lifecycle status.
+   * Used by the dashboard summary bar.
+   */
+  static async getContainerCounts(): Promise<ContainerCounts> {
+    const [total, creating, ready, error] = await Promise.all([
+      this.prisma.container.count(),
+      this.prisma.container.count({ where: { lifecycle: "creating" } }),
+      this.prisma.container.count({ where: { lifecycle: "ready" } }),
+      this.prisma.container.count({ where: { lifecycle: "error" } }),
+    ]);
+
+    return { total, creating, ready, error };
+  }
+
+  /**
+   * Get a single container with ALL relations (full events, all services, node, template).
+   * Used by the container detail page.
+   */
+  static async getContainerWithDetails(
+    id: string,
+  ): Promise<ContainerWithDetails | null> {
+    return this.prisma.container.findUnique({
+      where: { id },
+      include: {
+        node: true,
+        template: true,
+        services: true,
+        events: {
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+  }
+
+  /**
+   * Delete a container by ID. Cascade delete handles services and events.
+   * Used by the delete action after removing from Proxmox.
+   */
+  static async deleteContainerById(id: string): Promise<void> {
+    // Prisma cascade should handle children, but explicitly delete to be safe
+    // since Container relations use onDelete: Cascade
+    await this.prisma.container.delete({ where: { id } });
+  }
+
+  /**
+   * Bulk-update service records for a container.
+   * Replaces all existing services with the provided updates.
+   * Used by service monitoring engine.
+   */
+  static async updateContainerServices(
+    containerId: string,
+    services: Array<{
+      name: string;
+      type: ServiceType;
+      port?: number;
+      webUrl?: string;
+      status?: ServiceStatus;
+      credentials?: string;
+    }>,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      // Delete existing services
+      await tx.containerService.deleteMany({ where: { containerId } });
+
+      // Create new service records
+      if (services.length > 0) {
+        await tx.containerService.createMany({
+          data: services.map((s) => ({
+            containerId,
+            name: s.name,
+            type: s.type,
+            port: s.port,
+            webUrl: s.webUrl,
+            status: s.status ?? "installing",
+            credentials: s.credentials,
+          })),
+        });
+      }
     });
   }
 }
