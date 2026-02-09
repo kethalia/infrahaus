@@ -58,19 +58,21 @@ Issues: #80, #81, #82
 
 ---
 
-### Phase 03.5: Auth Refactor — Multi-User DB Credentials
+### Phase 03.5: Infrastructure Refactor
 
-**Goal:** Replace env-var Proxmox auth with multi-user DB-stored credentials managed through a Settings UI
+**Goal:** Remove stored container passwords, cache VMIDs from Proxmox via Redis, and replace env-var auth with multi-user DB-stored credentials
 **Status:** Not started
 **Depends on:** Phase 03
 **Plans:** 0 plans
 
 Key deliverables:
 
+- Refactor monitoring engine to use `PctExecSession` (pct exec via Proxmox host) instead of direct SSH into containers
+- Remove `rootPassword` from Container model — no longer needed once monitoring uses pct exec
+- Drop password field from creation wizard (Proxmox API still sets it, but we don't store it)
+- Cache existing VMIDs from Proxmox nodes in Redis, revalidate on container create/delete
+- VMID picker in wizard pulls from cached node data instead of local DB unique constraint
 - Settings page to add/edit/delete Proxmox nodes with encrypted credentials
-- User authentication (local accounts or external identity provider)
-- Per-user node access control
-- Credentials encrypted at rest using existing `encrypt`/`decrypt` utils
 - Migrate `getProxmoxClient()` to resolve credentials from DB `ProxmoxNode` records
 - Remove dependency on `PVE_HOST`, `PVE_PORT`, `PVE_ROOT_PASSWORD` env vars
 - `ProxmoxNode` Prisma model already has `host`, `port`, `tokenId`, `tokenSecret` fields
