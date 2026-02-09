@@ -1,8 +1,17 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getContainersWithStatus } from "@/lib/containers/data";
+import { SummaryBar } from "@/components/containers/summary-bar";
+import { ContainerGrid } from "@/components/containers/container-grid";
 
-export default function Home() {
+export default async function DashboardPage() {
+  const { containers, counts, proxmoxReachable } =
+    await getContainersWithStatus();
+
+  // Compute live running/stopped counts from merged Proxmox data
+  const running = containers.filter((c) => c.status === "running").length;
+  const stopped = containers.filter((c) => c.status === "stopped").length;
+
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex flex-1 flex-col gap-6">
       <div>
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground">
@@ -10,37 +19,12 @@ export default function Home() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Containers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Active containers</p>
-          </CardContent>
-        </Card>
+      <SummaryBar counts={counts} running={running} stopped={stopped} />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Templates</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Available templates</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">Healthy</div>
-            <p className="text-xs text-muted-foreground">System status</p>
-          </CardContent>
-        </Card>
-      </div>
+      <ContainerGrid
+        containers={containers}
+        proxmoxReachable={proxmoxReachable}
+      />
     </div>
   );
 }
