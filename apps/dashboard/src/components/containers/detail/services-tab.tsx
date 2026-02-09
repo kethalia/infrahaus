@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import {
   RefreshCw,
   Globe,
@@ -13,6 +13,7 @@ import {
   ServerCog,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAction } from "next-safe-action/hooks";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -85,24 +86,22 @@ export function ServicesTab({
   services,
   status,
 }: ServicesTabProps) {
-  const [isPending, startTransition] = useTransition();
+  const { execute: executeRefresh, isPending } = useAction(
+    refreshContainerServicesAction,
+    {
+      onSuccess: () => {
+        toast.success("Services refreshed");
+      },
+      onError: ({ error }) => {
+        toast.error("Failed to refresh services", {
+          description: error.serverError ?? "An unexpected error occurred",
+        });
+      },
+    },
+  );
 
   function handleRefresh() {
-    startTransition(async () => {
-      const result = await refreshContainerServicesAction({ containerId });
-      if (
-        result &&
-        typeof result === "object" &&
-        "serverError" in result &&
-        result.serverError
-      ) {
-        toast.error("Failed to refresh services", {
-          description: result.serverError as string,
-        });
-      } else {
-        toast.success("Services refreshed");
-      }
-    });
+    executeRefresh({ containerId });
   }
 
   const isRunning = status === "running";

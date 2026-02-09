@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useAction } from "next-safe-action/hooks";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -49,7 +50,6 @@ export function ContainerHeader({
   status,
 }: ContainerHeaderProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [confirmDialog, setConfirmDialog] = useState<"stop" | "delete" | null>(
     null,
   );
@@ -57,84 +57,100 @@ export function ContainerHeader({
   const displayName = hostname ?? `CT ${vmid}`;
   const isActionable = status === "running" || status === "stopped";
 
-  function handleAction(
-    action: (input: { containerId: string }) => Promise<unknown>,
-    successMsg: string,
-    failMsg: string,
-  ) {
-    startTransition(async () => {
-      const result = (await action({ containerId })) as
-        | {
-            serverError?: string;
-            validationErrors?: unknown;
-          }
-        | undefined;
-      if (result?.serverError) {
-        toast.error(failMsg, { description: result.serverError });
-      } else if (result?.validationErrors) {
-        toast.error(failMsg, { description: "Invalid request" });
-      } else {
-        toast.success(successMsg);
-      }
-    });
-  }
+  const { execute: executeStart, isPending: isStarting } = useAction(
+    startContainerAction,
+    {
+      onSuccess: () => {
+        toast.success(`${displayName} started`);
+      },
+      onError: ({ error }) => {
+        toast.error(`Failed to start ${displayName}`, {
+          description: error.serverError ?? "An unexpected error occurred",
+        });
+      },
+    },
+  );
+
+  const { execute: executeStop, isPending: isStopping } = useAction(
+    stopContainerAction,
+    {
+      onSuccess: () => {
+        toast.success(`${displayName} stopped`);
+      },
+      onError: ({ error }) => {
+        toast.error(`Failed to stop ${displayName}`, {
+          description: error.serverError ?? "An unexpected error occurred",
+        });
+      },
+    },
+  );
+
+  const { execute: executeShutdown, isPending: isShuttingDown } = useAction(
+    shutdownContainerAction,
+    {
+      onSuccess: () => {
+        toast.success(`${displayName} shut down`);
+      },
+      onError: ({ error }) => {
+        toast.error(`Failed to shut down ${displayName}`, {
+          description: error.serverError ?? "An unexpected error occurred",
+        });
+      },
+    },
+  );
+
+  const { execute: executeRestart, isPending: isRestarting } = useAction(
+    restartContainerAction,
+    {
+      onSuccess: () => {
+        toast.success(`${displayName} restarted`);
+      },
+      onError: ({ error }) => {
+        toast.error(`Failed to restart ${displayName}`, {
+          description: error.serverError ?? "An unexpected error occurred",
+        });
+      },
+    },
+  );
+
+  const { execute: executeDelete, isPending: isDeleting } = useAction(
+    deleteContainerAction,
+    {
+      onSuccess: () => {
+        toast.success(`${displayName} deleted`);
+        router.push("/");
+      },
+      onError: ({ error }) => {
+        toast.error(`Failed to delete ${displayName}`, {
+          description: error.serverError ?? "An unexpected error occurred",
+        });
+      },
+    },
+  );
+
+  const isPending =
+    isStarting || isStopping || isShuttingDown || isRestarting || isDeleting;
 
   function handleStart() {
-    handleAction(
-      startContainerAction,
-      `${displayName} started`,
-      `Failed to start ${displayName}`,
-    );
+    executeStart({ containerId });
   }
 
   function handleStop() {
     setConfirmDialog(null);
-    handleAction(
-      stopContainerAction,
-      `${displayName} stopped`,
-      `Failed to stop ${displayName}`,
-    );
+    executeStop({ containerId });
   }
 
   function handleShutdown() {
-    setConfirmDialog(null);
-    handleAction(
-      shutdownContainerAction,
-      `${displayName} shut down`,
-      `Failed to shut down ${displayName}`,
-    );
+    executeShutdown({ containerId });
   }
 
   function handleRestart() {
-    handleAction(
-      restartContainerAction,
-      `${displayName} restarted`,
-      `Failed to restart ${displayName}`,
-    );
+    executeRestart({ containerId });
   }
 
   function handleDelete() {
     setConfirmDialog(null);
-    startTransition(async () => {
-      const result = (await deleteContainerAction({ containerId })) as
-        | {
-            serverError?: string;
-            validationErrors?: unknown;
-          }
-        | undefined;
-      if (result?.serverError) {
-        toast.error(`Failed to delete ${displayName}`, {
-          description: result.serverError,
-        });
-      } else if (result?.validationErrors) {
-        toast.error(`Failed to delete ${displayName}`, {
-          description: "Invalid request",
-        });
-      } else {
-        toast.success(`${displayName} deleted`);
-        router.push("/");
-      }
-    });
+    executeDelete({ containerId });
   }
 
   return (
@@ -235,8 +251,8 @@ export function ContainerHeader({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleStop}>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleStop} disabled={isPending}>
               Stop Container
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -258,9 +274,10 @@ export function ContainerHeader({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
+              disabled={isPending}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
               Delete Container
