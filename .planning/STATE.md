@@ -6,7 +6,7 @@
 **Phase:** 04-container-management — In progress
 **Plan:** 2 of 4 in current phase
 **Status:** In progress
-**Last activity:** 2026-02-09 — Completed 04-01-PLAN.md
+**Last activity:** 2026-02-09 — Completed 04-01-PLAN.md and 04-02-PLAN.md
 
 Progress: ███████░░░ 74% (14/19 plans)
 
@@ -121,7 +121,7 @@ Progress: ███████░░░ 74% (14/19 plans)
 - Terminal state shortcircuit: if container is ready/error, replay and close without Redis subscription
 - Services fetched on completion via /api/containers/[id]/services rather than embedded in SSE stream
 - Monitoring: batch systemctl show for efficiency; port 22 filtered from discovery; error-in-result pattern (never throws)
-- Redis NX+EX lock (120s TTL) prevents concurrent lifecycle actions on same container
+- Redis NX+EX lock (300s TTL, ownership token + Lua compare-and-delete) prevents concurrent lifecycle actions on same container
 - Shutdown: 30s graceful timeout, fallback to force stop
 - Delete: purge=true on Proxmox API, then cascade delete in DB
 
@@ -145,5 +145,5 @@ Progress: ███████░░░ 74% (14/19 plans)
 ## Session Continuity
 
 Last session: 2026-02-09T07:27:53Z
-Stopped at: Completed 04-01-PLAN.md
+Stopped at: Completed 04-01-PLAN.md and 04-02-PLAN.md
 Resume file: None
