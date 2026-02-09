@@ -97,7 +97,6 @@ export function ContainerDetail({
             containerId={container.id}
             services={container.servicesWithCredentials}
             status={container.status}
-            nodeHost={container.node.host}
           />
         </TabsContent>
 

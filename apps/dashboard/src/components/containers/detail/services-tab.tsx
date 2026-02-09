@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { ContainerStatus } from "@/lib/containers/data";
+import type { ServiceType, ServiceStatus } from "@/generated/prisma/client";
 import { refreshContainerServicesAction } from "@/lib/containers/actions";
 
 // ============================================================================
@@ -34,10 +35,10 @@ import { refreshContainerServicesAction } from "@/lib/containers/actions";
 interface ServiceWithCredentials {
   id: string;
   name: string;
-  type: string;
+  type: ServiceType;
   port: number | null;
   webUrl: string | null;
-  status: string;
+  status: ServiceStatus;
   credentials: Record<string, string> | null;
 }
 
@@ -45,7 +46,6 @@ interface ServicesTabProps {
   containerId: string;
   services: ServiceWithCredentials[];
   status: ContainerStatus;
-  nodeHost: string;
 }
 
 // ============================================================================

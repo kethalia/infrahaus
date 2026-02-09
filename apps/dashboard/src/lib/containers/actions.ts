@@ -913,10 +913,10 @@ export const refreshContainerServicesAction = authActionClient
     // Build service records from monitoring data
     const serviceRecords: Array<{
       name: string;
-      type: "systemd" | "docker" | "process";
+      type: (typeof ServiceType)[keyof typeof ServiceType];
       port?: number;
       webUrl?: string;
-      status?: "installing" | "running" | "stopped" | "error";
+      status?: (typeof ServiceStatus)[keyof typeof ServiceStatus];
       credentials?: string;
     }> = [];
 
@@ -938,14 +938,12 @@ export const refreshContainerServicesAction = authActionClient
 
       serviceRecords.push({
         name: svc.name,
-        type: ServiceType.systemd as "systemd",
+        type: ServiceType.systemd,
         port: portInfo?.port,
         webUrl: portInfo?.port
           ? `http://${containerIp}:${portInfo.port}`
           : undefined,
-        status: svc.active
-          ? (ServiceStatus.running as "running")
-          : (ServiceStatus.stopped as "stopped"),
+        status: svc.active ? ServiceStatus.running : ServiceStatus.stopped,
         credentials: credentialsJson,
       });
     }
@@ -958,10 +956,10 @@ export const refreshContainerServicesAction = authActionClient
       if (!knownPorts.has(port.port)) {
         serviceRecords.push({
           name: port.process || `port-${port.port}`,
-          type: ServiceType.process as "process",
+          type: ServiceType.process,
           port: port.port,
           webUrl: `http://${containerIp}:${port.port}`,
-          status: ServiceStatus.running as "running",
+          status: ServiceStatus.running,
         });
       }
     }

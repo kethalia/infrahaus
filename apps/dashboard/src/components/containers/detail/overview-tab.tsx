@@ -9,7 +9,6 @@ import {
   Server,
   Shield,
   Tag,
-  ArrowUpDown,
   Monitor,
 } from "lucide-react";
 
@@ -315,18 +314,6 @@ export function OverviewTab({ container }: OverviewTabProps) {
                 formatValue={formatBytes}
                 formatMax={formatBytes}
               />
-
-              {/* Swap */}
-              {resources.maxmem > 0 && (
-                <ResourceBar
-                  icon={<HardDrive className="size-3.5" />}
-                  label="Swap"
-                  value={0}
-                  max={resources.maxmem}
-                  formatValue={formatBytes}
-                  formatMax={formatBytes}
-                />
-              )}
 
               {/* Disk */}
               <ResourceBar
