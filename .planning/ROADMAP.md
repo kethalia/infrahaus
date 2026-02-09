@@ -94,8 +94,8 @@ Plans:
 - [x] 04-02-PLAN.md — Service monitoring engine (SSH-based service/port/credential checks)
 - [x] 04-03-PLAN.md — Container dashboard page (summary bar, container cards, filters, auto-refresh)
 - [x] 04-04-PLAN.md — Container detail page (/containers/[id] with Overview, Services, Events tabs)
-- [ ] 04-05-PLAN.md — Gap closure: Fix Zod validation for Proxmox boolean fields (ha.managed, template, onboot, etc.)
-- [ ] 04-06-PLAN.md — Gap closure: Add hostname persistence and graceful unknown status handling in detail header
+- [x] 04-05-PLAN.md — Gap closure: Fix Zod validation for Proxmox boolean fields (ha.managed, template, onboot, etc.)
+- [x] 04-06-PLAN.md — Gap closure: Add hostname persistence and graceful unknown status handling in detail header
 
 Issues: #83, #84, #85, #86
 

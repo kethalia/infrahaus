@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04-container-management — Complete
-**Plan:** 4 of 4 in current phase
+**Plan:** 6 of 6 in current phase
 **Status:** Phase complete
-**Last activity:** 2026-02-09 — Completed 04-04-PLAN.md
+**Last activity:** 2026-02-09 — Completed 04-06-PLAN.md (gap closure)
 
-Progress: ████████░░ 84% (16/19 plans)
+Progress: █████████░ 89% (17/19 plans)
 
 ## Completed Work
 
@@ -37,12 +37,16 @@ Progress: ████████░░ 84% (16/19 plans)
 **04-02 — Service monitoring engine** ✓
 **04-03 — Container dashboard page** ✓
 **04-04 — Container detail page** ✓
+**04-05 — Gap closure: Zod boolean field fix** ✓
+**04-06 — Gap closure: Hostname persistence and graceful degradation** ✓
 
 - Container detail page at /containers/[id] with Overview, Services, Events tabs
 - refreshContainerServicesAction wiring SSH monitoring → DB
 - Full lifecycle action buttons in header with AlertDialog for destructive actions
 - Server-side credential decryption for per-service credential reveal
 - 30s auto-refresh, event timeline with filters, resource usage bars
+- Hostname persistence in database with Proxmox fallback
+- Graceful UI degradation when Proxmox API unreachable
 
 ## Decisions Made
 
@@ -85,6 +89,9 @@ Progress: ████████░░ 84% (16/19 plans)
 - Full lifecycle buttons in detail header (not dropdown) for better UX
 - Server-side credential decryption in getContainerDetailData
 - Dynamic imports for monitoring/encryption in refreshContainerServicesAction
+- Hostname fallback chain: Proxmox live data > DB hostname field > null display
+- Show disabled buttons with tooltips rather than hiding when Proxmox unreachable
+- Delete remains enabled when Proxmox down (DB deletion works independently)
 
 ## Pending Work
 
@@ -104,6 +111,6 @@ Progress: ████████░░ 84% (16/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-09T07:46:25Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-02-09T20:26:46Z
+Stopped at: Completed 04-06-PLAN.md
 Resume file: None
