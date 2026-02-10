@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MoreHorizontal, Play, Square, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAction } from "next-safe-action/hooks";
@@ -36,6 +36,7 @@ interface ContainerActionsProps {
   hostname: string | null;
   vmid: number;
   status: ContainerStatus;
+  onPendingChange?: (isPending: boolean) => void;
 }
 
 export function ContainerActions({
@@ -108,6 +109,10 @@ export function ContainerActions({
   );
 
   const isPending = isStarting || isStopping || isRestarting || isDeleting;
+
+  useEffect(() => {
+    onPendingChange?.(isPending);
+  }, [isPending, onPendingChange]);
 
   function handleStart() {
     executeStart({ containerId });

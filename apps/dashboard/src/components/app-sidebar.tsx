@@ -44,11 +44,6 @@ const navItems = [
     icon: Package2,
   },
   {
-    title: "Containers",
-    href: "/containers",
-    icon: Box,
-  },
-  {
     title: "Settings",
     href: "/settings",
     icon: Settings,
