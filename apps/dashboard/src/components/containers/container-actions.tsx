@@ -36,7 +36,7 @@ interface ContainerActionsProps {
   hostname: string | null;
   vmid: number;
   status: ContainerStatus;
-  onPendingChange?: (isPending: boolean) => void;
+  onPendingChange?: (containerId: string, isPending: boolean) => void;
 }
 
 export function ContainerActions({
@@ -112,8 +112,8 @@ export function ContainerActions({
   const isPending = isStarting || isStopping || isRestarting || isDeleting;
 
   useEffect(() => {
-    onPendingChange?.(isPending);
-  }, [isPending, onPendingChange]);
+    onPendingChange?.(containerId, isPending);
+  }, [containerId, isPending, onPendingChange]);
 
   function handleStart() {
     executeStart({ containerId });

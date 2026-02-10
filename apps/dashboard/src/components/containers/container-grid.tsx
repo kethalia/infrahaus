@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { RefreshCw, Plus, WifiOff, Pause } from "lucide-react";
 
@@ -44,17 +44,20 @@ export function ContainerGrid({
       ? containers
       : containers.filter((c) => c.status === filter);
 
-  const handlePendingChange = (containerId: string, isPending: boolean) => {
-    setPendingContainers((prev) => {
-      const next = new Set(prev);
-      if (isPending) {
-        next.add(containerId);
-      } else {
-        next.delete(containerId);
-      }
-      return next;
-    });
-  };
+  const handlePendingChange = useCallback(
+    (containerId: string, isPending: boolean) => {
+      setPendingContainers((prev) => {
+        const next = new Set(prev);
+        if (isPending) {
+          next.add(containerId);
+        } else {
+          next.delete(containerId);
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -122,9 +125,7 @@ export function ContainerGrid({
               key={container.id}
               container={container}
               isActionPending={pendingContainers.has(container.id)}
-              onPendingChange={(isPending) =>
-                handlePendingChange(container.id, isPending)
-              }
+              onPendingChange={handlePendingChange}
             />
           ))}
         </div>

@@ -29,7 +29,7 @@ function ServiceDot({ status }: { status: ServiceStatus }) {
 interface ContainerCardProps {
   container: ContainerWithStatus;
   isActionPending?: boolean;
-  onPendingChange?: (isPending: boolean) => void;
+  onPendingChange?: (containerId: string, isPending: boolean) => void;
 }
 
 export function ContainerCard({
