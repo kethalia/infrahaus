@@ -169,8 +169,9 @@ export async function getContainersWithStatus(): Promise<DashboardData> {
             uptime: c.uptime ?? 0,
             name: c.name ?? null,
           }));
-        } catch {
+        } catch (error) {
           // Node-level failure — continue with other nodes
+          console.error(`Node ${node.node} container list failed:`, error);
           return [];
         }
       }),
@@ -192,8 +193,9 @@ export async function getContainersWithStatus(): Promise<DashboardData> {
         });
       }
     }
-  } catch {
+  } catch (error) {
     // Proxmox API completely unreachable
+    console.error("Proxmox API unreachable:", error);
     proxmoxReachable = false;
   }
 
@@ -240,7 +242,11 @@ export async function getContainerDetailData(
       ]);
       proxmoxStatus = status;
       proxmoxConfig = config;
-    } catch {
+    } catch (error) {
+      console.error(
+        `Container ${dbContainer.vmid} detail fetch failed:`,
+        error,
+      );
       proxmoxReachable = false;
     }
   }
@@ -259,8 +265,9 @@ export async function getContainerDetailData(
       try {
         const decrypted = decrypt(s.credentials);
         credentials = parseKeyValueString(decrypted);
-      } catch {
+      } catch (error) {
         // Decryption or parse failure — skip credentials
+        console.error("Credential decryption failed for service:", s.id, error);
         credentials = null;
       }
     }
