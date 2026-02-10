@@ -83,12 +83,11 @@ Plans:
 
 ---
 
-### Phase 04: Container Management (Gap Closure) ✓
+### Phase 04: Container Management (Gap Closure)
 
 **Goal:** Users can monitor and control container lifecycle with a dashboard overview
-**Status:** Complete
-**Completed:** 2026-02-10
-**Plans:** 6 plans
+**Status:** In Progress (gap closure)
+**Plans:** 7 plans
 
 Plans:
 
@@ -98,6 +97,7 @@ Plans:
 - [x] 04-04-PLAN.md — Container detail page (/containers/[id] with Overview, Services, Events tabs)
 - [x] 04-05-PLAN.md — Gap closure: Fix navigation redundancy and add Create Container button; add card-level loading indicators
 - [x] 04-06-PLAN.md — Gap closure: Fix ha.managed schema validation and add Proxmox error logging
+- [ ] 04-07-PLAN.md — Gap closure: Regenerate Prisma Client and add postinstall hook to prevent schema drift
 
 Issues: #83, #84, #85, #86
 
