@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04-container-management — Complete
-**Plan:** 7 of 7 in current phase
+**Plan:** 8 of 8 in current phase
 **Status:** Phase 04 complete - ready for Phase 05
-**Last activity:** 2026-02-10 — Completed 04-07-PLAN.md (Prisma Client regeneration)
+**Last activity:** 2026-02-10 — Completed 04-08-PLAN.md (Database migration for hostname column)
 
-Progress: ██████████ 95% (18/19 plans)
+Progress: ███████████ 100% (19/19 plans)
 
 ## Completed Work
 
@@ -40,6 +40,7 @@ Progress: ██████████ 95% (18/19 plans)
 **04-05 — UAT navigation and loading fixes** ✓
 **04-06 — UAT gap closure: Schema fixes and error logging** ✓
 **04-07 — UAT gap closure: Prisma Client regeneration** ✓
+**04-08 — UAT gap closure: Database migration for hostname column** ✓
 
 - Container detail page at /containers/[id] with Overview, Services, Events tabs
 - refreshContainerServicesAction wiring SSH monitoring → DB
@@ -56,6 +57,9 @@ Progress: ██████████ 95% (18/19 plans)
 - **Gap closure fixes (04-07):**
   - Regenerated Prisma Client with hostname field to fix container creation validation errors
   - Added postinstall hook to prevent future schema/client drift
+- **Gap closure fixes (04-08):**
+  - Applied Prisma migration to add hostname column to PostgreSQL database
+  - Complete schema sync achieved: Prisma schema ↔ Prisma Client ↔ PostgreSQL database
 
 ## Decisions Made
 
@@ -99,6 +103,7 @@ Progress: ██████████ 95% (18/19 plans)
 - Server-side credential decryption in getContainerDetailData
 - Dynamic imports for monitoring/encryption in refreshContainerServicesAction
 - postinstall hook runs `prisma generate` to prevent schema/client drift (after install, branch switch, CI/CD)
+- prisma migrate resolve for baselining existing database schema before applying new migrations
 
 ## Pending Work
 
@@ -118,6 +123,6 @@ Progress: ██████████ 95% (18/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-10T06:50:03Z
-Stopped at: Completed 04-07-PLAN.md (Prisma Client regeneration)
+Last session: 2026-02-10T07:16:36Z
+Stopped at: Completed 04-08-PLAN.md (Database migration for hostname column)
 Resume file: None
