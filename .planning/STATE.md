@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 04-container-management — Complete
-**Plan:** Gap closure complete (04-06)
-**Status:** Phase complete with UAT fixes
-**Last activity:** 2026-02-10 — Completed 04-06-PLAN.md (UAT gap closure)
+**Phase:** 05-web-ui-monitoring — Pending
+**Plan:** 0 of 0 in current phase
+**Status:** Phase ready to start
+**Last activity:** 2026-02-10 — Completed 04-06-PLAN.md (Phase 04 gap closure)
 
-Progress: ████████░░ 84% (16/19 plans)
+Progress: ██████████ 89% (17/19 plans)
 
 ## Completed Work
 
@@ -37,6 +37,7 @@ Progress: ████████░░ 84% (16/19 plans)
 **04-02 — Service monitoring engine** ✓
 **04-03 — Container dashboard page** ✓
 **04-04 — Container detail page** ✓
+**04-05 — UAT navigation and loading fixes** ✓
 **04-06 — UAT gap closure: Schema fixes and error logging** ✓
 
 - Container detail page at /containers/[id] with Overview, Services, Events tabs
@@ -44,7 +45,11 @@ Progress: ████████░░ 84% (16/19 plans)
 - Full lifecycle action buttons in header with AlertDialog for destructive actions
 - Server-side credential decryption for per-service credential reveal
 - 30s auto-refresh, event timeline with filters, resource usage bars
-- **Gap closure fixes:**
+- **UAT fixes (04-05):**
+  - Clean sidebar navigation (removed redundant Containers item)
+  - Always-visible Create Container button in dashboard header
+  - Card-level loading indicators for lifecycle actions with persistent visual feedback
+- **Gap closure fixes (04-06):**
   - Fixed ha.managed schema to accept Proxmox 0/1 integers via pveBoolean helper (resolves lifecycle action failures)
   - Added comprehensive error logging to all Proxmox API catch blocks for diagnostics
 

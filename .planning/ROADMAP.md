@@ -83,11 +83,12 @@ Plans:
 
 ---
 
-### Phase 04: Container Management (Gap Closure)
+### Phase 04: Container Management (Gap Closure) ✓
 
 **Goal:** Users can monitor and control container lifecycle with a dashboard overview
-**Status:** Gap closure in progress
-**Plans:** 6 plans (4 complete, 2 gap closure)
+**Status:** Complete
+**Completed:** 2026-02-10
+**Plans:** 6 plans
 
 Plans:
 
@@ -95,8 +96,8 @@ Plans:
 - [x] 04-02-PLAN.md — Service monitoring engine (SSH-based service/port/credential checks)
 - [x] 04-03-PLAN.md — Container dashboard page (summary bar, container cards, filters, auto-refresh)
 - [x] 04-04-PLAN.md — Container detail page (/containers/[id] with Overview, Services, Events tabs)
-- [ ] 04-05-PLAN.md — Gap closure: Fix navigation redundancy and add Create Container button; add card-level loading indicators
-- [ ] 04-06-PLAN.md — Gap closure: Fix ha.managed schema validation and add Proxmox error logging
+- [x] 04-05-PLAN.md — Gap closure: Fix navigation redundancy and add Create Container button; add card-level loading indicators
+- [x] 04-06-PLAN.md — Gap closure: Fix ha.managed schema validation and add Proxmox error logging
 
 Issues: #83, #84, #85, #86
 
