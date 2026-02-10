@@ -32,6 +32,9 @@ export function ContainerGrid({
   proxmoxReachable,
 }: ContainerGridProps) {
   const [filter, setFilter] = useState<FilterStatus>("all");
+  const [pendingContainers, setPendingContainers] = useState<Set<string>>(
+    new Set(),
+  );
   const { countdown, isPaused, refreshNow, isRefreshing } = useAutoRefresh({
     intervalSeconds: 30,
   });
@@ -40,6 +43,18 @@ export function ContainerGrid({
     filter === "all"
       ? containers
       : containers.filter((c) => c.status === filter);
+
+  const handlePendingChange = (containerId: string, isPending: boolean) => {
+    setPendingContainers((prev) => {
+      const next = new Set(prev);
+      if (isPending) {
+        next.add(containerId);
+      } else {
+        next.delete(containerId);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -103,7 +118,14 @@ export function ContainerGrid({
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((container) => (
-            <ContainerCard key={container.id} container={container} />
+            <ContainerCard
+              key={container.id}
+              container={container}
+              isActionPending={pendingContainers.has(container.id)}
+              onPendingChange={(isPending) =>
+                handlePendingChange(container.id, isPending)
+              }
+            />
           ))}
         </div>
       )}
