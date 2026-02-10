@@ -9,14 +9,17 @@ source:
     04-04-SUMMARY.md,
     04-05-SUMMARY.md,
     04-06-SUMMARY.md,
+    04-07-SUMMARY.md,
   ]
 started: 2026-02-10T16:00:00Z
-updated: 2026-02-10T06:40:17Z
+updated: 2026-02-10T07:01:16Z
 ---
 
 ## Current Test
 
 [testing stopped - blocker issue found]
+
+NOTE: Found a second blocker after fixing the first. Plan 04-07 fixed Prisma Client sync, but now discovered the database itself is missing the hostname column. Need database migration.
 
 ## Tests
 
@@ -59,7 +62,7 @@ result: pass
 
 expected: Click on a container card. Navigates to /containers/[id] detail page showing container header with action buttons and three tabs (Overview, Services, Events)
 result: issue
-reported: "i dont have any containers to test so i went to create one. I got this error: [next] Invalid `prisma.container.create()` invocation: Unknown argument `hostname`. Available options are marked with ?. The schema validation shows hostname field doesn't exist in Container model but the creation wizard still tries to use it."
+reported: "After fixing Prisma Client sync, now getting: [next] Invalid `prisma.container.create()` invocation: The column `hostname` does not exist in the current database. The Prisma schema has the field and client is regenerated, but the database table is missing the column."
 severity: blocker
 
 ### 9. Container Detail Overview Tab
@@ -139,16 +142,16 @@ skipped: 0
 
 - truth: "Click on a container card. Navigates to /containers/[id] detail page showing container header with action buttons and three tabs (Overview, Services, Events)"
   status: failed
-  reason: "User reported: i dont have any containers to test so i went to create one. I got this error: [next] Invalid `prisma.container.create()` invocation: Unknown argument `hostname`. Available options are marked with ?. The schema validation shows hostname field doesn't exist in Container model but the creation wizard still tries to use it."
+  reason: "User reported: After fixing Prisma Client sync, now getting: [next] Invalid `prisma.container.create()` invocation: The column `hostname` does not exist in the current database. The Prisma schema has the field and client is regenerated, but the database table is missing the column."
   severity: blocker
   test: 8
-  root_cause: "Prisma Client out of sync with schema. The schema.prisma file contains `hostname String?` field but the generated Prisma Client doesn't recognize it. This happens when the schema is modified but `prisma generate` was not run to regenerate the client."
+  root_cause: "Database schema out of sync with Prisma schema. The schema.prisma has `hostname String?` field and Prisma Client is regenerated (Plan 04-07 fixed that), but the actual PostgreSQL database table is missing the `hostname` column. A migration needs to be created and applied."
   artifacts:
   - path: "apps/dashboard/prisma/schema.prisma"
-    issue: "Schema has hostname field but client doesn't"
-  - path: "apps/dashboard/src/lib/containers/actions.ts"
-    issue: "Uses hostname field that doesn't exist in generated client"
+    issue: "Schema has hostname field but database doesn't"
+  - path: "apps/dashboard/prisma/migrations/"
+    issue: "Missing migration to add hostname column"
     missing:
-  - "Run `pnpm prisma generate` in apps/dashboard to regenerate Prisma Client"
-  - "Ensure dev/build scripts include prisma generate step"
+  - "Create migration: `prisma migrate dev --name add_hostname_to_container`"
+  - "Apply migration to database"
     debug_session: ""
