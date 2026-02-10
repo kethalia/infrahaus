@@ -32,6 +32,7 @@ export function ContainerDetail({
         hostname={container.hostname}
         vmid={container.vmid}
         status={container.status}
+        proxmoxReachable={proxmoxReachable}
       />
 
       {/* Proxmox unreachable warning */}

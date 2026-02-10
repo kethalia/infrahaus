@@ -47,6 +47,7 @@ interface ContainerHeaderProps {
   hostname: string | null;
   vmid: number;
   status: ContainerStatus;
+  proxmoxReachable: boolean;
 }
 
 export function ContainerHeader({
@@ -54,6 +55,7 @@ export function ContainerHeader({
   hostname,
   vmid,
   status,
+  proxmoxReachable,
 }: ContainerHeaderProps) {
   const router = useRouter();
   const [confirmDialog, setConfirmDialog] = useState<"stop" | "delete" | null>(
@@ -61,9 +63,7 @@ export function ContainerHeader({
   );
 
   const displayName = hostname ?? `CT ${vmid}`;
-  const isActionable =
-    status === "running" || status === "stopped" || status === "unknown";
-  const isProxmoxUnreachable = status === "unknown";
+  const isProxmoxUnreachable = !proxmoxReachable;
 
   const { execute: executeStart, isPending: isStarting } = useAction(
     startContainerAction,
@@ -193,16 +193,18 @@ export function ContainerHeader({
             {/* Start Button */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  onClick={handleStart}
-                  disabled={
-                    isPending || status !== "stopped" || isProxmoxUnreachable
-                  }
-                >
-                  <Play className="size-4" />
-                  Start
-                </Button>
+                <span>
+                  <Button
+                    size="sm"
+                    onClick={handleStart}
+                    disabled={
+                      isPending || status !== "stopped" || isProxmoxUnreachable
+                    }
+                  >
+                    <Play className="size-4" />
+                    Start
+                  </Button>
+                </span>
               </TooltipTrigger>
               {isProxmoxUnreachable && (
                 <TooltipContent>
@@ -214,17 +216,19 @@ export function ContainerHeader({
             {/* Shutdown Button */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleShutdown}
-                  disabled={
-                    isPending || status !== "running" || isProxmoxUnreachable
-                  }
-                >
-                  <Power className="size-4" />
-                  Shutdown
-                </Button>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleShutdown}
+                    disabled={
+                      isPending || status !== "running" || isProxmoxUnreachable
+                    }
+                  >
+                    <Power className="size-4" />
+                    Shutdown
+                  </Button>
+                </span>
               </TooltipTrigger>
               {isProxmoxUnreachable && (
                 <TooltipContent>
@@ -236,17 +240,19 @@ export function ContainerHeader({
             {/* Stop Button */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setConfirmDialog("stop")}
-                  disabled={
-                    isPending || status !== "running" || isProxmoxUnreachable
-                  }
-                >
-                  <Square className="size-4" />
-                  Stop
-                </Button>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmDialog("stop")}
+                    disabled={
+                      isPending || status !== "running" || isProxmoxUnreachable
+                    }
+                  >
+                    <Square className="size-4" />
+                    Stop
+                  </Button>
+                </span>
               </TooltipTrigger>
               {isProxmoxUnreachable && (
                 <TooltipContent>
@@ -258,17 +264,19 @@ export function ContainerHeader({
             {/* Restart Button */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRestart}
-                  disabled={
-                    isPending || status !== "running" || isProxmoxUnreachable
-                  }
-                >
-                  <RotateCcw className="size-4" />
-                  Restart
-                </Button>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRestart}
+                    disabled={
+                      isPending || status !== "running" || isProxmoxUnreachable
+                    }
+                  >
+                    <RotateCcw className="size-4" />
+                    Restart
+                  </Button>
+                </span>
               </TooltipTrigger>
               {isProxmoxUnreachable && (
                 <TooltipContent>

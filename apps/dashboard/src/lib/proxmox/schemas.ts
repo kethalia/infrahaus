@@ -71,7 +71,10 @@ export const NodeStatusSchema = z.object({
 // ============================================================================
 
 // Proxmox returns booleans as 0/1 integers — coerce to proper booleans
-const pveBoolean = z.union([z.boolean(), z.number()]).transform((v) => !!v);
+// Strictly validate only 0, 1, or boolean to catch unexpected API responses
+const pveBoolean = z
+  .union([z.boolean(), z.literal(0), z.literal(1)])
+  .transform((v) => v === true || v === 1);
 
 export const ContainerSchema = z.object({
   vmid: z.number(),
