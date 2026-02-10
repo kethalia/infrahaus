@@ -70,6 +70,9 @@ export const NodeStatusSchema = z.object({
 // Container (LXC)
 // ============================================================================
 
+// Proxmox returns booleans as 0/1 integers — coerce to proper booleans
+const pveBoolean = z.union([z.boolean(), z.number()]).transform((v) => !!v);
+
 export const ContainerSchema = z.object({
   vmid: z.number(),
   status: z.enum(["running", "stopped", "mounted", "paused"]),
@@ -141,7 +144,7 @@ export const ContainerStatusSchema = z.object({
   diskwrite: z.number().optional(),
   ha: z
     .object({
-      managed: z.boolean(),
+      managed: pveBoolean,
     })
     .optional(),
   tags: z.string().optional(),
@@ -186,9 +189,6 @@ export const TaskLogEntrySchema = z.object({
 // ============================================================================
 // Storage
 // ============================================================================
-
-// Proxmox returns booleans as 0/1 integers — coerce to proper booleans
-const pveBoolean = z.union([z.boolean(), z.number()]).transform((v) => !!v);
 
 export const StorageSchema = z.object({
   storage: z.string(),
