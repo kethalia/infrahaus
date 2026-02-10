@@ -44,6 +44,7 @@ export function ContainerActions({
   hostname,
   vmid,
   status,
+  onPendingChange,
 }: ContainerActionsProps) {
   const [confirmDialog, setConfirmDialog] = useState<"stop" | "delete" | null>(
     null,
