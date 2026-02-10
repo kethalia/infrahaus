@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 05-web-ui-monitoring — Pending
-**Plan:** 0 of 0 in current phase
-**Status:** Phase ready to start
-**Last activity:** 2026-02-10 — Completed 04-06-PLAN.md (Phase 04 gap closure)
+**Phase:** 04-container-management — Complete
+**Plan:** 7 of 7 in current phase
+**Status:** Phase 04 complete - ready for Phase 05
+**Last activity:** 2026-02-10 — Completed 04-07-PLAN.md (Prisma Client regeneration)
 
-Progress: ██████████ 89% (17/19 plans)
+Progress: ██████████ 95% (18/19 plans)
 
 ## Completed Work
 
@@ -39,6 +39,7 @@ Progress: ██████████ 89% (17/19 plans)
 **04-04 — Container detail page** ✓
 **04-05 — UAT navigation and loading fixes** ✓
 **04-06 — UAT gap closure: Schema fixes and error logging** ✓
+**04-07 — UAT gap closure: Prisma Client regeneration** ✓
 
 - Container detail page at /containers/[id] with Overview, Services, Events tabs
 - refreshContainerServicesAction wiring SSH monitoring → DB
@@ -52,6 +53,9 @@ Progress: ██████████ 89% (17/19 plans)
 - **Gap closure fixes (04-06):**
   - Fixed ha.managed schema to accept Proxmox 0/1 integers via pveBoolean helper (resolves lifecycle action failures)
   - Added comprehensive error logging to all Proxmox API catch blocks for diagnostics
+- **Gap closure fixes (04-07):**
+  - Regenerated Prisma Client with hostname field to fix container creation validation errors
+  - Added postinstall hook to prevent future schema/client drift
 
 ## Decisions Made
 
@@ -94,6 +98,7 @@ Progress: ██████████ 89% (17/19 plans)
 - Full lifecycle buttons in detail header (not dropdown) for better UX
 - Server-side credential decryption in getContainerDetailData
 - Dynamic imports for monitoring/encryption in refreshContainerServicesAction
+- postinstall hook runs `prisma generate` to prevent schema/client drift (after install, branch switch, CI/CD)
 
 ## Pending Work
 
@@ -113,6 +118,6 @@ Progress: ██████████ 89% (17/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-10T14:38:00Z
-Stopped at: Completed 04-06-PLAN.md (UAT gap closure)
+Last session: 2026-02-10T06:50:03Z
+Stopped at: Completed 04-07-PLAN.md (Prisma Client regeneration)
 Resume file: None
