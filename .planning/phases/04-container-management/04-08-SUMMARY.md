@@ -149,4 +149,4 @@ _Completed: 2026-02-10_
 
 - Database schema is up to date (prisma migrate status confirms)
 - Migration 20260210000000_add_hostname_fallback successfully applied
-- All 3 migrations recorded in _prisma_migrations table
+- All 3 migrations recorded in \_prisma_migrations table
