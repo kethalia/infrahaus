@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 04-container-management
 source:
   [
@@ -148,27 +148,48 @@ skipped: 0
   reason: "User reported: clicked on refresh for test 10 got this error: Failed to refresh services - Unable to determine container IP address. DHCP containers require manual IP discovery."
   severity: major
   test: 10
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Service refresh fails for DHCP containers because extractIpFromNet0() returns null when Proxmox config contains 'ip=dhcp'. The refresh action requires an IP address to SSH into the container, but DHCP containers don't store their assigned IP in config."
+  artifacts:
+  - path: "apps/dashboard/src/lib/containers/actions.ts"
+    issue: "Lines 867-872 throw error when IP is null"
+  - path: "apps/dashboard/src/lib/proxmox/utils.ts"
+    issue: "Lines 15-21 return null for ip=dhcp"
+  - path: "apps/dashboard/src/lib/containers/monitoring.ts"
+    issue: "Line 371 requires IP parameter"
+    missing:
+  - "Query Proxmox API for runtime-assigned DHCP IP"
+  - "Or use Proxmox host SSH + pct exec like worker does"
+    debug_session: ".planning/debug/service-refresh-dhcp-ip.md"
 
 - truth: "In Services tab, click 'Show Credentials' on a service card. Credentials expand inline showing username and password with copy-to-clipboard buttons"
   status: failed
   reason: "User reported: i cannot test that, i have no services with credentials"
   severity: major
   test: 11
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Template installation saves credentials to single file (/etc/infrahaus/credentials), but monitoring code expects separate per-service files in directory (/etc/infrahaus/credentials/). Format mismatch prevents credential discovery."
+  artifacts:
+  - path: "infra/lxc/scripts/config-manager/config-manager-helpers.sh"
+    issue: "Lines 338-359 create single file instead of directory"
+  - path: "apps/dashboard/src/lib/containers/monitoring.ts"
+    issue: "Lines 213-270 expect directory with separate files"
+  - path: "apps/dashboard/src/lib/constants/infrastructure.ts"
+    issue: "Line 62 defines path with trailing slash (directory)"
+    missing:
+  - "Modify save_credential() to create /etc/infrahaus/credentials/<service>.env files"
+  - "Pass service name as parameter to save_credential()"
+    debug_session: ".planning/debug/no-services-with-credentials.md"
 
 - truth: "Running container shows both 'Shutdown' and 'Stop' buttons. Shutdown is graceful (30s timeout), Stop is forceful. Both show AlertDialog confirmation and update status after completion"
   status: failed
   reason: "User reported: only stop shows dialog, shutdown and start execute straight away"
   severity: minor
   test: 15
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Confirmation dialog system only implemented for Stop and Delete actions. confirmDialog state is typed as 'stop' | 'delete' | null, excluding shutdown/start. Shutdown and Start handlers execute immediately via direct onClick binding."
+  artifacts:
+  - path: "apps/dashboard/src/components/containers/detail/container-header.tsx"
+    issue: "Line 61-63 state excludes shutdown/start; lines 223,199 execute immediately"
+    missing:
+  - "Expand confirmDialog state to include 'shutdown'"
+  - "Add AlertDialog component for shutdown confirmation"
+  - "Update button onClick to set confirmDialog instead of direct execution"
+    debug_session: ".planning/debug/missing-confirmation-dialogs.md"
