@@ -35,12 +35,19 @@ import {
   restartContainerAction,
   deleteContainerAction,
 } from "@/lib/containers/actions";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ContainerHeaderProps {
   containerId: string;
   hostname: string | null;
   vmid: number;
   status: ContainerStatus;
+  proxmoxReachable: boolean;
 }
 
 export function ContainerHeader({
@@ -48,6 +55,7 @@ export function ContainerHeader({
   hostname,
   vmid,
   status,
+  proxmoxReachable,
 }: ContainerHeaderProps) {
   const router = useRouter();
   const [confirmDialog, setConfirmDialog] = useState<"stop" | "delete" | null>(
@@ -55,7 +63,7 @@ export function ContainerHeader({
   );
 
   const displayName = hostname ?? `CT ${vmid}`;
-  const isActionable = status === "running" || status === "stopped";
+  const isProxmoxUnreachable = !proxmoxReachable;
 
   const { execute: executeStart, isPending: isStarting } = useAction(
     startContainerAction,
@@ -176,64 +184,131 @@ export function ContainerHeader({
         </div>
 
         {/* Right: Action buttons */}
-        <div className="flex items-center gap-2">
-          {isPending && (
-            <Loader2 className="text-muted-foreground size-4 animate-spin" />
-          )}
+        <TooltipProvider>
+          <div className="flex items-center gap-2">
+            {isPending && (
+              <Loader2 className="text-muted-foreground size-4 animate-spin" />
+            )}
 
-          {status === "stopped" && (
-            <Button
-              size="sm"
-              onClick={handleStart}
-              disabled={isPending || !isActionable}
-            >
-              <Play className="size-4" />
-              Start
-            </Button>
-          )}
+            {/* Start Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    size="sm"
+                    onClick={handleStart}
+                    disabled={
+                      isPending || status !== "stopped" || isProxmoxUnreachable
+                    }
+                  >
+                    <Play className="size-4" />
+                    Start
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isProxmoxUnreachable && (
+                <TooltipContent>
+                  <p>Proxmox API unreachable. Cannot start container.</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
 
-          {status === "running" && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleShutdown}
-                disabled={isPending || !isActionable}
-              >
-                <Power className="size-4" />
-                Shutdown
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setConfirmDialog("stop")}
-                disabled={isPending || !isActionable}
-              >
-                <Square className="size-4" />
-                Stop
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRestart}
-                disabled={isPending || !isActionable}
-              >
-                <RotateCcw className="size-4" />
-                Restart
-              </Button>
-            </>
-          )}
+            {/* Shutdown Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleShutdown}
+                    disabled={
+                      isPending || status !== "running" || isProxmoxUnreachable
+                    }
+                  >
+                    <Power className="size-4" />
+                    Shutdown
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isProxmoxUnreachable && (
+                <TooltipContent>
+                  <p>Proxmox API unreachable. Cannot shutdown container.</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
 
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setConfirmDialog("delete")}
-            disabled={isPending || !isActionable}
-          >
-            <Trash2 className="size-4" />
-            Delete
-          </Button>
-        </div>
+            {/* Stop Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmDialog("stop")}
+                    disabled={
+                      isPending || status !== "running" || isProxmoxUnreachable
+                    }
+                  >
+                    <Square className="size-4" />
+                    Stop
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isProxmoxUnreachable && (
+                <TooltipContent>
+                  <p>Proxmox API unreachable. Cannot stop container.</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+
+            {/* Restart Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRestart}
+                    disabled={
+                      isPending || status !== "running" || isProxmoxUnreachable
+                    }
+                  >
+                    <RotateCcw className="size-4" />
+                    Restart
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isProxmoxUnreachable && (
+                <TooltipContent>
+                  <p>Proxmox API unreachable. Cannot restart container.</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+
+            {/* Delete Button - special handling: allowed when unreachable */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setConfirmDialog("delete")}
+                  disabled={isPending}
+                >
+                  <Trash2 className="size-4" />
+                  Delete
+                </Button>
+              </TooltipTrigger>
+              {isProxmoxUnreachable && (
+                <TooltipContent>
+                  <p>
+                    Will remove from database. Proxmox cleanup may fail if API
+                    remains unreachable.
+                  </p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
 
       {/* Stop Confirmation Dialog */}

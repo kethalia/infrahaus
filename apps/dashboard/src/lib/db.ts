@@ -613,6 +613,7 @@ export class DatabaseService {
    */
   static async createContainer(data: {
     vmid: number;
+    hostname?: string; // Store for fallback when Proxmox unreachable
     rootPassword: string; // Already encrypted
     nodeId: string;
     templateId?: string;

@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04-container-management — Complete
-**Plan:** 4 of 4 in current phase
-**Status:** Phase complete
-**Last activity:** 2026-02-09 — Completed 04-04-PLAN.md
+**Plan:** 8 of 8 in current phase
+**Status:** Phase 04 complete - ready for Phase 05
+**Last activity:** 2026-02-10 — Completed 04-08-PLAN.md (Database migration for hostname column)
 
-Progress: ████████░░ 84% (16/19 plans)
+Progress: ███████████ 100% (19/19 plans)
 
 ## Completed Work
 
@@ -37,12 +37,29 @@ Progress: ████████░░ 84% (16/19 plans)
 **04-02 — Service monitoring engine** ✓
 **04-03 — Container dashboard page** ✓
 **04-04 — Container detail page** ✓
+**04-05 — UAT navigation and loading fixes** ✓
+**04-06 — UAT gap closure: Schema fixes and error logging** ✓
+**04-07 — UAT gap closure: Prisma Client regeneration** ✓
+**04-08 — UAT gap closure: Database migration for hostname column** ✓
 
 - Container detail page at /containers/[id] with Overview, Services, Events tabs
 - refreshContainerServicesAction wiring SSH monitoring → DB
 - Full lifecycle action buttons in header with AlertDialog for destructive actions
 - Server-side credential decryption for per-service credential reveal
 - 30s auto-refresh, event timeline with filters, resource usage bars
+- **UAT fixes (04-05):**
+  - Clean sidebar navigation (removed redundant Containers item)
+  - Always-visible Create Container button in dashboard header
+  - Card-level loading indicators for lifecycle actions with persistent visual feedback
+- **Gap closure fixes (04-06):**
+  - Fixed ha.managed schema to accept Proxmox 0/1 integers via pveBoolean helper (resolves lifecycle action failures)
+  - Added comprehensive error logging to all Proxmox API catch blocks for diagnostics
+- **Gap closure fixes (04-07):**
+  - Regenerated Prisma Client with hostname field to fix container creation validation errors
+  - Added postinstall hook to prevent future schema/client drift
+- **Gap closure fixes (04-08):**
+  - Applied Prisma migration to add hostname column to PostgreSQL database
+  - Complete schema sync achieved: Prisma schema ↔ Prisma Client ↔ PostgreSQL database
 
 ## Decisions Made
 
@@ -85,6 +102,8 @@ Progress: ████████░░ 84% (16/19 plans)
 - Full lifecycle buttons in detail header (not dropdown) for better UX
 - Server-side credential decryption in getContainerDetailData
 - Dynamic imports for monitoring/encryption in refreshContainerServicesAction
+- postinstall hook runs `prisma generate` to prevent schema/client drift (after install, branch switch, CI/CD)
+- prisma migrate resolve for baselining existing database schema before applying new migrations
 
 ## Pending Work
 
@@ -104,6 +123,6 @@ Progress: ████████░░ 84% (16/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-09T07:46:25Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-02-10T07:16:36Z
+Stopped at: Completed 04-08-PLAN.md (Database migration for hostname column)
 Resume file: None

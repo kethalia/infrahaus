@@ -169,8 +169,9 @@ export async function getContainersWithStatus(): Promise<DashboardData> {
             uptime: c.uptime ?? 0,
             name: c.name ?? null,
           }));
-        } catch {
+        } catch (error) {
           // Node-level failure — continue with other nodes
+          console.error(`Node ${node.node} container list failed:`, error);
           return [];
         }
       }),
@@ -192,8 +193,9 @@ export async function getContainersWithStatus(): Promise<DashboardData> {
         });
       }
     }
-  } catch {
+  } catch (error) {
     // Proxmox API completely unreachable
+    console.error("Proxmox API unreachable:", error);
     proxmoxReachable = false;
   }
 
@@ -240,7 +242,11 @@ export async function getContainerDetailData(
       ]);
       proxmoxStatus = status;
       proxmoxConfig = config;
-    } catch {
+    } catch (error) {
+      console.error(
+        `Container ${dbContainer.vmid} detail fetch failed:`,
+        error,
+      );
       proxmoxReachable = false;
     }
   }
@@ -259,8 +265,9 @@ export async function getContainerDetailData(
       try {
         const decrypted = decrypt(s.credentials);
         credentials = parseKeyValueString(decrypted);
-      } catch {
+      } catch (error) {
         // Decryption or parse failure — skip credentials
+        console.error("Credential decryption failed for service:", s.id, error);
         credentials = null;
       }
     }
@@ -298,6 +305,17 @@ export async function getContainerDetailData(
 
 /**
  * Merge a DB container record with Proxmox live status.
+ *
+ * Hostname resolution priority:
+ * 1. Proxmox live data (most current)
+ * 2. Database hostname field (fallback when Proxmox unreachable)
+ * 3. null (display as "CT {vmid}")
+ *
+ * Status resolution:
+ * - creating/error: from DB lifecycle
+ * - running/stopped: from Proxmox live data
+ * - unknown: when Proxmox is unreachable, the container is not found, or
+ *   Proxmox reports a state that does not map to running/stopped (e.g. paused/mounted)
  */
 function mergeContainerStatus(
   db: ContainerWithRelations | ContainerWithDetails,
@@ -329,8 +347,8 @@ function mergeContainerStatus(
     status = "unknown";
   }
 
-  // Extract hostname from Proxmox data or fallback
-  const hostname = proxmox?.name ?? null;
+  // Extract hostname from Proxmox data or fallback to DB stored hostname
+  const hostname = proxmox?.name ?? db.hostname ?? null;
 
   return {
     id: db.id,

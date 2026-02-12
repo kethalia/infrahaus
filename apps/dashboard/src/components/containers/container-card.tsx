@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Server } from "lucide-react";
+import { Server, Loader2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "./status-badge";
@@ -28,9 +28,15 @@ function ServiceDot({ status }: { status: ServiceStatus }) {
 
 interface ContainerCardProps {
   container: ContainerWithStatus;
+  isActionPending?: boolean;
+  onPendingChange?: (containerId: string, isPending: boolean) => void;
 }
 
-export function ContainerCard({ container }: ContainerCardProps) {
+export function ContainerCard({
+  container,
+  isActionPending = false,
+  onPendingChange,
+}: ContainerCardProps) {
   const { id, vmid, hostname, status, services, resources, template, node } =
     container;
 
@@ -60,12 +66,18 @@ export function ContainerCard({ container }: ContainerCardProps) {
             </span>
           </Link>
           <div className="flex items-center gap-1.5">
-            <StatusBadge status={status} />
+            <div className="flex items-center gap-1.5">
+              <StatusBadge status={status} />
+              {isActionPending && (
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
             <ContainerActions
               containerId={id}
               hostname={hostname}
               vmid={vmid}
               status={status}
+              onPendingChange={onPendingChange}
             />
           </div>
         </div>

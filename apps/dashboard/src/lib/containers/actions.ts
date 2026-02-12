@@ -402,6 +402,7 @@ export const createContainerAction = authActionClient
     try {
       container = await DatabaseService.createContainer({
         vmid: data.vmid,
+        hostname: data.hostname,
         rootPassword: encryptedPassword,
         nodeId,
         templateId: data.templateId || undefined,
@@ -455,6 +456,7 @@ export const createContainerAction = authActionClient
 
           container = await DatabaseService.createContainer({
             vmid: data.vmid,
+            hostname: data.hostname,
             rootPassword: encryptedPassword,
             nodeId,
             templateId: data.templateId || undefined,
