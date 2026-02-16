@@ -73,7 +73,7 @@ Progress: █████████████ 115% (22/19 plans)
   - Enables dashboard "Show Credentials" feature for new containers
 - **Gap closure fixes (04-11):**
   - Added confirmation dialogs for Start and Shutdown lifecycle actions
-  - All four lifecycle operations now require user confirmation (Start, Shutdown, Stop, Delete)
+  - Four of five lifecycle operations now require user confirmation (Start, Shutdown, Stop, Delete; Restart executes immediately)
   - Consistent UX with educational messaging and color-coded action buttons
 
 ## Decisions Made
