@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 04-container-management — In progress
-**Plan:** 10 of 11 in current phase
-**Status:** Phase 04 gap closure in progress
-**Last activity:** 2026-02-16 — Completed 04-10-PLAN.md (Per-service credential files)
+**Phase:** 04-container-management — Complete
+**Plan:** 11 of 11 in current phase
+**Status:** Phase 04 complete - all UAT gap closure items resolved
+**Last activity:** 2026-02-16 — Completed 04-11-PLAN.md (Confirmation dialogs for Shutdown and Start)
 
-Progress: █████████████ 110% (21/19 plans)
+Progress: █████████████ 115% (22/19 plans)
 
 ## Completed Work
 
@@ -43,6 +43,7 @@ Progress: █████████████ 110% (21/19 plans)
 **04-08 — UAT gap closure: Database migration for hostname column** ✓
 **04-09 — UAT gap closure: DHCP container service refresh** ✓
 **04-10 — UAT gap closure: Per-service credential files** ✓
+**04-11 — UAT gap closure: Confirmation dialogs for Shutdown and Start** ✓
 
 - Container detail page at /containers/[id] with Overview, Services, Events tabs
 - refreshContainerServicesAction wiring SSH monitoring → DB
@@ -70,6 +71,10 @@ Progress: █████████████ 110% (21/19 plans)
   - Updated save_credential() to create per-service credential files in /etc/infrahaus/credentials/{service}.env
   - Template installation now creates discoverable credential format matching monitoring expectations
   - Enables dashboard "Show Credentials" feature for new containers
+- **Gap closure fixes (04-11):**
+  - Added confirmation dialogs for Start and Shutdown lifecycle actions
+  - All four lifecycle operations now require user confirmation (Start, Shutdown, Stop, Delete)
+  - Consistent UX with educational messaging and color-coded action buttons
 
 ## Decisions Made
 
@@ -121,7 +126,7 @@ Progress: █████████████ 110% (21/19 plans)
 
 ## Pending Work
 
-- Phase 5: Web UI & Monitoring (#87-88)
+- Phase 5: Web UI & Monitoring (#87-88) — Next
 - Phase 6: CI/CD & Deployment (#89-90)
 
 ## Blockers/Concerns
@@ -137,6 +142,6 @@ Progress: █████████████ 110% (21/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-16T14:06:18Z
-Stopped at: Completed 04-10-PLAN.md (Per-service credential files)
+Last session: 2026-02-16T14:07:37Z
+Stopped at: Completed 04-11-PLAN.md (Confirmation dialogs for Shutdown and Start)
 Resume file: None
