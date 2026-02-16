@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04-container-management — In progress
-**Plan:** 9 of 11 in current phase
+**Plan:** 10 of 11 in current phase
 **Status:** Phase 04 gap closure in progress
-**Last activity:** 2026-02-16 — Completed 04-09-PLAN.md (DHCP container service refresh)
+**Last activity:** 2026-02-16 — Completed 04-10-PLAN.md (Per-service credential files)
 
-Progress: ████████████ 105% (20/19 plans)
+Progress: █████████████ 110% (21/19 plans)
 
 ## Completed Work
 
@@ -42,6 +42,7 @@ Progress: ████████████ 105% (20/19 plans)
 **04-07 — UAT gap closure: Prisma Client regeneration** ✓
 **04-08 — UAT gap closure: Database migration for hostname column** ✓
 **04-09 — UAT gap closure: DHCP container service refresh** ✓
+**04-10 — UAT gap closure: Per-service credential files** ✓
 
 - Container detail page at /containers/[id] with Overview, Services, Events tabs
 - refreshContainerServicesAction wiring SSH monitoring → DB
@@ -65,6 +66,10 @@ Progress: ████████████ 105% (20/19 plans)
   - Added getRuntimeIp function to query Proxmox guest agent for actual container IP
   - Service refresh now works for DHCP containers via runtime IP fallback
   - Graceful error handling when container stopped or agent unavailable
+- **Gap closure fixes (04-10):**
+  - Updated save_credential() to create per-service credential files in /etc/infrahaus/credentials/{service}.env
+  - Template installation now creates discoverable credential format matching monitoring expectations
+  - Enables dashboard "Show Credentials" feature for new containers
 
 ## Decisions Made
 
@@ -109,6 +114,7 @@ Progress: ████████████ 105% (20/19 plans)
 - Dynamic imports for monitoring/encryption in refreshContainerServicesAction
 - postinstall hook runs `prisma generate` to prevent schema/client drift (after install, branch switch, CI/CD)
 - prisma migrate resolve for baselining existing database schema before applying new migrations
+- Per-service credential files pattern: /etc/infrahaus/credentials/{service}.env enables credential discovery
 - Proxmox guest agent API for runtime IP discovery (DHCP containers)
 - Two-phase IP resolution: static config first, runtime agent query fallback
 - Graceful null return pattern for agent queries (stopped containers expected)
@@ -131,6 +137,6 @@ Progress: ████████████ 105% (20/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-16T14:04:36Z
-Stopped at: Completed 04-09-PLAN.md (DHCP container service refresh)
+Last session: 2026-02-16T14:06:18Z
+Stopped at: Completed 04-10-PLAN.md (Per-service credential files)
 Resume file: None
