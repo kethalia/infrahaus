@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 04-container-management — Complete
-**Plan:** 8 of 8 in current phase
-**Status:** Phase 04 complete - ready for Phase 05
-**Last activity:** 2026-02-10 — Completed 04-08-PLAN.md (Database migration for hostname column)
+**Phase:** 04-container-management — In progress
+**Plan:** 9 of 11 in current phase
+**Status:** Phase 04 gap closure in progress
+**Last activity:** 2026-02-16 — Completed 04-09-PLAN.md (DHCP container service refresh)
 
-Progress: ███████████ 100% (19/19 plans)
+Progress: ████████████ 105% (20/19 plans)
 
 ## Completed Work
 
@@ -41,6 +41,7 @@ Progress: ███████████ 100% (19/19 plans)
 **04-06 — UAT gap closure: Schema fixes and error logging** ✓
 **04-07 — UAT gap closure: Prisma Client regeneration** ✓
 **04-08 — UAT gap closure: Database migration for hostname column** ✓
+**04-09 — UAT gap closure: DHCP container service refresh** ✓
 
 - Container detail page at /containers/[id] with Overview, Services, Events tabs
 - refreshContainerServicesAction wiring SSH monitoring → DB
@@ -60,6 +61,10 @@ Progress: ███████████ 100% (19/19 plans)
 - **Gap closure fixes (04-08):**
   - Applied Prisma migration to add hostname column to PostgreSQL database
   - Complete schema sync achieved: Prisma schema ↔ Prisma Client ↔ PostgreSQL database
+- **Gap closure fixes (04-09):**
+  - Added getRuntimeIp function to query Proxmox guest agent for actual container IP
+  - Service refresh now works for DHCP containers via runtime IP fallback
+  - Graceful error handling when container stopped or agent unavailable
 
 ## Decisions Made
 
@@ -104,6 +109,9 @@ Progress: ███████████ 100% (19/19 plans)
 - Dynamic imports for monitoring/encryption in refreshContainerServicesAction
 - postinstall hook runs `prisma generate` to prevent schema/client drift (after install, branch switch, CI/CD)
 - prisma migrate resolve for baselining existing database schema before applying new migrations
+- Proxmox guest agent API for runtime IP discovery (DHCP containers)
+- Two-phase IP resolution: static config first, runtime agent query fallback
+- Graceful null return pattern for agent queries (stopped containers expected)
 
 ## Pending Work
 
@@ -123,6 +131,6 @@ Progress: ███████████ 100% (19/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-10T07:16:36Z
-Stopped at: Completed 04-08-PLAN.md (Database migration for hostname column)
+Last session: 2026-02-16T14:04:36Z
+Stopped at: Completed 04-09-PLAN.md (DHCP container service refresh)
 Resume file: None

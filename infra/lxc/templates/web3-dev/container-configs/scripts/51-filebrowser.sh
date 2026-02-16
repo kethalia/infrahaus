@@ -82,8 +82,8 @@ EOF
     log_info "Generating secure password for filebrowser..."
     FILEBROWSER_USERNAME="admin"
     FILEBROWSER_PASSWORD=$(generate_password 16)
-    save_credential "FILEBROWSER_USERNAME" "$FILEBROWSER_USERNAME"
-    save_credential "FILEBROWSER_PASSWORD" "$FILEBROWSER_PASSWORD"
+    save_credential "filebrowser" "FILEBROWSER_USERNAME" "$FILEBROWSER_USERNAME"
+    save_credential "filebrowser" "FILEBROWSER_PASSWORD" "$FILEBROWSER_PASSWORD"
     
     # Initialize database and set admin user
     log_info "Initializing filebrowser database..."
