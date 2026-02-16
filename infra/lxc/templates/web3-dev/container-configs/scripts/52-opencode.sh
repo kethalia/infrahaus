@@ -58,7 +58,7 @@ install_opencode() {
     # Generate random password
     log_info "Generating secure password for opencode..."
     OPENCODE_PASSWORD=$(generate_password 16)
-    save_credential "OPENCODE_PASSWORD" "$OPENCODE_PASSWORD"
+    save_credential "opencode" "OPENCODE_PASSWORD" "$OPENCODE_PASSWORD"
     
     # Create systemd service for opencode
     log_info "Creating systemd service for opencode..."

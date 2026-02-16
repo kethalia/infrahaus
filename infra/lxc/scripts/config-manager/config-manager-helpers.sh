@@ -327,33 +327,35 @@ generate_password() {
 }
 
 # ---------------------------------------------------------------------------
-# save_credential — Append credential to shared credentials file
+# save_credential — Save credential to per-service file in credentials directory
 #
-# Usage: save_credential "KEY" "value"
-#        save_credential "CODE_SERVER_PASSWORD" "aB3dEf7hIjKl"
+# Usage: save_credential "service-name" "KEY" "value"
+#        save_credential "code-server" "CODE_SERVER_PASSWORD" "aB3dEf7hIjKl"
 #
-# Creates /etc/infrahaus/credentials with mode 600 (root-only) and
-# appends key=value pairs for use by other scripts and welcome messages.
+# Creates /etc/infrahaus/credentials/{service-name}.env with mode 600 (root-only)
+# and appends key=value pairs for use by monitoring and dashboard.
 # ---------------------------------------------------------------------------
 save_credential() {
-    local key="$1"
-    local value="$2"
-    local creds_file="/etc/infrahaus/credentials"
+    local service_name="$1"
+    local key="$2"
+    local value="$3"
+    local creds_dir="/etc/infrahaus/credentials"
+    local service_file="${creds_dir}/${service_name}.env"
     
     # Ensure directory exists
-    mkdir -p "$(dirname "$creds_file")"
+    mkdir -p "$creds_dir"
     
-    # Create file with timestamp header on first write
-    if [[ ! -f "$creds_file" ]]; then
+    # Create service-specific credential file with header on first write
+    if [[ ! -f "$service_file" ]]; then
         {
-            echo "# Auto-generated credentials for Web3 Dev Container"
+            echo "# Credentials for ${service_name}"
             echo "# Generated: $(date '+%Y-%m-%d %H:%M:%S')"
-            echo "# WARNING: This file contains sensitive passwords - keep secure"
+            echo "# WARNING: Contains sensitive passwords - keep secure"
             echo ""
-        } > "$creds_file"
-        chmod 600 "$creds_file"
+        } > "$service_file"
+        chmod 600 "$service_file"
     fi
     
-    # Append credential
-    echo "${key}=${value}" >> "$creds_file"
+    # Append credential to service file
+    echo "${key}=${value}" >> "$service_file"
 }

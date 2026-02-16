@@ -167,3 +167,67 @@ export async function deleteContainer(
   const path = `/nodes/${node}/lxc/${vmid}${purge ? "?purge=1" : ""}`;
   return client.delete(path, z.string());
 }
+
+/**
+ * Get runtime IP address from Proxmox guest agent
+ * Queries the container's network interfaces via the guest agent to find
+ * the actual assigned IP address (useful for DHCP containers where the
+ * config only shows "ip=dhcp" but not the actual IP).
+ *
+ * Returns the first non-loopback IPv4 address, or null if not found.
+ * Returns null on any error (container stopped, agent not running, etc.).
+ */
+export async function getRuntimeIp(
+  client: ProxmoxClient,
+  nodeName: string,
+  vmid: number,
+): Promise<string | null> {
+  try {
+    // Query Proxmox guest agent for network interfaces
+    const response = await client.get(
+      `/nodes/${nodeName}/lxc/${vmid}/agent/network-get-interfaces`,
+      z.object({
+        result: z.array(
+          z.object({
+            name: z.string(),
+            "ip-addresses": z
+              .array(
+                z.object({
+                  "ip-address": z.string(),
+                  "ip-address-type": z.string(),
+                  prefix: z.number().optional(),
+                }),
+              )
+              .optional(),
+          }),
+        ),
+      }),
+    );
+
+    // Find first non-loopback interface with valid IPv4 address
+    for (const iface of response.result) {
+      // Skip loopback
+      if (iface.name === "lo") continue;
+
+      const addresses = iface["ip-addresses"];
+      if (!addresses) continue;
+
+      // Find first IPv4 address
+      for (const addr of addresses) {
+        if (addr["ip-address-type"] === "ipv4") {
+          const ip = addr["ip-address"];
+          // Skip loopback IPs
+          if (ip.startsWith("127.")) continue;
+          // Return IP without CIDR suffix (already without it from agent)
+          return ip;
+        }
+      }
+    }
+
+    return null;
+  } catch (err) {
+    // Return null on any error (agent not running, container stopped, etc.)
+    // Don't log - expected for stopped containers or containers without agent
+    return null;
+  }
+}

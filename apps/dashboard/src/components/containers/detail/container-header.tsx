@@ -58,9 +58,9 @@ export function ContainerHeader({
   proxmoxReachable,
 }: ContainerHeaderProps) {
   const router = useRouter();
-  const [confirmDialog, setConfirmDialog] = useState<"stop" | "delete" | null>(
-    null,
-  );
+  const [confirmDialog, setConfirmDialog] = useState<
+    "start" | "shutdown" | "stop" | "delete" | null
+  >(null);
 
   const displayName = hostname ?? `CT ${vmid}`;
   const isProxmoxUnreachable = !proxmoxReachable;
@@ -140,6 +140,7 @@ export function ContainerHeader({
     isStarting || isStopping || isShuttingDown || isRestarting || isDeleting;
 
   function handleStart() {
+    setConfirmDialog(null);
     executeStart({ containerId });
   }
 
@@ -149,6 +150,7 @@ export function ContainerHeader({
   }
 
   function handleShutdown() {
+    setConfirmDialog(null);
     executeShutdown({ containerId });
   }
 
@@ -196,7 +198,7 @@ export function ContainerHeader({
                 <span>
                   <Button
                     size="sm"
-                    onClick={handleStart}
+                    onClick={() => setConfirmDialog("start")}
                     disabled={
                       isPending || status !== "stopped" || isProxmoxUnreachable
                     }
@@ -220,7 +222,7 @@ export function ContainerHeader({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleShutdown}
+                    onClick={() => setConfirmDialog("shutdown")}
                     disabled={
                       isPending || status !== "running" || isProxmoxUnreachable
                     }
@@ -356,6 +358,62 @@ export function ContainerHeader({
               className="bg-destructive text-white hover:bg-destructive/90"
             >
               Delete Container
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Start Confirmation Dialog */}
+      <AlertDialog
+        open={confirmDialog === "start"}
+        onOpenChange={(open) => !open && setConfirmDialog(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start Container?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will start <strong>{displayName}</strong> and boot all
+              configured services. The container will consume resources until
+              stopped.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isStarting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleStart}
+              disabled={isStarting}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isStarting ? "Starting..." : "Start Container"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Shutdown Confirmation Dialog */}
+      <AlertDialog
+        open={confirmDialog === "shutdown"}
+        onOpenChange={(open) => !open && setConfirmDialog(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Shutdown Container?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will gracefully shut down <strong>{displayName}</strong> by
+              sending a shutdown signal to the init process. The container will
+              have 30 seconds to clean up before being forcefully stopped.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isShuttingDown}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleShutdown}
+              disabled={isShuttingDown}
+              className="bg-yellow-600 hover:bg-yellow-700"
+            >
+              {isShuttingDown ? "Shutting down..." : "Shutdown Container"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

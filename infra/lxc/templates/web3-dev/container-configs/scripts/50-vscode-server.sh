@@ -75,7 +75,7 @@ install_code_server() {
     # Generate random password
     log_info "Generating secure password for code-server..."
     CODE_SERVER_PASSWORD=$(generate_password 16)
-    save_credential "CODE_SERVER_PASSWORD" "$CODE_SERVER_PASSWORD"
+    save_credential "code-server" "CODE_SERVER_PASSWORD" "$CODE_SERVER_PASSWORD"
     
     # Create systemd service for code-server
     log_info "Creating systemd service for code-server..."
