@@ -864,11 +864,18 @@ export const refreshContainerServicesAction = authActionClient
       );
     }
 
-    const containerIp = extractIpFromNet0(net0);
+    let containerIp = extractIpFromNet0(net0);
+
+    // Fallback: Query Proxmox guest agent for runtime IP (DHCP containers)
     if (!containerIp) {
-      throw new ActionError(
-        "Unable to determine container IP address. DHCP containers require manual IP discovery.",
-      );
+      const { getRuntimeIp } = await import("@/lib/proxmox/containers");
+      containerIp = await getRuntimeIp(client, nodeName, vmid);
+
+      if (!containerIp) {
+        throw new ActionError(
+          "Unable to determine container IP address. Ensure container is running and has network connectivity, or configure a static IP.",
+        );
+      }
     }
 
     // Decrypt root password for SSH
