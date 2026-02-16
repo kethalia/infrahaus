@@ -86,8 +86,8 @@ Plans:
 ### Phase 04: Container Management ✓
 
 **Goal:** Users can monitor and control container lifecycle with a dashboard overview
-**Status:** UAT gap closure in progress
-**Completed:** 2026-02-10 (initial plans), 2026-02-12 (gap closure plans)
+**Status:** Complete
+**Completed:** 2026-02-16
 **Plans:** 11 plans
 
 Plans:
@@ -100,9 +100,9 @@ Plans:
 - [x] 04-06-PLAN.md — Gap closure: Fix ha.managed schema validation and add Proxmox error logging
 - [x] 04-07-PLAN.md — Gap closure: Regenerate Prisma Client and add postinstall hook to prevent schema drift
 - [x] 04-08-PLAN.md — Gap closure: Apply Prisma migration to add hostname column to database
-- [ ] 04-09-PLAN.md — UAT gap closure: DHCP container service refresh via Proxmox guest agent runtime IP query
-- [ ] 04-10-PLAN.md — UAT gap closure: Per-service credential files in template installation scripts
-- [ ] 04-11-PLAN.md — UAT gap closure: Confirmation dialogs for Shutdown and Start actions
+- [x] 04-09-PLAN.md — UAT gap closure: DHCP container service refresh via Proxmox guest agent runtime IP query
+- [x] 04-10-PLAN.md — UAT gap closure: Per-service credential files in template installation scripts
+- [x] 04-11-PLAN.md — UAT gap closure: Confirmation dialogs for Shutdown and Start actions
 
 Issues: #83, #84, #85, #86
 
