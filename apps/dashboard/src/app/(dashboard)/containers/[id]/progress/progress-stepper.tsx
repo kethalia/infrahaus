@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatScriptName } from "@/lib/utils/format";
 import type { StepInfo, ScriptInfo } from "@/hooks/use-container-progress";
 
 interface ProgressStepperProps {
@@ -10,19 +11,6 @@ interface ProgressStepperProps {
   scripts: ScriptInfo[];
   onScriptClick?: (scriptName: string | null) => void;
   selectedScript?: string | null;
-}
-
-/**
- * Format a script filename into a human-readable label.
- * "00-update-system.sh" → "Update System"
- */
-function formatScriptName(filename: string): string {
-  return filename
-    .replace(/^\d+-/, "") // remove numeric prefix
-    .replace(/\.sh$/, "") // remove .sh extension
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
 }
 
 export function ProgressStepper({

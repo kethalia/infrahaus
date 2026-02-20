@@ -4,6 +4,7 @@ import { useEffect, useRef, useMemo } from "react";
 import { X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatScriptName } from "@/lib/utils/format";
 import type { ProgressEvent } from "@/hooks/use-container-progress";
 
 interface LogViewerProps {
@@ -12,19 +13,6 @@ interface LogViewerProps {
   selectedScript?: string | null;
   /** Callback to clear the script filter */
   onClearFilter?: () => void;
-}
-
-/**
- * Format a script filename into a human-readable label.
- * "00-update-system.sh" → "Update System"
- */
-function formatScriptName(filename: string): string {
-  return filename
-    .replace(/^\d+-/, "")
-    .replace(/\.sh$/, "")
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
 }
 
 export function LogViewer({
