@@ -1,22 +1,33 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { SESSION_COOKIE_NAME } from "@/lib/constants/infrastructure";
 
 /**
  * Next.js middleware for route protection.
  *
  * Runs in Edge Runtime — no Node.js-only APIs (no Redis, no fs, etc.).
  *
- * Auth mode: env-var based (PVE_HOST + PVE_ROOT_PASSWORD).
- * All routes are accessible without login when env vars are configured.
- * /login is kept for future multi-user auth but redirects to dashboard.
+ * Auth mode: session-based (iron-session cookie + Redis).
+ * Unauthenticated requests are redirected to /login.
+ * /login and static assets are accessible without a session.
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Redirect /login to dashboard — no login needed with env-var auth.
-  // Login page will be re-enabled when multi-user DB credentials are added.
-  if (pathname === "/login" || pathname.startsWith("/login/")) {
-    return NextResponse.redirect(new URL("/", request.url));
+  // Allow login page, Next.js internals, and auth API routes without session
+  if (
+    pathname === "/login" ||
+    pathname.startsWith("/login/") ||
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/api/auth/")
+  ) {
+    return NextResponse.next();
+  }
+
+  // Check for session cookie presence (content validation happens server-side)
+  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
+  if (!sessionCookie) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   return NextResponse.next();
