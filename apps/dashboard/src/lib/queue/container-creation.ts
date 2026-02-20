@@ -54,6 +54,16 @@ export interface ContainerProgressEvent {
   percent?: number; // 0-100
   message: string;
   timestamp: string; // ISO string
+
+  // Script-tracking fields (Phase 4 only)
+  /** Name of the script this event relates to */
+  scriptName?: string;
+  /** 0-based index of the script in the execution order */
+  scriptIndex?: number;
+  /** Total number of scripts to execute */
+  scriptTotal?: number;
+  /** All script names in execution order (only on Phase 4 start event) */
+  scriptNames?: string[];
 }
 
 /** Result returned by the worker on job completion */

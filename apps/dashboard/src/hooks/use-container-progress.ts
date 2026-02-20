@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 // ============================================================================
 // Types
@@ -27,12 +27,24 @@ export interface ProgressEvent {
   percent?: number;
   message: string;
   timestamp: string;
+
+  // Script-tracking fields (Phase 4 only)
+  scriptName?: string;
+  scriptIndex?: number;
+  scriptTotal?: number;
+  scriptNames?: string[];
 }
 
 export interface StepInfo {
   name: StepName;
   label: string;
   status: "pending" | "active" | "completed" | "error";
+}
+
+export interface ScriptInfo {
+  name: string;
+  index: number;
+  status: "pending" | "running" | "completed" | "error";
 }
 
 const PIPELINE_STEPS: { name: StepName; label: string }[] = [
@@ -58,6 +70,13 @@ export function useContainerProgress(containerId: string) {
   const [seenSteps, setSeenSteps] = useState<Set<StepName>>(new Set());
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  // Script tracking state
+  const [scriptNames, setScriptNames] = useState<string[]>([]);
+  const [activeScript, setActiveScript] = useState<string | null>(null);
+  const [completedScripts, setCompletedScripts] = useState<Set<string>>(
+    new Set(),
+  );
+
   const processEvent = useCallback((event: ProgressEvent) => {
     setEvents((prev) => [...prev, event]);
 
@@ -68,17 +87,32 @@ export function useContainerProgress(containerId: string) {
           setSeenSteps((prev) => new Set(prev).add(event.step!));
         }
         if (event.percent != null) setPercent(event.percent);
+
+        // Script tracking: Phase 4 start event carries all script names
+        if (event.scriptNames && event.scriptNames.length > 0) {
+          setScriptNames(event.scriptNames);
+        }
+
+        // Script tracking: script completion
+        if (event.scriptName && event.step === "syncing") {
+          setCompletedScripts((prev) => new Set(prev).add(event.scriptName!));
+          // Clear active script if it was the one that just completed
+          setActiveScript((prev) => (prev === event.scriptName ? null : prev));
+        }
         break;
 
       case "log":
-        // Log events don't change step/percent
+        // Script tracking: first log for a script = it's now running
+        if (event.scriptName) {
+          setActiveScript(event.scriptName);
+        }
         break;
 
       case "complete":
         setIsComplete(true);
         setPercent(100);
-        // Mark all steps as seen on complete
         setSeenSteps(new Set(PIPELINE_STEPS.map((s) => s.name)));
+        setActiveScript(null);
         break;
 
       case "error":
@@ -107,6 +141,11 @@ export function useContainerProgress(containerId: string) {
           isComplete: boolean;
           isError: boolean;
           errorMessage: string | null;
+          // Script snapshot fields
+          scriptNames?: string[];
+          completedScripts?: string[];
+          activeScript?: string | null;
+          scriptTotal?: number;
         };
         if (data.step) setCurrentStep(data.step);
         setPercent(data.percent);
@@ -115,6 +154,17 @@ export function useContainerProgress(containerId: string) {
         if (data.isError) {
           setIsError(true);
           setErrorMessage(data.errorMessage);
+        }
+
+        // Hydrate script state from snapshot
+        if (data.scriptNames && data.scriptNames.length > 0) {
+          setScriptNames(data.scriptNames);
+        }
+        if (data.completedScripts && data.completedScripts.length > 0) {
+          setCompletedScripts(new Set(data.completedScripts));
+        }
+        if (data.activeScript) {
+          setActiveScript(data.activeScript);
         }
       } catch {
         // Ignore invalid JSON
@@ -174,6 +224,21 @@ export function useContainerProgress(containerId: string) {
     };
   });
 
+  // Derive per-script state from script tracking
+  const scripts: ScriptInfo[] = useMemo(() => {
+    return scriptNames.map((name, index) => {
+      let scriptStatus: ScriptInfo["status"] = "pending";
+
+      if (completedScripts.has(name)) {
+        scriptStatus = "completed";
+      } else if (activeScript === name) {
+        scriptStatus = isError ? "error" : "running";
+      }
+
+      return { name, index, status: scriptStatus };
+    });
+  }, [scriptNames, completedScripts, activeScript, isError]);
+
   // Filter logs (type === "log") for the log viewer
   const logs = events.filter((e) => e.type === "log");
 
@@ -187,5 +252,8 @@ export function useContainerProgress(containerId: string) {
     errorMessage,
     steps,
     logs,
+    // Script tracking
+    scripts,
+    activeScript,
   };
 }

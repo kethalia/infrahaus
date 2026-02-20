@@ -67,6 +67,20 @@ export function formatRelativeTime(date: Date): string {
 }
 
 /**
+ * Format a script filename into a human-readable label.
+ * Strips numeric prefix and .sh extension, title-cases words.
+ * "00-update-system.sh" → "Update System"
+ */
+export function formatScriptName(filename: string): string {
+  return filename
+    .replace(/^\d+-/, "")
+    .replace(/\.sh$/, "")
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/**
  * Parse semicolon-separated tags string into an array.
  * Handles null/undefined, trims whitespace, filters empty strings.
  */
