@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Control, FieldPath, FieldValues } from "react-hook-form";
 import { useWatch } from "react-hook-form";
 import { Check, Loader2, X } from "lucide-react";
@@ -41,9 +41,8 @@ export function VmidField<T extends FieldValues>({
   nodeId,
 }: VmidFieldProps<T>) {
   const [status, setStatus] = useState<VmidStatus>("idle");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastCheckedRef = useRef<number | null>(null);
-  const prevNodeIdRef = useRef(nodeId);
+  const [lastChecked, setLastChecked] = useState<number | null>(null);
+  const [prevNodeId, setPrevNodeId] = useState(nodeId);
 
   const { execute: checkVmid } = useAction(checkVmidAction, {
     onSuccess: ({ data }) => {
@@ -74,53 +73,41 @@ export function VmidField<T extends FieldValues>({
         return;
       }
 
-      // Skip duplicate checks
-      if (lastCheckedRef.current === vmid) return;
-      lastCheckedRef.current = vmid;
-
+      setLastChecked(vmid);
       setStatus("checking");
       checkVmid({ nodeId, vmid });
     },
     [nodeId, checkVmid],
   );
 
-  // Reset status when nodeId changes (synchronous ref comparison, no effect needed)
-  if (prevNodeIdRef.current !== nodeId) {
-    prevNodeIdRef.current = nodeId;
+  // Reset status when nodeId changes (setState-during-render pattern)
+  if (prevNodeId !== nodeId) {
+    setPrevNodeId(nodeId);
     setStatus("idle");
-    lastCheckedRef.current = null;
+    setLastChecked(null);
   }
 
-  // Derive whether current input needs reset to idle (no effect setState needed)
+  // Derive whether current input is empty/invalid
   const vmidNum = Number(currentVmid);
   const inputEmpty = !currentVmid || isNaN(vmidNum) || vmidNum < 100;
 
   // Reset status during render when input becomes empty/invalid
   if (inputEmpty && status !== "idle") {
     setStatus("idle");
-    lastCheckedRef.current = null;
+    setLastChecked(null);
   }
 
   // Debounce validation when VMID value changes
   useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
+    if (inputEmpty) return;
 
-    if (inputEmpty) {
-      lastCheckedRef.current = null;
-      return;
-    }
-
-    debounceRef.current = setTimeout(() => {
+    // Skip duplicate checks — compare against lastChecked state
+    // (read via callback to avoid stale closure)
+    const timer = setTimeout(() => {
       validateVmid(vmidNum);
     }, 500);
 
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
+    return () => clearTimeout(timer);
   }, [currentVmid, validateVmid, inputEmpty, vmidNum]);
 
   return (
