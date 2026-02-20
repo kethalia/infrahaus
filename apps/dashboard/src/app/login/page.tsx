@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 
 const loginSchema = z.object({
   host: z.string().min(1, "Proxmox host is required"),
-  port: z.coerce.number().int().min(1).max(65535).default(8006),
+  port: z.number().int().min(1).max(65535),
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
   realm: z.enum(["pam", "pve"]),
