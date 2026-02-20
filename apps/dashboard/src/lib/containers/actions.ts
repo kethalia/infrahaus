@@ -35,7 +35,11 @@ import {
 import { waitForTask } from "@/lib/proxmox/tasks";
 import { acquireLock, releaseLock } from "@/lib/utils/redis-lock";
 import { extractIpFromNet0 } from "@/lib/proxmox/utils";
-import { invalidateVmidCache } from "@/lib/vmid-cache";
+import {
+  invalidateVmidCache,
+  isVmidTaken,
+  refreshVmidCache,
+} from "@/lib/vmid-cache";
 import {
   DEFAULT_NEXT_VMID,
   CONTAINER_LOCK_PREFIX,
@@ -48,6 +52,37 @@ import {
   DELETE_TIMEOUT_MS,
 } from "@/lib/constants/timeouts";
 import { createContainerInputSchema } from "./schemas";
+
+// ============================================================================
+// VMID Cache Actions
+// ============================================================================
+
+/**
+ * Check if a VMID is taken on a given node (reads from Redis cache).
+ * Used by the wizard's VmidField component for inline validation.
+ */
+export const checkVmidAction = authActionClient
+  .schema(
+    z.object({ nodeId: z.string(), vmid: z.coerce.number().int().min(100) }),
+  )
+  .action(async ({ parsedInput: { nodeId, vmid } }) => {
+    const taken = await isVmidTaken(nodeId, vmid);
+    return { taken };
+  });
+
+/**
+ * Refresh the VMID cache for a node by querying Proxmox.
+ * Called on wizard page load to ensure fresh data.
+ */
+export const refreshVmidCacheAction = authActionClient
+  .schema(z.object({ nodeId: z.string() }))
+  .action(async ({ parsedInput: { nodeId } }) => {
+    const node = await DatabaseService.getNodeById(nodeId);
+    if (!node) throw new ActionError("Node not found");
+    const client = createProxmoxClientFromNode(node);
+    const vmids = await refreshVmidCache(nodeId, node.name, client);
+    return { count: vmids.length };
+  });
 
 // ============================================================================
 // Types for wizard data
