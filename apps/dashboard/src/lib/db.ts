@@ -147,24 +147,80 @@ export class DatabaseService {
   // ============================================================================
 
   /**
-   * Get a Proxmox node by ID
+   * Get a Proxmox node by ID.
+   * Not userId-scoped — used by the worker which receives nodeId directly.
    */
   static async getNodeById(id: string): Promise<ProxmoxNode | null> {
     return this.prisma.proxmoxNode.findUnique({ where: { id } });
   }
 
   /**
-   * Get a Proxmox node by name
+   * Get a Proxmox node by name for a specific user.
+   * Uses the compound unique constraint (userId, name).
    */
-  static async getNodeByName(name: string): Promise<ProxmoxNode | null> {
-    return this.prisma.proxmoxNode.findUnique({ where: { name } });
+  static async getNodeByName(
+    userId: string,
+    name: string,
+  ): Promise<ProxmoxNode | null> {
+    return this.prisma.proxmoxNode.findUnique({
+      where: { userId_name: { userId, name } },
+    });
   }
 
   /**
-   * List all Proxmox nodes
+   * List all Proxmox nodes for a specific user.
    */
-  static async listNodes(): Promise<ProxmoxNode[]> {
-    return this.prisma.proxmoxNode.findMany();
+  static async listNodesForUser(userId: string): Promise<ProxmoxNode[]> {
+    return this.prisma.proxmoxNode.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  /**
+   * Get the default Proxmox node for a user.
+   * Returns null if no default is set or user has no nodes.
+   */
+  static async getDefaultNodeForUser(
+    userId: string,
+  ): Promise<ProxmoxNode | null> {
+    return this.prisma.proxmoxNode.findFirst({
+      where: { userId, isDefault: true },
+    });
+  }
+
+  /**
+   * List all nodes for a user with container counts.
+   * Used by the settings page to show how many containers each node has.
+   */
+  static async getUserNodesWithContainerCount(userId: string) {
+    return this.prisma.proxmoxNode.findMany({
+      where: { userId },
+      include: { _count: { select: { containers: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  /**
+   * Set a node as the default for a user.
+   * Uses a transaction to unset all other defaults first.
+   */
+  static async setDefaultNode(
+    userId: string,
+    nodeId: string,
+  ): Promise<ProxmoxNode> {
+    return this.prisma.$transaction(async (tx) => {
+      // Unset all defaults for this user
+      await tx.proxmoxNode.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      });
+      // Set the target node as default
+      return tx.proxmoxNode.update({
+        where: { id: nodeId },
+        data: { isDefault: true },
+      });
+    });
   }
 
   /**
@@ -176,7 +232,10 @@ export class DatabaseService {
     port?: number;
     tokenId: string;
     tokenSecret: string;
+    sshPassword?: string;
     fingerprint?: string;
+    isDefault?: boolean;
+    userId: string;
   }): Promise<ProxmoxNode> {
     return this.prisma.proxmoxNode.create({ data });
   }
@@ -192,14 +251,16 @@ export class DatabaseService {
       port: number;
       tokenId: string;
       tokenSecret: string;
+      sshPassword: string | null;
       fingerprint: string | null;
+      isDefault: boolean;
     }>,
   ): Promise<ProxmoxNode> {
     return this.prisma.proxmoxNode.update({ where: { id }, data });
   }
 
   /**
-   * Delete a Proxmox node
+   * Delete a Proxmox node (caller verifies ownership)
    */
   static async deleteNode(id: string): Promise<void> {
     await this.prisma.proxmoxNode.delete({ where: { id } });
@@ -609,7 +670,6 @@ export class DatabaseService {
   static async createContainer(data: {
     vmid: number;
     hostname?: string; // Store for fallback when Proxmox unreachable
-    rootPassword: string; // Already encrypted
     nodeId: string;
     templateId?: string;
   }): Promise<Container> {

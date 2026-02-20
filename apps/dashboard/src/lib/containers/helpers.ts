@@ -14,8 +14,11 @@ import { ActionError } from "@/lib/safe-action";
 
 /**
  * Create an authenticated ProxmoxClient from the current user session.
- * Looks up the first ProxmoxNode in DB for host/port config.
+ * Looks up the user's default ProxmoxNode from DB for host/port config.
  * Throws if session is invalid or no node is configured.
+ *
+ * TODO(03.5-04): Refactor to use createProxmoxClientFromNode() with DB-stored tokens
+ * instead of session-based ticket credentials. The session will only provide userId.
  */
 export async function createProxmoxClientFromSession(): Promise<{
   client: ProxmoxClient;
@@ -26,11 +29,20 @@ export async function createProxmoxClientFromSession(): Promise<{
     throw new ActionError("Not authenticated");
   }
 
-  // Get the first configured node (single-node setup)
-  const nodes = await DatabaseService.listNodes();
-  const pveNode = nodes[0];
+  // Use session username as userId for node scoping
+  // TODO(03.5-04): Get userId from session properly
+  const userId = credentials.username || "root@pam";
+
+  // Get the user's default node, or first node if no default set
+  let pveNode = await DatabaseService.getDefaultNodeForUser(userId);
   if (!pveNode) {
-    throw new ActionError("No Proxmox node configured");
+    const nodes = await DatabaseService.listNodesForUser(userId);
+    pveNode = nodes[0] ?? null;
+  }
+  if (!pveNode) {
+    throw new ActionError(
+      "No Proxmox node configured. Add one in Settings → Nodes.",
+    );
   }
 
   const client = new ProxmoxClient({

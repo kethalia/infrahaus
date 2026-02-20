@@ -35,6 +35,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const loginSchema = z.object({
+  host: z.string().min(1, "Proxmox host is required"),
+  port: z.number().int().min(1).max(65535),
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
   realm: z.enum(["pam", "pve"]),
@@ -49,6 +51,8 @@ export default function LoginPage() {
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
+      host: "",
+      port: 8006,
       username: "",
       password: "",
       realm: "pam",
@@ -79,6 +83,40 @@ export default function LoginPage() {
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
           >
+            <div className="flex gap-3">
+              <FormField
+                control={form.control}
+                name="host"
+                render={({ field }) => (
+                  <FormItem className="flex-1">
+                    <FormLabel>Proxmox Host</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="192.168.1.100 or pve.local"
+                        autoFocus
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="port"
+                render={({ field }) => (
+                  <FormItem className="w-24">
+                    <FormLabel>Port</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
               name="username"
@@ -86,7 +124,21 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel>Username</FormLabel>
                   <FormControl>
-                    <Input placeholder="admin" autoFocus {...field} />
+                    <Input placeholder="root" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -113,20 +165,6 @@ export default function LoginPage() {
                       <SelectItem value="pve">Proxmox VE</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" {...field} />
-                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

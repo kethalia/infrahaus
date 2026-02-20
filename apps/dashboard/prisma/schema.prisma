@@ -49,16 +49,22 @@ enum EventType {
 
 model ProxmoxNode {
   id          String   @id @default(cuid())
-  name        String   @unique
+  name        String
   host        String
   port        Int      @default(8006)
   tokenId     String
-  tokenSecret String // Encrypted via encryption utility
+  tokenSecret String   // Encrypted via encryption utility
+  sshPassword String?  // Encrypted — for SSH to Proxmox host for pct exec
   fingerprint String?
+  isDefault   Boolean  @default(false)
+  userId      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   containers Container[]
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 model Template {
@@ -138,13 +144,12 @@ model TemplateFile {
 }
 
 model Container {
-  id           String             @id @default(cuid())
-  vmid         Int                @unique // Proxmox VM ID
-  hostname     String?            // LXC hostname for display (fallback when Proxmox unreachable)
-  lifecycle    ContainerLifecycle @default(creating)
-  rootPassword String             // Encrypted via encryption utility
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  id        String             @id @default(cuid())
+  vmid      Int                @unique // Proxmox VM ID
+  hostname  String?            // LXC hostname for display (fallback when Proxmox unreachable)
+  lifecycle ContainerLifecycle @default(creating)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   nodeId     String
   node       ProxmoxNode @relation(fields: [nodeId], references: [id])

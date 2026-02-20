@@ -5,6 +5,7 @@ import {
   DEFAULT_SERVER_ERROR_MESSAGE,
 } from "next-safe-action";
 import { isNetworkError } from "@/lib/utils/errors";
+import { getSessionData } from "@/lib/session";
 
 /**
  * Error class for user-facing action errors.
@@ -43,19 +44,17 @@ export const actionClient = createSafeActionClient({
 });
 
 /**
- * Authenticated action client — verifies Proxmox env vars are configured.
+ * Authenticated action client — verifies session is valid.
  * Use for: all protected actions (template CRUD, container ops, settings).
  *
- * Auth is provided by PVE_HOST + PVE_ROOT_PASSWORD env vars.
- * This middleware just validates the server is properly configured.
- * Will be replaced with real multi-user auth when DB-stored credentials are added.
+ * Checks for a valid Redis-backed session via iron-session cookie.
+ * Provides userId (Proxmox username) in ctx to all downstream actions.
  */
 export const authActionClient = actionClient.use(async ({ next }) => {
-  if (!process.env.PVE_HOST || !process.env.PVE_ROOT_PASSWORD) {
-    throw new Error(
-      "Server not configured: PVE_HOST and PVE_ROOT_PASSWORD environment variables are required.",
-    );
+  const sessionData = await getSessionData();
+  if (!sessionData) {
+    throw new Error("Authentication required. Please log in.");
   }
 
-  return next({ ctx: {} });
+  return next({ ctx: { userId: sessionData.username } });
 });

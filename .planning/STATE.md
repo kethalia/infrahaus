@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 04-container-management — Complete
-**Plan:** 11 of 11 in current phase
-**Status:** Phase 04 complete - all UAT gap closure items resolved
-**Last activity:** 2026-02-16 — Completed 04-11-PLAN.md (Confirmation dialogs for Shutdown and Start)
+**Phase:** 03.5-infrastructure-refactor — In progress
+**Plan:** 2 of 8 in current phase
+**Status:** In progress — session-based auth flow complete
+**Last activity:** 2026-02-20 — Completed 03.5-02-PLAN.md (Session-based auth flow)
 
-Progress: █████████████ 115% (22/19 plans)
+Progress: ██████████░░░░░░░ 62% (24/39 plans)
 
 ## Completed Work
 
@@ -76,6 +76,22 @@ Progress: █████████████ 115% (22/19 plans)
   - Four of five lifecycle operations now require user confirmation (Start, Shutdown, Stop, Delete; Restart executes immediately)
   - Consistent UX with educational messaging and color-coded action buttons
 
+### Phase 3.5: Infrastructure Refactor (In Progress)
+
+**03.5-01 — Schema migration + DB service refactor** ✓
+
+- ProxmoxNode model: added userId, isDefault, sshPassword fields with compound unique (userId, name)
+- Container model: removed rootPassword (clean break)
+- DatabaseService: userId-scoped node methods (listNodesForUser, getDefaultNodeForUser, setDefaultNode, etc.)
+
+**03.5-02 — Session-based auth flow** ✓
+
+- authActionClient checks Redis session via getSessionData(), provides userId in ctx
+- loginAction authenticates against Proxmox ticket API and creates Redis session
+- logoutAction destroys session and redirects to /login
+- Middleware redirects unauthenticated users to /login (cookie check)
+- Login page with host, port, username, password, realm fields
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -123,10 +139,17 @@ Progress: █████████████ 115% (22/19 plans)
 - Proxmox guest agent API for runtime IP discovery (DHCP containers)
 - Two-phase IP resolution: static config first, runtime agent query fallback
 - Graceful null return pattern for agent queries (stopped containers expected)
+- Clean data migration for infra-refactor: DELETE existing containers/nodes before adding required userId NOT NULL column
+- getNodeById stays unscoped by userId — worker has no session, receives nodeId directly
+- Transaction-based default node swap (unset all + set one) avoids partial unique index complexity
+- authActionClient reads session via getSessionData() and provides userId (Proxmox username) in ctx
+- loginAction uses actionClient (not authActionClient) since user isn't authenticated yet
+- Middleware checks SESSION_COOKIE_NAME constant for cookie presence (Edge-safe, no Redis/Node)
 
 ## Pending Work
 
-- Phase 5: Web UI & Monitoring (#87-88) — Next
+- Phase 3.5: Plans 03-08 remaining (Proxmox client factory, VMID cache, worker migration, settings UI, wizard updates, dashboard updates)
+- Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
 ## Blockers/Concerns
@@ -142,6 +165,6 @@ Progress: █████████████ 115% (22/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-16T14:07:37Z
-Stopped at: Completed 04-11-PLAN.md (Confirmation dialogs for Shutdown and Start)
+Last session: 2026-02-20T19:45:19Z
+Stopped at: Completed 03.5-02-PLAN.md (Session-based auth flow)
 Resume file: None

@@ -119,20 +119,27 @@ export interface WizardData {
  * Get or create a ProxmoxNode DB record for the given target node.
  * Auto-creates a DB record using PVE_HOST/PVE_PORT from env vars if one
  * doesn't exist yet. Uses env-based auth (no session needed).
+ *
+ * TODO(03.5-04): Remove this helper entirely — nodes will be created via
+ * the Settings page and resolved from the user's session.
  */
 async function getOrCreateNode(
   targetNode?: string,
 ): Promise<{ nodeId: string; nodeName: string }> {
+  // Temporary userId for env-var based auth path
+  // TODO(03.5-04): Get from session context
+  const userId = "root@pam";
+
   // If a target node is specified, look for it in DB first
   if (targetNode) {
-    const existing = await DatabaseService.getNodeByName(targetNode);
+    const existing = await DatabaseService.getNodeByName(userId, targetNode);
     if (existing) {
       return { nodeId: existing.id, nodeName: existing.name };
     }
   }
 
-  // Check if any nodes exist in DB
-  const existingNodes = await DatabaseService.listNodes();
+  // Check if any nodes exist in DB for this user
+  const existingNodes = await DatabaseService.listNodesForUser(userId);
   if (!targetNode && existingNodes.length > 0) {
     return { nodeId: existingNodes[0].id, nodeName: existingNodes[0].name };
   }
@@ -162,6 +169,7 @@ async function getOrCreateNode(
     port,
     tokenId: "root@pam!env",
     tokenSecret: placeholderToken,
+    userId,
   });
 
   return { nodeId: node.id, nodeName: node.name };
@@ -420,16 +428,14 @@ export const createContainerAction = authActionClient
     // Get or create a Proxmox node DB record for the target node
     const { nodeId, nodeName } = await getOrCreateNode(data.targetNode);
 
-    // Encrypt password for DB storage
-    const encryptedPassword = encrypt(data.rootPassword);
-
     // Create container record — handle VMID conflicts from stale records
+    // Note: rootPassword is no longer stored in DB (clean break per 03.5-01)
+    // The password is still passed to the worker for Proxmox API use only
     let container;
     try {
       container = await DatabaseService.createContainer({
         vmid: data.vmid,
         hostname: data.hostname,
-        rootPassword: encryptedPassword,
         nodeId,
         templateId: data.templateId || undefined,
       });
@@ -480,7 +486,6 @@ export const createContainerAction = authActionClient
           container = await DatabaseService.createContainer({
             vmid: data.vmid,
             hostname: data.hostname,
-            rootPassword: encryptedPassword,
             nodeId,
             templateId: data.templateId || undefined,
           });
