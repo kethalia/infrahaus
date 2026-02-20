@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 03.5-infrastructure-refactor — In progress
-**Plan:** 1 of 8 in current phase
-**Status:** In progress — schema migration and DB service refactor complete
-**Last activity:** 2026-02-20 — Completed 03.5-01-PLAN.md (Schema migration + DB service refactor)
+**Plan:** 2 of 8 in current phase
+**Status:** In progress — session-based auth flow complete
+**Last activity:** 2026-02-20 — Completed 03.5-02-PLAN.md (Session-based auth flow)
 
-Progress: ██████████░░░░░░░ 59% (23/39 plans)
+Progress: ██████████░░░░░░░ 62% (24/39 plans)
 
 ## Completed Work
 
@@ -84,6 +84,14 @@ Progress: ██████████░░░░░░░ 59% (23/39 plans)
 - Container model: removed rootPassword (clean break)
 - DatabaseService: userId-scoped node methods (listNodesForUser, getDefaultNodeForUser, setDefaultNode, etc.)
 
+**03.5-02 — Session-based auth flow** ✓
+
+- authActionClient checks Redis session via getSessionData(), provides userId in ctx
+- loginAction authenticates against Proxmox ticket API and creates Redis session
+- logoutAction destroys session and redirects to /login
+- Middleware redirects unauthenticated users to /login (cookie check)
+- Login page with host, port, username, password, realm fields
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -134,10 +142,13 @@ Progress: ██████████░░░░░░░ 59% (23/39 plans)
 - Clean data migration for infra-refactor: DELETE existing containers/nodes before adding required userId NOT NULL column
 - getNodeById stays unscoped by userId — worker has no session, receives nodeId directly
 - Transaction-based default node swap (unset all + set one) avoids partial unique index complexity
+- authActionClient reads session via getSessionData() and provides userId (Proxmox username) in ctx
+- loginAction uses actionClient (not authActionClient) since user isn't authenticated yet
+- Middleware checks SESSION_COOKIE_NAME constant for cookie presence (Edge-safe, no Redis/Node)
 
 ## Pending Work
 
-- Phase 3.5: Plans 02-08 remaining (auth refactor, VMID cache, proxmox client migration, worker migration, settings UI, wizard updates, dashboard updates)
+- Phase 3.5: Plans 03-08 remaining (Proxmox client factory, VMID cache, worker migration, settings UI, wizard updates, dashboard updates)
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -154,6 +165,6 @@ Progress: ██████████░░░░░░░ 59% (23/39 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-20T19:39:37Z
-Stopped at: Completed 03.5-01-PLAN.md (Schema migration + DB service refactor)
+Last session: 2026-02-20T19:45:19Z
+Stopped at: Completed 03.5-02-PLAN.md (Session-based auth flow)
 Resume file: None
