@@ -98,6 +98,7 @@ export function ContainerDetail({
             containerId={container.id}
             services={container.servicesWithCredentials}
             status={container.status}
+            containerIp={container.containerIp}
           />
         </TabsContent>
 

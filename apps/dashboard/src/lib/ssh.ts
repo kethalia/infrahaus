@@ -12,12 +12,36 @@ export interface SSHConfig {
   username: string;
   password: string;
   readyTimeout?: number; // default 10000
+  keepaliveInterval?: number; // default 15000ms
+  keepaliveCountMax?: number; // default 3
 }
 
 export interface SSHExecResult {
   stdout: string;
   stderr: string;
   code: number;
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Returns true for SSH connection errors that warrant a reconnect attempt.
+ * Covers channel-open failures (server rejects a new channel on a stale
+ * connection) and socket-level errors (TCP connection silently dropped).
+ */
+function isReconnectableError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes("channel open failure") ||
+    msg.includes("channel open failed") ||
+    msg.includes("socket is closed") ||
+    msg.includes("not connected") ||
+    msg.includes("connection reset") ||
+    msg.includes("broken pipe")
+  );
 }
 
 // ============================================================================
@@ -37,8 +61,10 @@ export interface SSHExecResult {
 export class SSHSession {
   private conn: SSHClient;
   private ready: Promise<void>;
+  readonly config: SSHConfig;
 
   constructor(config: SSHConfig) {
+    this.config = config;
     this.conn = new SSHClient();
     this.ready = new Promise<void>((resolve, reject) => {
       this.conn
@@ -50,6 +76,10 @@ export class SSHSession {
           username: config.username,
           password: config.password,
           readyTimeout: config.readyTimeout ?? 10000,
+          // Keepalive prevents silent session drops during long-running scripts
+          // (e.g. Docker install restarts networking and can drop the SSH session)
+          keepaliveInterval: config.keepaliveInterval ?? 15_000,
+          keepaliveCountMax: config.keepaliveCountMax ?? 3,
         });
     });
   }
@@ -177,34 +207,67 @@ export class PctExecSession {
   }
 
   /**
+   * Reconnect the underlying host SSH session.
+   * Called automatically when a reconnectable error is detected —
+   * this happens when a long-running script (e.g. Docker install) causes
+   * a brief network disruption that silently drops the SSH session.
+   */
+  private async reconnect(): Promise<void> {
+    try {
+      this.hostSession.close();
+    } catch {
+      // Ignore — connection may already be dead
+    }
+    this.hostSession = new SSHSession(this.hostSession.config);
+    // Verify the new connection is up before returning
+    await this.hostSession.exec("echo ok");
+  }
+
+  /**
+   * Run fn(), and if it throws a reconnectable SSH error, reconnect once and retry.
+   * Centralises the try/reconnect/retry pattern for exec, execStreaming, and uploadFile.
+   */
+  private async withReconnect<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (isReconnectableError(err)) {
+        await this.reconnect();
+        return fn();
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Execute a command inside the container via `pct exec`.
+   * Retries once with a fresh SSH connection on reconnectable SSH errors.
    */
   async exec(command: string): Promise<SSHExecResult> {
-    // pct exec <vmid> -- bash -c '<command>'
-    // Use bash -c to support pipes, redirects, and chained commands
     const escaped = command.replace(/'/g, "'\\''");
-    return this.hostSession.exec(
-      `pct exec ${this.vmid} -- bash -c '${escaped}'`,
-    );
+    const pctCmd = `pct exec ${this.vmid} -- bash -c '${escaped}'`;
+    return this.withReconnect(() => this.hostSession.exec(pctCmd));
   }
 
   /**
    * Execute a command inside the container with streaming output via `pct exec`.
+   * Retries once with a fresh SSH connection on reconnectable SSH errors.
    */
   async execStreaming(
     command: string,
     onOutput: (line: string, isStderr: boolean) => void,
   ): Promise<number> {
     const escaped = command.replace(/'/g, "'\\''");
-    return this.hostSession.execStreaming(
-      `pct exec ${this.vmid} -- bash -c '${escaped}'`,
-      onOutput,
+    const pctCmd = `pct exec ${this.vmid} -- bash -c '${escaped}'`;
+    return this.withReconnect(() =>
+      this.hostSession.execStreaming(pctCmd, onOutput),
     );
   }
 
   /**
    * Upload a file into the container via `pct push`.
    * Writes to a temp file on the host, then pushes into the container.
+   * Retries once with a fresh SSH connection on reconnectable SSH errors.
    * Throws if pct push fails (e.g., target directory doesn't exist in container).
    */
   async uploadFile(
@@ -212,27 +275,32 @@ export class PctExecSession {
     remotePath: string,
     mode?: number,
   ): Promise<void> {
-    // Write content to a temp file on the Proxmox host
     const tmpPath = `/tmp/.pct-upload-${this.vmid}-${Date.now()}`;
-    await this.hostSession.uploadFile(content, tmpPath, 0o644);
+    const permsArg = mode ? ` --perms 0${mode.toString(8)}` : "";
 
-    try {
-      // Push from host into container
-      const permsArg = mode ? ` --perms 0${mode.toString(8)}` : "";
-      const result = await this.hostSession.exec(
-        `pct push ${this.vmid} ${tmpPath} ${remotePath}${permsArg}`,
-      );
+    const doUpload = async () => {
+      // Write content to a temp file on the Proxmox host
+      await this.hostSession.uploadFile(content, tmpPath, 0o644);
 
-      if (result.code !== 0) {
-        const errMsg = (result.stderr || result.stdout).trim();
-        throw new Error(
-          `pct push failed for ${remotePath} (exit code ${result.code}): ${errMsg}`,
+      try {
+        // Push from host into container
+        const result = await this.hostSession.exec(
+          `pct push ${this.vmid} ${tmpPath} ${remotePath}${permsArg}`,
         );
+
+        if (result.code !== 0) {
+          const errMsg = (result.stderr || result.stdout).trim();
+          throw new Error(
+            `pct push failed for ${remotePath} (exit code ${result.code}): ${errMsg}`,
+          );
+        }
+      } finally {
+        // Clean up temp file on host regardless of success/failure
+        await this.hostSession.exec(`rm -f ${tmpPath}`);
       }
-    } finally {
-      // Clean up temp file on host regardless of success/failure
-      await this.hostSession.exec(`rm -f ${tmpPath}`);
-    }
+    };
+
+    return this.withReconnect(doUpload);
   }
 
   /**

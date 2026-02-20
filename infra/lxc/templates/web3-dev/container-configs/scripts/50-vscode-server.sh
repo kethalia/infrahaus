@@ -137,8 +137,9 @@ install_vscode_extensions() {
         "wayou.vscode-todo-highlight"
     )
     
-    # Export EXTENSIONS_GALLERY for this session (run_as_user will pass it through)
-    export EXTENSIONS_GALLERY='{"serviceUrl":"https://marketplace.visualstudio.com/_apis/public/gallery","itemUrl":"https://marketplace.visualstudio.com/items"}'
+    # EXTENSIONS_GALLERY must reach code-server's process environment.
+    # run_as_user (sudo -H) resets env, so we pass it explicitly via env(1).
+    EXTENSIONS_GALLERY='{"serviceUrl":"https://marketplace.visualstudio.com/_apis/public/gallery","itemUrl":"https://marketplace.visualstudio.com/items"}'
     
     log_info "Installing ${#EXTENSIONS[@]} extensions from Microsoft marketplace..."
     
@@ -147,11 +148,12 @@ install_vscode_extensions() {
     
     for extension in "${EXTENSIONS[@]}"; do
         log_info "  Installing: ${extension}"
-        if run_as_user /usr/bin/code-server --install-extension "$extension" >/dev/null 2>&1; then
-            ((INSTALLED++))
+        if sudo -H -u "${CONTAINER_USER}" -- env "EXTENSIONS_GALLERY=${EXTENSIONS_GALLERY}" \
+            /usr/bin/code-server --install-extension "$extension" >/dev/null 2>&1; then
+            INSTALLED=$((INSTALLED + 1))
         else
             log_warn "  Failed to install: ${extension}"
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
         fi
     done
     

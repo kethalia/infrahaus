@@ -21,6 +21,7 @@ import {
   nodes as proxmoxNodes,
   templates as proxmoxTemplates,
 } from "@/lib/proxmox";
+import { ProxmoxApiError } from "@/lib/proxmox/errors";
 import {
   startContainer,
   stopContainer,
@@ -210,84 +211,109 @@ export async function getWizardData(): Promise<WizardData> {
 
     const onlineNodes = clusterNodeList.filter((n) => n.status === "online");
 
-    // Fetch storages, bridges, and OS templates for EACH online node in parallel
-    const perNodeData = await Promise.all(
-      onlineNodes.map(async (clusterNode) => {
+    // If PVE_NODE is set, only fetch data for that node — avoids slow
+    // cross-node proxy calls in clusters where some nodes are unreachable
+    // from the API host (e.g. the API host proxying back to itself).
+    const pveNode = process.env.PVE_NODE?.trim();
+    const targetNodes = pveNode
+      ? onlineNodes.filter((n) => n.node === pveNode)
+      : onlineNodes;
+
+    // Fetch per-node data (storage, bridges, OS templates) for each node.
+    // Each node is fetched independently — if one node is unreachable via
+    // Proxmox's cross-node proxy (HTTP 596), it fails gracefully without
+    // blocking the others.
+    const perNodeResults = await Promise.all(
+      targetNodes.map(async (clusterNode) => {
         const nn = clusterNode.node;
 
-        const [storageList, networkList] = await Promise.all([
-          storage.listStorage(client, nn),
-          client.get(
-            `/nodes/${nn}/network`,
-            z.array(
-              z
-                .object({
-                  iface: z.string(),
-                  type: z.string(),
-                })
-                .passthrough(),
+        try {
+          const [storageList, networkList] = await Promise.all([
+            storage.listStorage(client, nn),
+            client.get(
+              `/nodes/${nn}/network`,
+              z.array(
+                z
+                  .object({
+                    iface: z.string(),
+                    type: z.string(),
+                  })
+                  .passthrough(),
+              ),
             ),
-          ),
-        ]);
+          ]);
 
-        // Filter storages that support container rootdir/images content
-        const containerStorages = storageList.filter(
-          (s) =>
-            s.content?.includes("rootdir") || s.content?.includes("images"),
-        );
+          // Filter storages that support container rootdir/images content
+          const containerStorages = storageList.filter(
+            (s) =>
+              s.content?.includes("rootdir") || s.content?.includes("images"),
+          );
 
-        // Filter for bridge interfaces only
-        const bridges = networkList.filter((n) => n.type === "bridge");
+          // Filter for bridge interfaces only
+          const bridges = networkList.filter((n) => n.type === "bridge");
 
-        // Find storages that support vztmpl content and fetch their templates
-        const vztmplStorages = storageList.filter((s) =>
-          s.content?.includes("vztmpl"),
-        );
-        const osTemplatesResults = await Promise.all(
-          vztmplStorages.map((s) =>
-            proxmoxTemplates
-              .listDownloadedTemplates(client, nn, s.storage)
-              .catch(() => []),
-          ),
-        );
+          // Find storages that support vztmpl content and fetch their templates
+          const vztmplStorages = storageList.filter((s) =>
+            s.content?.includes("vztmpl"),
+          );
+          const osTemplatesResults = await Promise.all(
+            vztmplStorages.map((s) =>
+              proxmoxTemplates
+                .listDownloadedTemplates(client, nn, s.storage)
+                .catch(() => []),
+            ),
+          );
 
-        // Map OS templates with node info
-        const osTemplates: WizardOsTemplate[] = osTemplatesResults
-          .flat()
-          .map((template) => {
-            const volidParts = template.volid.split("/");
-            let name = volidParts[volidParts.length - 1];
-            name = name.replace(/\.(tar\.zst|tar\.gz|tar\.xz)$/, "");
-            return {
+          // Map OS templates with node info
+          const osTemplates: WizardOsTemplate[] = osTemplatesResults
+            .flat()
+            .map((template) => {
+              const volidParts = template.volid.split("/");
+              let name = volidParts[volidParts.length - 1];
+              name = name.replace(/\.(tar\.zst|tar\.gz|tar\.xz)$/, "");
+              return {
+                node: nn,
+                volid: template.volid,
+                name,
+                size: template.size,
+              };
+            });
+
+          return {
+            node: nn,
+            storages: containerStorages.map((s) => ({
               node: nn,
-              volid: template.volid,
-              name,
-              size: template.size,
-            };
-          });
-
-        return {
-          node: nn,
-          storages: containerStorages.map((s) => ({
+              storage: s.storage,
+              type: s.type,
+              content: s.content,
+            })),
+            bridges: bridges.map((b) => ({
+              node: nn,
+              iface: b.iface,
+              type: b.type,
+            })),
+            osTemplates,
+          };
+        } catch (err) {
+          // Node unreachable (e.g. Proxmox 596 proxy timeout) — skip it.
+          // The wizard will still show data from reachable nodes.
+          console.warn(
+            `Skipping node ${nn}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          return {
             node: nn,
-            storage: s.storage,
-            type: s.type,
-            content: s.content,
-          })),
-          bridges: bridges.map((b) => ({
-            node: nn,
-            iface: b.iface,
-            type: b.type,
-          })),
-          osTemplates,
-        };
+            storages: [] as WizardStorage[],
+            bridges: [] as WizardBridge[],
+            osTemplates: [] as WizardOsTemplate[],
+          };
+        }
       }),
     );
 
     // Flatten per-node data into single arrays
-    const allStorages = perNodeData.flatMap((d) => d.storages);
-    const allBridges = perNodeData.flatMap((d) => d.bridges);
-    const allOsTemplates = perNodeData.flatMap((d) => d.osTemplates);
+    const allStorages = perNodeResults.flatMap((d) => d.storages);
+    const allBridges = perNodeResults.flatMap((d) => d.bridges);
+    const allOsTemplates = perNodeResults.flatMap((d) => d.osTemplates);
 
     return {
       templates: templates.map(mapTemplate),
@@ -782,20 +808,31 @@ export const deleteContainerAction = authActionClient
     try {
       const { client, nodeName, vmid } = await getContainerContext(containerId);
 
-      // Stop the container first if it's running
-      const status = await getContainer(client, nodeName, vmid);
-      if (status.status === "running") {
-        const stopUpid = await stopContainer(client, nodeName, vmid);
-        await waitForTask(client, nodeName, stopUpid, {
-          timeout: TASK_TIMEOUT_MS,
-        });
-      }
+      try {
+        // Stop the container first if it's running
+        const status = await getContainer(client, nodeName, vmid);
+        if (status.status === "running") {
+          const stopUpid = await stopContainer(client, nodeName, vmid);
+          await waitForTask(client, nodeName, stopUpid, {
+            timeout: TASK_TIMEOUT_MS,
+          });
+        }
 
-      // Delete from Proxmox (with purge to clean up all data)
-      const deleteUpid = await deleteContainer(client, nodeName, vmid, true);
-      await waitForTask(client, nodeName, deleteUpid, {
-        timeout: DELETE_TIMEOUT_MS,
-      });
+        // Delete from Proxmox (with purge to clean up all data)
+        const deleteUpid = await deleteContainer(client, nodeName, vmid, true);
+        await waitForTask(client, nodeName, deleteUpid, {
+          timeout: DELETE_TIMEOUT_MS,
+        });
+      } catch (err) {
+        // Proxmox is the source of truth: if it reports the container doesn't
+        // exist, it's already gone. Skip Proxmox cleanup and just clean up DB.
+        const isGone =
+          err instanceof ProxmoxApiError &&
+          (err.message.toLowerCase().includes("does not exist") ||
+            err.message.toLowerCase().includes("no such") ||
+            err.statusCode === 404);
+        if (!isGone) throw err;
+      }
 
       // Delete from database (cascade handles services and events)
       await DatabaseService.deleteContainerById(containerId);

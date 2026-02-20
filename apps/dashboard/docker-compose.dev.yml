@@ -1,10 +1,9 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: dashboard-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - ${POSTGRES_PORT:-5432}:5432
     environment:
       POSTGRES_USER: dashboard
       POSTGRES_PASSWORD: dashboard
@@ -16,16 +15,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      dashboard:
-        ipv4_address: 172.20.0.10
 
   redis:
     image: redis:7-alpine
-    container_name: dashboard-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - ${REDIS_PORT:-6379}:6379
     volumes:
       - dashboard-redis-data:/data
     command: redis-server --appendonly yes
@@ -34,16 +29,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-    networks:
-      dashboard:
-        ipv4_address: 172.20.0.11
-
-networks:
-  dashboard:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/24
 
 volumes:
   dashboard-postgres-data:

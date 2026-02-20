@@ -47,6 +47,7 @@ interface ServicesTabProps {
   containerId: string;
   services: ServiceWithCredentials[];
   status: ContainerStatus;
+  containerIp?: string | null;
 }
 
 // ============================================================================
@@ -57,6 +58,7 @@ export function ServicesTab({
   containerId,
   services,
   status,
+  containerIp,
 }: ServicesTabProps) {
   const { execute: executeRefresh, isPending } = useAction(
     refreshContainerServicesAction,
@@ -120,7 +122,11 @@ export function ServicesTab({
         ) : (
           <div className="space-y-4">
             {services.map((service) => (
-              <ServiceCard key={service.id} service={service} />
+              <ServiceCard
+                key={service.id}
+                service={service}
+                containerIp={containerIp}
+              />
             ))}
           </div>
         )}
@@ -133,7 +139,13 @@ export function ServicesTab({
 // ServiceCard Sub-component
 // ============================================================================
 
-function ServiceCard({ service }: { service: ServiceWithCredentials }) {
+function ServiceCard({
+  service,
+  containerIp,
+}: {
+  service: ServiceWithCredentials;
+  containerIp?: string | null;
+}) {
   const [showCredentials, setShowCredentials] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
@@ -141,6 +153,13 @@ function ServiceCard({ service }: { service: ServiceWithCredentials }) {
     label: service.status,
     className: "bg-gray-500/15 text-gray-700 border-gray-500/25",
   };
+
+  // Construct URL from port + containerIp when webUrl is not stored in DB
+  const webUrl =
+    service.webUrl ??
+    (service.port && containerIp
+      ? `http://${containerIp}:${service.port}`
+      : null);
 
   async function copyToClipboard(value: string, field: string) {
     try {
@@ -173,14 +192,15 @@ function ServiceCard({ service }: { service: ServiceWithCredentials }) {
       </div>
 
       {/* Web UI Link */}
-      {service.webUrl && (
-        <div className="mt-2">
+      {webUrl && (
+        <div className="mt-2 flex items-center gap-2">
           <Button variant="outline" size="sm" asChild>
-            <a href={service.webUrl} target="_blank" rel="noopener noreferrer">
+            <a href={webUrl} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="size-3.5" />
               Open Web UI
             </a>
           </Button>
+          <span className="text-muted-foreground text-xs">{webUrl}</span>
         </div>
       )}
 

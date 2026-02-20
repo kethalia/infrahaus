@@ -68,7 +68,7 @@ install_act() {
     # Download and run the official act installer
     log_info "Downloading act installer..."
     
-    if curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bash; then
+    if curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bash -s -- -b /usr/local/bin; then
         log_info "✓ act installed successfully"
         
         if is_installed act; then
@@ -88,44 +88,43 @@ install_act() {
 install_pnpm() {
     log_info "Installing pnpm (Node.js package manager)..."
     
-    # Check if pnpm is already installed
-    if run_as_user bash -c "command -v pnpm" >/dev/null 2>&1; then
-        PNPM_VERSION=$(run_as_user bash -c "pnpm --version" 2>/dev/null || echo "unknown")
+    # Check if pnpm is already available via corepack or direct install
+    if run_as_user bash -c "
+        export NVM_DIR='/home/${CONTAINER_USER}/.nvm'
+        [[ -s \"\$NVM_DIR/nvm.sh\" ]] && source \"\$NVM_DIR/nvm.sh\"
+        command -v pnpm
+    " >/dev/null 2>&1; then
+        PNPM_VERSION=$(run_as_user bash -c "
+            export NVM_DIR='/home/${CONTAINER_USER}/.nvm'
+            [[ -s \"\$NVM_DIR/nvm.sh\" ]] && source \"\$NVM_DIR/nvm.sh\"
+            pnpm --version
+        " 2>/dev/null || echo "unknown")
         log_info "pnpm is already installed: v${PNPM_VERSION}"
         return 0
     fi
     
-    # Check if npm is available
-    if ! run_as_user bash -c "command -v npm" >/dev/null 2>&1; then
-        log_error "npm is not available. Cannot install pnpm."
-        log_error "Please ensure Node.js is installed first (03-nodejs-setup.sh)"
-        return 1
-    fi
-    
-    # Install pnpm globally via npm
-    log_info "Installing pnpm globally via npm..."
+    # Use corepack (ships with Node 24+) to enable pnpm.
+    # This avoids npm global prefix conflicts with NVM that break
+    # "npm install -g pnpm" when a custom prefix is set.
+    log_info "Enabling pnpm via corepack..."
     
     run_as_user bash -c "
         export NVM_DIR='/home/${CONTAINER_USER}/.nvm'
         if [[ -s \"\$NVM_DIR/nvm.sh\" ]]; then
             source \"\$NVM_DIR/nvm.sh\"
         fi
-        npm install -g pnpm
+        corepack enable pnpm
     "
     
     # Verify installation
     if run_as_user bash -c "
         export NVM_DIR='/home/${CONTAINER_USER}/.nvm'
-        if [[ -s \"\$NVM_DIR/nvm.sh\" ]]; then
-            source \"\$NVM_DIR/nvm.sh\"
-        fi
+        [[ -s \"\$NVM_DIR/nvm.sh\" ]] && source \"\$NVM_DIR/nvm.sh\"
         command -v pnpm
     " >/dev/null 2>&1; then
         PNPM_VERSION=$(run_as_user bash -c "
             export NVM_DIR='/home/${CONTAINER_USER}/.nvm'
-            if [[ -s \"\$NVM_DIR/nvm.sh\" ]]; then
-                source \"\$NVM_DIR/nvm.sh\"
-            fi
+            [[ -s \"\$NVM_DIR/nvm.sh\" ]] && source \"\$NVM_DIR/nvm.sh\"
             pnpm --version
         ")
         log_info "✓ pnpm installed: v${PNPM_VERSION}"
@@ -144,21 +143,21 @@ TOOLS_INSTALLED=0
 TOOLS_FAILED=0
 
 if install_github_cli; then
-    ((TOOLS_INSTALLED++))
+    TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
 else
-    ((TOOLS_FAILED++))
+    TOOLS_FAILED=$((TOOLS_FAILED + 1))
 fi
 
 if install_act; then
-    ((TOOLS_INSTALLED++))
+    TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
 else
-    ((TOOLS_FAILED++))
+    TOOLS_FAILED=$((TOOLS_FAILED + 1))
 fi
 
 if install_pnpm; then
-    ((TOOLS_INSTALLED++))
+    TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
 else
-    ((TOOLS_FAILED++))
+    TOOLS_FAILED=$((TOOLS_FAILED + 1))
 fi
 
 # Summary

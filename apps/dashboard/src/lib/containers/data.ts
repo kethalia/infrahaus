@@ -100,6 +100,8 @@ export interface ContainerDetailData {
     }>;
     /** Proxmox configuration (if available) */
     config: ProxmoxContainerConfig | null;
+    /** Resolved container IP (static or DHCP — null if unknown) */
+    containerIp: string | null;
     /** Services with decrypted credentials for detail view */
     servicesWithCredentials: Array<{
       id: string;
@@ -231,6 +233,7 @@ export async function getContainerDetailData(
   let proxmoxStatus: ProxmoxContainerStatus | null = null;
   let proxmoxConfig: ProxmoxContainerConfig | null = null;
   let proxmoxReachable = true;
+  let containerIp: string | null = null;
 
   // Only fetch Proxmox data for ready containers
   if (dbContainer.lifecycle === "ready") {
@@ -242,6 +245,23 @@ export async function getContainerDetailData(
       ]);
       proxmoxStatus = status;
       proxmoxConfig = config;
+
+      // Resolve container IP (static from net0, or live interfaces for DHCP)
+      const { extractIpFromNet0 } = await import("@/lib/proxmox/utils");
+      const { getRuntimeIp } = await import("@/lib/proxmox/containers");
+      const net0 = (config as Record<string, unknown>)["net0"] as
+        | string
+        | undefined;
+      if (net0) {
+        containerIp = extractIpFromNet0(net0);
+      }
+      if (!containerIp) {
+        containerIp = await getRuntimeIp(
+          client,
+          dbContainer.node.name,
+          dbContainer.vmid,
+        );
+      }
     } catch (error) {
       console.error(
         `Container ${dbContainer.vmid} detail fetch failed:`,
@@ -293,6 +313,7 @@ export async function getContainerDetailData(
         createdAt: e.createdAt,
       })),
       config: proxmoxConfig,
+      containerIp,
       servicesWithCredentials,
     },
     proxmoxReachable,

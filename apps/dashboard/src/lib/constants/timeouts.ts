@@ -36,6 +36,10 @@ export const DELETE_TIMEOUT_MS = 120_000;
 // Proxmox Client
 // ============================================================================
 
+/** Per-request timeout for Proxmox API calls (ms) — prevents indefinite hangs
+ *  when Proxmox tries to proxy to an unreachable cluster node (HTTP 596). */
+export const PVE_REQUEST_TIMEOUT_MS = 30_000;
+
 /** Ticket refresh threshold — refresh when less than this remains (ms) */
 export const TICKET_REFRESH_THRESHOLD_MS = 10 * 60 * 1000;
 

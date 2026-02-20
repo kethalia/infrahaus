@@ -13,7 +13,10 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import Redis from "ioredis";
-import { SSE_HEARTBEAT_INTERVAL_MS } from "@/lib/constants/infrastructure";
+import {
+  SSE_HEARTBEAT_INTERVAL_MS,
+  getLogBufferKey,
+} from "@/lib/constants/infrastructure";
 import { DatabaseService } from "@/lib/db";
 import {
   getProgressChannel,
@@ -32,8 +35,25 @@ export async function GET(
     return NextResponse.json({ error: "Container not found" }, { status: 404 });
   }
 
-  // Fetch existing events for replay
+  // Fetch persisted step/error events for snapshot state reconstruction
   const existingEvents = await DatabaseService.getContainerEvents(containerId);
+
+  // Fetch the log ring buffer for replay (may be empty if TTL expired or job
+  // predates this feature)
+  const redisUrl = process.env.REDIS_URL;
+  let bufferedLogs: string[] = [];
+  if (redisUrl) {
+    const replayClient = new Redis(redisUrl);
+    try {
+      bufferedLogs = await replayClient.lrange(
+        getLogBufferKey(containerId),
+        0,
+        -1,
+      );
+    } finally {
+      replayClient.disconnect();
+    }
+  }
 
   const isTerminal =
     container.lifecycle === "ready" || container.lifecycle === "error";
@@ -147,7 +167,13 @@ export async function GET(
         }),
       );
 
-      // If container is already in terminal state, close after snapshot
+      // Replay buffered log/step events from the Redis ring buffer so the
+      // client sees the full history on refresh without needing live Pub/Sub.
+      for (const raw of bufferedLogs) {
+        send("progress", raw);
+      }
+
+      // If container is already in terminal state, close after replay
       if (isTerminal) {
         send("done", JSON.stringify({ reason: "terminal" }));
         cleanup();
@@ -155,7 +181,6 @@ export async function GET(
       }
 
       // Subscribe to Redis Pub/Sub for live events
-      const redisUrl = process.env.REDIS_URL;
       if (!redisUrl) {
         send(
           "progress",
