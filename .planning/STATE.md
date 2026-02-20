@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 03.5-infrastructure-refactor — In progress
-**Plan:** 5 of 8 in current phase
-**Status:** In progress — Container actions & data layer migrated to DB-based Proxmox auth
-**Last activity:** 2026-02-20 — Completed 03.5-04-PLAN.md
+**Plan:** 7 of 8 in current phase
+**Status:** In progress — Wizard updated with VMID validation, node selector, no password fields
+**Last activity:** 2026-02-20 — Completed 03.5-07-PLAN.md
 
-Progress: ██████████░░░░░░░ 65% (28/43 plans)
+Progress: ███████████░░░░░░ 67% (29/43 plans)
 
 ## Completed Work
 
@@ -119,6 +119,15 @@ Progress: ██████████░░░░░░░ 65% (28/43 plans)
 - rootPassword removed from ContainerJobData, container schemas, and enqueue call
 - Zero PVE_HOST/PVE_ROOT_PASSWORD references in workers/ or app/api/
 
+**03.5-07 — Wizard updates (password removal, VMID validation, node selector)** ✓
+
+- Removed rootPassword/confirmPassword from wizard UI and form submission
+- Created VmidField component with debounced inline validation (green check / red X / spinner)
+- Added checkVmidAction and refreshVmidCacheAction server actions
+- Node selector shows default node with "(default)" label, allows changing
+- Wizard page shows NoNodesBanner when no nodes configured
+- VMID cache refreshed server-side on wizard page load
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -183,10 +192,13 @@ Progress: ██████████░░░░░░░ 65% (28/43 plans)
 - getContainerDetailData resolves client from container.node relation (no userId needed)
 - Dashboard page.tsx follows same session-check pattern as wizard page (getSessionData + redirect)
 
+- VmidField uses debounced useAction (500ms) for server-side validation rather than client-side cache
+- VMID cache refreshed server-side on wizard page load for freshest data
+- Node selector shows Proxmox node names with '(default)' badge, syncs DB nodeId for VMID validation
+
 ## Pending Work
 
-- Phase 3.5: Plans 06-08 remaining (settings UI, wizard updates, dashboard updates)
-  - Note: Client-side wizard still has rootPassword form fields (stripped by Zod) — clean up in Plan 07
+- Phase 3.5: Plan 08 remaining (dashboard updates: node badge, filtering, no-nodes banner)
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -204,5 +216,5 @@ Progress: ██████████░░░░░░░ 65% (28/43 plans)
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 03.5-04-PLAN.md (container actions & data migration)
+Stopped at: Completed 03.5-07-PLAN.md (wizard updates: password removal, VMID validation, node selector)
 Resume file: None
