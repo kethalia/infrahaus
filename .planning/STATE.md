@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 03.5-infrastructure-refactor — In progress
-**Plan:** 2 of 8 in current phase
-**Status:** In progress — session-based auth flow complete
-**Last activity:** 2026-02-20 — Completed 03.5-02-PLAN.md (Session-based auth flow)
+**Plan:** 3 of 8 in current phase
+**Status:** In progress — VMID cache + node CRUD actions complete
+**Last activity:** 2026-02-20 — Completed 03.5-03-PLAN.md (VMID cache + node CRUD actions)
 
-Progress: ██████████░░░░░░░ 62% (24/39 plans)
+Progress: ██████████░░░░░░░ 64% (25/39 plans)
 
 ## Completed Work
 
@@ -92,6 +92,13 @@ Progress: ██████████░░░░░░░ 62% (24/39 plans)
 - Middleware redirects unauthenticated users to /login (cookie check)
 - Login page with host, port, username, password, realm fields
 
+**03.5-03 — VMID cache module + node CRUD server actions** ✓
+
+- Redis VMID cache: refreshVmidCache, isVmidTaken, invalidateVmidCache, getCachedVmids (SET with 5m TTL)
+- Node CRUD: createNodeAction, updateNodeAction, deleteNodeAction, setDefaultNodeAction, testNodeConnectionAction
+- Connection testing on create/update (hit /version endpoint before persisting)
+- Auto-default first node, delete protection for nodes with containers
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -145,10 +152,14 @@ Progress: ██████████░░░░░░░ 62% (24/39 plans)
 - authActionClient reads session via getSessionData() and provides userId (Proxmox username) in ctx
 - loginAction uses actionClient (not authActionClient) since user isn't authenticated yet
 - Middleware checks SESSION_COOKIE_NAME constant for cookie presence (Edge-safe, no Redis/Node)
+- VMID cache uses Redis SET (SADD/SISMEMBER/SMEMBERS) with 5-minute TTL per node
+- Connection test via /version endpoint before persisting node credentials
+- sshPassword update: provided=encrypt, empty string=clear to null, undefined=keep existing
+- vmid-cache.ts has no "server-only" — worker needs it for cache invalidation
 
 ## Pending Work
 
-- Phase 3.5: Plans 03-08 remaining (Proxmox client factory, VMID cache, worker migration, settings UI, wizard updates, dashboard updates)
+- Phase 3.5: Plans 04-08 remaining (Proxmox client migration, worker migration, settings UI, wizard updates, dashboard updates)
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -165,6 +176,6 @@ Progress: ██████████░░░░░░░ 62% (24/39 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-20T19:45:19Z
-Stopped at: Completed 03.5-02-PLAN.md (Session-based auth flow)
+Last session: 2026-02-20T20:34:09Z
+Stopped at: Completed 03.5-03-PLAN.md (VMID cache + node CRUD actions)
 Resume file: None

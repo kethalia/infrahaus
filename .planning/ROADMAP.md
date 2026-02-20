@@ -80,8 +80,8 @@ Key deliverables:
 Plans:
 
 - [x] 03.5-01-PLAN.md — Schema migration + DB service refactor (userId on ProxmoxNode, remove rootPassword)
-- [ ] 03.5-02-PLAN.md — Auth refactor (session-based authActionClient, login/logout, middleware)
-- [ ] 03.5-03-PLAN.md — VMID cache module + node CRUD server actions
+- [x] 03.5-02-PLAN.md — Auth refactor (session-based authActionClient, login/logout, middleware)
+- [x] 03.5-03-PLAN.md — VMID cache module + node CRUD server actions
 - [ ] 03.5-04-PLAN.md — Proxmox client migration (all container action/data call sites)
 - [ ] 03.5-05-PLAN.md — Worker + service logs route migration to DB-based auth
 - [ ] 03.5-06-PLAN.md — Settings page UI (/settings/nodes)
