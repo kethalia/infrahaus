@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 04-container-management — Complete
-**Plan:** 11 of 11 in current phase
-**Status:** Phase 04 complete - all UAT gap closure items resolved
-**Last activity:** 2026-02-16 — Completed 04-11-PLAN.md (Confirmation dialogs for Shutdown and Start)
+**Phase:** 03.5-infrastructure-refactor — In progress
+**Plan:** 1 of 8 in current phase
+**Status:** In progress — schema migration and DB service refactor complete
+**Last activity:** 2026-02-20 — Completed 03.5-01-PLAN.md (Schema migration + DB service refactor)
 
-Progress: █████████████ 115% (22/19 plans)
+Progress: ██████████░░░░░░░ 59% (23/39 plans)
 
 ## Completed Work
 
@@ -76,6 +76,14 @@ Progress: █████████████ 115% (22/19 plans)
   - Four of five lifecycle operations now require user confirmation (Start, Shutdown, Stop, Delete; Restart executes immediately)
   - Consistent UX with educational messaging and color-coded action buttons
 
+### Phase 3.5: Infrastructure Refactor (In Progress)
+
+**03.5-01 — Schema migration + DB service refactor** ✓
+
+- ProxmoxNode model: added userId, isDefault, sshPassword fields with compound unique (userId, name)
+- Container model: removed rootPassword (clean break)
+- DatabaseService: userId-scoped node methods (listNodesForUser, getDefaultNodeForUser, setDefaultNode, etc.)
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -123,10 +131,14 @@ Progress: █████████████ 115% (22/19 plans)
 - Proxmox guest agent API for runtime IP discovery (DHCP containers)
 - Two-phase IP resolution: static config first, runtime agent query fallback
 - Graceful null return pattern for agent queries (stopped containers expected)
+- Clean data migration for infra-refactor: DELETE existing containers/nodes before adding required userId NOT NULL column
+- getNodeById stays unscoped by userId — worker has no session, receives nodeId directly
+- Transaction-based default node swap (unset all + set one) avoids partial unique index complexity
 
 ## Pending Work
 
-- Phase 5: Web UI & Monitoring (#87-88) — Next
+- Phase 3.5: Plans 02-08 remaining (auth refactor, VMID cache, proxmox client migration, worker migration, settings UI, wizard updates, dashboard updates)
+- Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
 ## Blockers/Concerns
@@ -142,6 +154,6 @@ Progress: █████████████ 115% (22/19 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-16T14:07:37Z
-Stopped at: Completed 04-11-PLAN.md (Confirmation dialogs for Shutdown and Start)
+Last session: 2026-02-20T19:39:37Z
+Stopped at: Completed 03.5-01-PLAN.md (Schema migration + DB service refactor)
 Resume file: None
