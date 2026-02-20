@@ -43,6 +43,7 @@ export function VmidField<T extends FieldValues>({
   const [status, setStatus] = useState<VmidStatus>("idle");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCheckedRef = useRef<number | null>(null);
+  const prevNodeIdRef = useRef(nodeId);
 
   const { execute: checkVmid } = useAction(checkVmidAction, {
     onSuccess: ({ data }) => {
@@ -83,16 +84,30 @@ export function VmidField<T extends FieldValues>({
     [nodeId, checkVmid],
   );
 
+  // Reset status when nodeId changes (synchronous ref comparison, no effect needed)
+  if (prevNodeIdRef.current !== nodeId) {
+    prevNodeIdRef.current = nodeId;
+    setStatus("idle");
+    lastCheckedRef.current = null;
+  }
+
+  // Derive whether current input needs reset to idle (no effect setState needed)
+  const vmidNum = Number(currentVmid);
+  const inputEmpty = !currentVmid || isNaN(vmidNum) || vmidNum < 100;
+
+  // Reset status during render when input becomes empty/invalid
+  if (inputEmpty && status !== "idle") {
+    setStatus("idle");
+    lastCheckedRef.current = null;
+  }
+
   // Debounce validation when VMID value changes
   useEffect(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
 
-    const vmidNum = Number(currentVmid);
-
-    if (!currentVmid || isNaN(vmidNum) || vmidNum < 100) {
-      setStatus("idle");
+    if (inputEmpty) {
       lastCheckedRef.current = null;
       return;
     }
@@ -106,13 +121,7 @@ export function VmidField<T extends FieldValues>({
         clearTimeout(debounceRef.current);
       }
     };
-  }, [currentVmid, validateVmid]);
-
-  // Reset status when nodeId changes
-  useEffect(() => {
-    setStatus("idle");
-    lastCheckedRef.current = null;
-  }, [nodeId]);
+  }, [currentVmid, validateVmid, inputEmpty, vmidNum]);
 
   return (
     <FormField
