@@ -14,14 +14,13 @@ import {
   type ContainerWithDetails,
   type ContainerCounts,
 } from "@/lib/db";
-import { getProxmoxClient } from "@/lib/proxmox";
+import { createProxmoxClientFromNode } from "@/lib/proxmox";
 import { getRedis } from "@/lib/redis";
 import {
   listContainers,
   getContainer,
   getContainerConfig,
 } from "@/lib/proxmox/containers";
-import { listNodes } from "@/lib/proxmox/nodes";
 import type {
   ProxmoxContainerStatus,
   ProxmoxContainerConfig,
@@ -128,8 +127,12 @@ export interface ContainerDetailData {
  * - Error containers → status = "error"
  * - Ready containers → use Proxmox live status (running/stopped)
  * - Proxmox API failure → status = "unknown" for ready containers
+ *
+ * @param userId - The authenticated user's ID, used to resolve Proxmox nodes from DB
  */
-export async function getContainersWithStatus(): Promise<DashboardData> {
+export async function getContainersWithStatus(
+  userId: string,
+): Promise<DashboardData> {
   // Fetch DB data in parallel with Proxmox live status
   const [dbContainers, counts] = await Promise.all([
     DatabaseService.listContainersWithRelations(),
@@ -145,53 +148,57 @@ export async function getContainersWithStatus(): Promise<DashboardData> {
     };
   }
 
-  // Try to fetch Proxmox live status
+  // Try to fetch Proxmox live status from all user's nodes
   const proxmoxStatusMap: Map<number, ProxmoxContainerStatus> = new Map();
   let proxmoxReachable = true;
 
   try {
-    const client = await getProxmoxClient();
-    const clusterNodes = await listNodes(client);
-    const onlineNodes = clusterNodes.filter((n) => n.status === "online");
+    const userNodes = await DatabaseService.listNodesForUser(userId);
 
-    // Fetch container list from all online nodes
-    const allContainers = await Promise.all(
-      onlineNodes.map(async (node) => {
-        try {
-          const containers = await listContainers(client, node.node);
-          return containers.map((c) => ({
+    if (userNodes.length === 0) {
+      // No nodes configured — can't fetch live status
+      proxmoxReachable = false;
+    } else {
+      // Fetch container list from each node in parallel
+      const allContainers = await Promise.all(
+        userNodes.map(async (dbNode) => {
+          try {
+            const client = createProxmoxClientFromNode(dbNode);
+            const containers = await listContainers(client, dbNode.name);
+            return containers.map((c) => ({
+              vmid: c.vmid,
+              status: c.status as "running" | "stopped" | "mounted" | "paused",
+              cpu: c.cpu ?? 0,
+              mem: c.mem ?? 0,
+              maxmem: c.maxmem ?? 0,
+              disk: c.disk ?? 0,
+              maxdisk: c.maxdisk ?? 0,
+              uptime: c.uptime ?? 0,
+              name: c.name ?? null,
+            }));
+          } catch (error) {
+            // Node-level failure — continue with other nodes
+            console.error(`Node ${dbNode.name} container list failed:`, error);
+            return [];
+          }
+        }),
+      );
+
+      // Build VMID → status map
+      for (const nodeContainers of allContainers) {
+        for (const c of nodeContainers) {
+          proxmoxStatusMap.set(c.vmid, {
             vmid: c.vmid,
-            status: c.status as "running" | "stopped" | "mounted" | "paused",
-            cpu: c.cpu ?? 0,
-            mem: c.mem ?? 0,
-            maxmem: c.maxmem ?? 0,
-            disk: c.disk ?? 0,
-            maxdisk: c.maxdisk ?? 0,
-            uptime: c.uptime ?? 0,
-            name: c.name ?? null,
-          }));
-        } catch (error) {
-          // Node-level failure — continue with other nodes
-          console.error(`Node ${node.node} container list failed:`, error);
-          return [];
+            status: c.status,
+            cpu: c.cpu,
+            mem: c.mem,
+            maxmem: c.maxmem,
+            disk: c.disk,
+            maxdisk: c.maxdisk,
+            uptime: c.uptime,
+            name: c.name ?? undefined,
+          });
         }
-      }),
-    );
-
-    // Build VMID → status map
-    for (const nodeContainers of allContainers) {
-      for (const c of nodeContainers) {
-        proxmoxStatusMap.set(c.vmid, {
-          vmid: c.vmid,
-          status: c.status,
-          cpu: c.cpu,
-          mem: c.mem,
-          maxmem: c.maxmem,
-          disk: c.disk,
-          maxdisk: c.maxdisk,
-          uptime: c.uptime,
-          name: c.name ?? undefined,
-        });
       }
     }
   } catch (error) {
@@ -271,7 +278,7 @@ export async function getContainerDetailData(
   // Only fetch Proxmox data for ready containers
   if (dbContainer.lifecycle === "ready") {
     try {
-      const client = await getProxmoxClient();
+      const client = createProxmoxClientFromNode(dbContainer.node);
       const [status, config] = await Promise.all([
         getContainer(client, dbContainer.node.name, dbContainer.vmid),
         getContainerConfig(client, dbContainer.node.name, dbContainer.vmid),

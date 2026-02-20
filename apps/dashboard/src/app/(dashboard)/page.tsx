@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { getContainersWithStatus } from "@/lib/containers/data";
+import { getSessionData } from "@/lib/session";
 import { SummaryBar } from "@/components/containers/summary-bar";
 import { ContainerGrid } from "@/components/containers/container-grid";
 import { Button } from "@/components/ui/button";
@@ -8,8 +10,11 @@ import { Button } from "@/components/ui/button";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const session = await getSessionData();
+  if (!session) redirect("/login");
+
   const { containers, counts, proxmoxReachable } =
-    await getContainersWithStatus();
+    await getContainersWithStatus(session.username);
 
   // Compute live running/stopped counts from merged Proxmox data
   const running = containers.filter((c) => c.status === "running").length;
