@@ -3,6 +3,10 @@
 /**
  * Proxmox VE API Client
  * Main entry point - exports all modules and factory functions
+ *
+ * After 03.5-04 refactor: All client creation is DB-based via
+ * createProxmoxClientFromNode(). The env-var-based getProxmoxClient()
+ * and deprecated createProxmoxClientFromTicket() have been removed.
  */
 
 // Server-side module — do not import from client components
@@ -11,14 +15,8 @@
 import type { ProxmoxNode } from "@/generated/prisma/client";
 import { decrypt } from "../encryption";
 import { ProxmoxClient } from "./client";
-import { login } from "./auth";
-import { DEFAULT_PVE_PORT } from "@/lib/constants/infrastructure";
-import { TICKET_CACHE_BUFFER_MS } from "@/lib/constants/timeouts";
-import type {
-  ProxmoxApiTokenCredentials,
-  ProxmoxClientConfig,
-  ProxmoxTicketCredentials,
-} from "./types";
+import { DatabaseService } from "@/lib/db";
+import type { ProxmoxApiTokenCredentials, ProxmoxClientConfig } from "./types";
 
 // ============================================================================
 // Re-export all types and schemas
@@ -41,69 +39,6 @@ export * as storage from "./storage";
 export * as templates from "./templates";
 
 // ============================================================================
-// Cached env-based client
-// ============================================================================
-
-/** Cached ticket from env-based authentication */
-let cachedTicket: {
-  credentials: ProxmoxTicketCredentials;
-  host: string;
-  port: number;
-} | null = null;
-
-/**
- * Get a Proxmox client authenticated via env vars (PVE_HOST, PVE_PORT, PVE_ROOT_PASSWORD).
- *
- * Auto-authenticates by calling POST /access/ticket with the root password.
- * Caches the ticket in memory and refreshes when expired (2h TTL).
- * This is the primary way to get a Proxmox client — no user session needed.
- */
-export async function getProxmoxClient(): Promise<ProxmoxClient> {
-  const host = process.env.PVE_HOST;
-  const password = process.env.PVE_ROOT_PASSWORD;
-
-  if (!host || !password) {
-    throw new Error(
-      "PVE_HOST and PVE_ROOT_PASSWORD environment variables are required.",
-    );
-  }
-
-  const port = process.env.PVE_PORT
-    ? parseInt(process.env.PVE_PORT, 10)
-    : DEFAULT_PVE_PORT;
-
-  // Reuse cached ticket if still valid
-  if (
-    cachedTicket &&
-    cachedTicket.host === host &&
-    cachedTicket.port === port
-  ) {
-    if (
-      cachedTicket.credentials.expiresAt.getTime() - Date.now() >
-      TICKET_CACHE_BUFFER_MS
-    ) {
-      return new ProxmoxClient({
-        host,
-        port,
-        credentials: cachedTicket.credentials,
-        verifySsl: false,
-      });
-    }
-  }
-
-  // Authenticate and cache
-  const credentials = await login(host, port, "root", password, "pam");
-  cachedTicket = { credentials, host, port };
-
-  return new ProxmoxClient({
-    host,
-    port,
-    credentials,
-    verifySsl: false,
-  });
-}
-
-// ============================================================================
 // Factory functions
 // ============================================================================
 
@@ -114,37 +49,6 @@ export function createProxmoxClient(
   config: ProxmoxClientConfig,
 ): ProxmoxClient {
   return new ProxmoxClient(config);
-}
-
-/**
- * Create a Proxmox client from session ticket credentials.
- * @deprecated Use getProxmoxClient() instead. Will be removed when multi-user DB auth is added.
- */
-export function createProxmoxClientFromTicket(
-  ticket: string,
-  csrfToken: string,
-  username: string,
-  expiresAt: Date,
-  verifySsl = false,
-): ProxmoxClient {
-  const host = process.env.PVE_HOST;
-  if (!host) {
-    throw new Error("PVE_HOST environment variable is not set");
-  }
-
-  const port = process.env.PVE_PORT
-    ? parseInt(process.env.PVE_PORT, 10)
-    : DEFAULT_PVE_PORT;
-
-  const credentials: ProxmoxTicketCredentials = {
-    type: "ticket",
-    ticket,
-    csrfToken,
-    username,
-    expiresAt,
-  };
-
-  return new ProxmoxClient({ host, port, credentials, verifySsl });
 }
 
 /**
@@ -177,4 +81,19 @@ export function createProxmoxClientFromNode(
   };
 
   return new ProxmoxClient(config);
+}
+
+/**
+ * Convenience: Get a Proxmox client by looking up a node ID from the database.
+ *
+ * @param nodeId - Database ID of the ProxmoxNode record
+ * @returns Authenticated ProxmoxClient
+ * @throws Error if node not found
+ */
+export async function getProxmoxClientForNode(
+  nodeId: string,
+): Promise<ProxmoxClient> {
+  const node = await DatabaseService.getNodeById(nodeId);
+  if (!node) throw new Error(`Proxmox node not found: ${nodeId}`);
+  return createProxmoxClientFromNode(node);
 }
