@@ -507,7 +507,7 @@ export const createContainerAction = authActionClient
       );
     }
 
-    // Enqueue creation job — worker self-authenticates via env vars
+    // Enqueue creation job — worker resolves credentials from DB via nodeId
     const queue = getContainerCreationQueue();
     await queue.add("create-container", {
       containerId: container.id,
@@ -525,7 +525,6 @@ export const createContainerAction = authActionClient
         bridge: data.bridge,
         ipConfig: data.ipConfig,
         nameserver: data.nameserver,
-        rootPassword: data.rootPassword, // Plaintext — Proxmox API needs it
         sshPublicKey: data.sshPublicKey,
         unprivileged: data.unprivileged,
         nesting: data.nesting,

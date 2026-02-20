@@ -38,8 +38,6 @@ export const containerConfigBaseSchema = z.object({
     .int()
     .min(100, "VMID must be ≥ 100")
     .max(999999999, "VMID must be ≤ 999999999"),
-  rootPassword: z.string().min(5, "Password must be at least 5 characters"),
-  confirmPassword: z.string(),
   cores: z.number().int().min(1, "Minimum 1 core").max(128),
   memory: z
     .number()
@@ -69,16 +67,14 @@ export const containerConfigBaseSchema = z.object({
   ostemplate: z.string().min(1, "OS template is required"),
 });
 
-/** Full schema with password confirmation and IP validation refinements */
-export const containerConfigSchema = containerConfigBaseSchema
-  .refine((data) => data.rootPassword === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  })
-  .refine((data) => data.dhcp || (data.ip && data.ip.trim().length > 0), {
+/** Full schema with IP validation refinement */
+export const containerConfigSchema = containerConfigBaseSchema.refine(
+  (data) => data.dhcp || (data.ip && data.ip.trim().length > 0),
+  {
     message: "IP address is required when DHCP is disabled",
     path: ["ip"],
-  });
+  },
+);
 
 // ============================================================================
 // Step 3: Package Selection
@@ -126,7 +122,6 @@ export const createContainerInputSchema = z.object({
   targetNode: z.string().optional(),
   hostname: z.string().min(1),
   vmid: z.coerce.number().int().min(100),
-  rootPassword: z.string().min(5),
   cores: z.coerce.number().int().min(1).default(1),
   memory: z.coerce.number().int().min(128).default(512),
   swap: z.coerce.number().int().min(0).default(512),
