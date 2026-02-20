@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 03.5-infrastructure-refactor — In progress
-**Plan:** 3 of 8 in current phase
-**Status:** In progress — VMID cache + node CRUD actions complete
-**Last activity:** 2026-02-20 — Completed 03.5-03-PLAN.md (VMID cache + node CRUD actions)
+**Plan:** 5 of 8 in current phase
+**Status:** In progress — Worker + service logs route migrated to DB-based auth
+**Last activity:** 2026-02-20 — Completed 03.5-05-PLAN.md
 
-Progress: ██████████░░░░░░░ 64% (25/39 plans)
+Progress: ███████████░░░░░░ 69% (27/39 plans)
 
 ## Completed Work
 
@@ -99,6 +99,15 @@ Progress: ██████████░░░░░░░ 64% (25/39 plans)
 - Connection testing on create/update (hit /version endpoint before persisting)
 - Auto-default first node, delete protection for nodes with containers
 
+**03.5-05 — Worker + service logs route migration to DB-based auth** ✓
+
+- Worker resolves Proxmox client from DB via createProxmoxClientFromNode(node) instead of env-var getProxmoxClient()
+- Worker SSH uses node.host + decrypt(node.sshPassword) from DB
+- Worker generates random password for Proxmox API container creation (not stored)
+- Service logs route uses container.node relation for SSH credentials with session auth check
+- rootPassword removed from ContainerJobData, container schemas, and enqueue call
+- Zero PVE_HOST/PVE_ROOT_PASSWORD references in workers/ or app/api/
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -156,10 +165,13 @@ Progress: ██████████░░░░░░░ 64% (25/39 plans)
 - Connection test via /version endpoint before persisting node credentials
 - sshPassword update: provided=encrypt, empty string=clear to null, undefined=keep existing
 - vmid-cache.ts has no "server-only" — worker needs it for cache invalidation
+- Worker generates random 32-char hex password for Proxmox API container creation — not stored, containers accessed via pct exec
+- rootPassword removed from ContainerJobData and container schemas in plan 05 (not deferred to 07)
+- Service logs API route requires session auth via getSessionData()
 
 ## Pending Work
 
-- Phase 3.5: Plans 04-08 remaining (Proxmox client migration, worker migration, settings UI, wizard updates, dashboard updates)
+- Phase 3.5: Plans 06-08 remaining (settings UI, wizard updates, dashboard updates)
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -176,6 +188,6 @@ Progress: ██████████░░░░░░░ 64% (25/39 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-20T20:34:09Z
-Stopped at: Completed 03.5-03-PLAN.md (VMID cache + node CRUD actions)
+Last session: 2026-02-20T20:41:19Z
+Stopped at: Completed 03.5-05-PLAN.md (worker + service logs migration)
 Resume file: None
