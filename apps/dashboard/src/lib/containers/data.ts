@@ -14,9 +14,8 @@ import {
   type ContainerWithDetails,
   type ContainerCounts,
 } from "@/lib/db";
-import type { ServiceType, ServiceStatus } from "@/generated/prisma/client";
 import { getProxmoxClient } from "@/lib/proxmox";
-import { parseKeyValueString } from "@/lib/utils/parse";
+import { getRedis } from "@/lib/redis";
 import {
   listContainers,
   getContainer,
@@ -27,6 +26,15 @@ import type {
   ProxmoxContainerStatus,
   ProxmoxContainerConfig,
 } from "@/lib/proxmox/types";
+import type {
+  ServiceType,
+  ServiceStatus,
+  ServiceWithCredentials,
+} from "@/lib/containers/discovery";
+import {
+  getCachedServices,
+  decryptServiceCredentials,
+} from "@/lib/containers/discovery";
 
 // ============================================================================
 // Types
@@ -53,14 +61,13 @@ export interface ContainerWithStatus {
   node: { id: string; name: string; host: string; port: number };
   /** Template info (if created from template) */
   template: { id: string; name: string } | null;
-  /** Services with their statuses */
+  /** Services from Redis cache */
   services: Array<{
-    id: string;
     name: string;
-    type: string;
+    type: ServiceType;
     port: number | null;
-    webUrl: string | null;
     status: ServiceStatus;
+    isSystem: boolean;
   }>;
   /** Latest events (up to 3) */
   events: Array<{
@@ -103,15 +110,7 @@ export interface ContainerDetailData {
     /** Resolved container IP (static or DHCP — null if unknown) */
     containerIp: string | null;
     /** Services with decrypted credentials for detail view */
-    servicesWithCredentials: Array<{
-      id: string;
-      name: string;
-      type: ServiceType;
-      port: number | null;
-      webUrl: string | null;
-      status: ServiceStatus;
-      credentials: Record<string, string> | null;
-    }>;
+    servicesWithCredentials: ServiceWithCredentials[];
   };
   proxmoxReachable: boolean;
 }
@@ -201,12 +200,46 @@ export async function getContainersWithStatus(): Promise<DashboardData> {
     proxmoxReachable = false;
   }
 
-  // Merge DB + Proxmox data
+  // Fetch cached services from Redis for all containers
+  const redis = getRedis();
+  const serviceCacheMap = new Map<
+    string,
+    Array<{
+      name: string;
+      type: ServiceType;
+      port: number | null;
+      status: ServiceStatus;
+      isSystem: boolean;
+    }>
+  >();
+  try {
+    const cachePromises = dbContainers.map(async (db) => {
+      const cache = await getCachedServices(redis, db.id);
+      if (cache) {
+        serviceCacheMap.set(
+          db.id,
+          cache.services.map((s) => ({
+            name: s.name,
+            type: s.type,
+            port: s.port,
+            status: s.status,
+            isSystem: s.isSystem,
+          })),
+        );
+      }
+    });
+    await Promise.all(cachePromises);
+  } catch {
+    // Redis failure is non-fatal — services just won't show on dashboard cards
+  }
+
+  // Merge DB + Proxmox + Redis data
   const containers: ContainerWithStatus[] = dbContainers.map((db) =>
     mergeContainerStatus(
       db,
       proxmoxStatusMap.get(db.vmid) ?? null,
       proxmoxReachable,
+      serviceCacheMap.get(db.id) ?? [],
     ),
   );
 
@@ -271,36 +304,35 @@ export async function getContainerDetailData(
     }
   }
 
+  // Read services from Redis cache
+  const redis = getRedis();
+  const serviceCache = await getCachedServices(redis, containerId);
+  const cachedServices = serviceCache
+    ? serviceCache.services.map((s) => ({
+        name: s.name,
+        type: s.type,
+        port: s.port,
+        status: s.status,
+        isSystem: s.isSystem,
+      }))
+    : [];
+
+  // Use containerIp from Redis cache if Proxmox resolution failed
+  if (!containerIp && serviceCache?.containerIp) {
+    containerIp = serviceCache.containerIp;
+  }
+
   const merged = mergeContainerStatus(
     dbContainer,
     proxmoxStatus,
     proxmoxReachable,
+    cachedServices,
   );
 
   // Decrypt service credentials for detail view
-  const { decrypt } = await import("@/lib/encryption");
-  const servicesWithCredentials = dbContainer.services.map((s) => {
-    let credentials: Record<string, string> | null = null;
-    if (s.credentials) {
-      try {
-        const decrypted = decrypt(s.credentials);
-        credentials = parseKeyValueString(decrypted);
-      } catch (error) {
-        // Decryption or parse failure — skip credentials
-        console.error("Credential decryption failed for service:", s.id, error);
-        credentials = null;
-      }
-    }
-    return {
-      id: s.id,
-      name: s.name,
-      type: s.type,
-      port: s.port,
-      webUrl: s.webUrl,
-      status: s.status,
-      credentials,
-    };
-  });
+  const decrypted = serviceCache
+    ? decryptServiceCredentials(serviceCache)
+    : { services: [], containerIp: null };
 
   return {
     container: {
@@ -314,7 +346,7 @@ export async function getContainerDetailData(
       })),
       config: proxmoxConfig,
       containerIp,
-      servicesWithCredentials,
+      servicesWithCredentials: decrypted.services,
     },
     proxmoxReachable,
   };
@@ -342,6 +374,13 @@ function mergeContainerStatus(
   db: ContainerWithRelations | ContainerWithDetails,
   proxmox: ProxmoxContainerStatus | null,
   proxmoxReachable: boolean,
+  services: Array<{
+    name: string;
+    type: ServiceType;
+    port: number | null;
+    status: ServiceStatus;
+    isSystem: boolean;
+  }> = [],
 ): ContainerWithStatus {
   // Determine resolved status
   let status: ContainerStatus;
@@ -388,14 +427,7 @@ function mergeContainerStatus(
     template: db.template
       ? { id: db.template.id, name: db.template.name }
       : null,
-    services: db.services.map((s) => ({
-      id: s.id,
-      name: s.name,
-      type: s.type,
-      port: s.port,
-      webUrl: s.webUrl,
-      status: s.status,
-    })),
+    services,
     events: ("events" in db ? db.events : []).slice(0, 3).map((e) => ({
       id: e.id,
       type: e.type,

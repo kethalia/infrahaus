@@ -24,7 +24,6 @@ const CHECKS = {
       "TemplateScript",
       "TemplateFile",
       "Container",
-      "ContainerService",
       "ContainerEvent",
     ];
 
@@ -33,8 +32,6 @@ const CHECKS = {
       "TemplateSource",
       "FilePolicy",
       "ContainerLifecycle",
-      "ServiceType",
-      "ServiceStatus",
       "EventType",
     ];
 
@@ -59,7 +56,6 @@ const CHECKS = {
       { model: "Template", field: "scripts", type: "TemplateScript[]" },
       { model: "Template", field: "files", type: "TemplateFile[]" },
       { model: "Template", field: "packages", type: "Package[]" },
-      { model: "Container", field: "services", type: "ContainerService[]" },
       { model: "Container", field: "events", type: "ContainerEvent[]" },
       { model: "PackageBucket", field: "packages", type: "Package[]" },
     ];

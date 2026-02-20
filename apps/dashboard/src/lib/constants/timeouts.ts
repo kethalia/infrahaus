@@ -67,16 +67,6 @@ export const CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS = 15;
 export const CONTAINER_FILESYSTEM_CHECK_DELAY_MS = 1000;
 
 // ============================================================================
-// Monitoring & SSH
-// ============================================================================
-
-/** Max SSH connection attempts for service monitoring */
-export const MONITORING_SSH_MAX_ATTEMPTS = 2;
-
-/** Initial delay for monitoring SSH connection retry (ms) */
-export const MONITORING_SSH_INITIAL_DELAY_MS = 1000;
-
-// ============================================================================
 // Redis
 // ============================================================================
 

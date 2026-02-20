@@ -475,9 +475,6 @@ export const createContainerAction = authActionClient
           await prisma.containerEvent.deleteMany({
             where: { containerId: existing.id },
           });
-          await prisma.containerService.deleteMany({
-            where: { containerId: existing.id },
-          });
           await prisma.container.delete({ where: { id: existing.id } });
 
           container = await DatabaseService.createContainer({
@@ -834,7 +831,19 @@ export const deleteContainerAction = authActionClient
         if (!isGone) throw err;
       }
 
-      // Delete from database (cascade handles services and events)
+      // Clean up Redis service cache
+      const { getRedis } = await import("@/lib/redis");
+      const { clearCachedServices } =
+        await import("@/lib/containers/discovery");
+      const { getLogBufferKey } =
+        await import("@/lib/constants/infrastructure");
+      const redis = getRedis();
+      await Promise.all([
+        clearCachedServices(redis, containerId),
+        redis.del(getLogBufferKey(containerId)),
+      ]);
+
+      // Delete from database (cascade handles events)
       await DatabaseService.deleteContainerById(containerId);
 
       revalidatePath("/");
@@ -851,19 +860,17 @@ export const deleteContainerAction = authActionClient
 // ============================================================================
 
 /**
- * Refresh container service data by connecting via SSH and running monitoring checks.
- * Triggers the monitoring engine, then updates service records in the database.
+ * Re-discover container services by SSHing into the PVE host and running
+ * discovery via `pct exec`. Results are cached in Redis (not DB).
  */
 export const refreshContainerServicesAction = authActionClient
   .schema(containerIdSchema)
   .action(async ({ parsedInput: { containerId } }) => {
-    // Get container with details (services for existing service names)
     const container = await DatabaseService.getContainerById(containerId);
     if (!container) {
       throw new ActionError("Container not found");
     }
 
-    // Only allow refresh on ready containers
     if (container.lifecycle !== "ready") {
       throw new ActionError(
         "Container is not ready. Services can only be refreshed on ready containers.",
@@ -888,116 +895,55 @@ export const refreshContainerServicesAction = authActionClient
       throw new ActionError("Container must be running to refresh services.");
     }
 
-    // Get IP from Proxmox config
-    const { getContainerConfig: getConfig } =
-      await import("@/lib/proxmox/containers");
-    const config = await getConfig(client, nodeName, vmid);
-    const net0 = (config as Record<string, unknown>)["net0"] as
-      | string
-      | undefined;
-    if (!net0) {
+    // Connect to PVE host via SSH, then pct exec into container.
+    // Uses the same PVE_HOST + PVE_ROOT_PASSWORD env vars as the worker.
+    const pveHost = process.env.PVE_HOST;
+    const pveRootPassword = process.env.PVE_ROOT_PASSWORD;
+    if (!pveHost || !pveRootPassword) {
       throw new ActionError(
-        "No network configuration found for container. Cannot determine IP address.",
+        "PVE_HOST and PVE_ROOT_PASSWORD environment variables are required for service discovery.",
       );
     }
 
-    let containerIp = extractIpFromNet0(net0);
+    const { connectWithRetry, PctExecSession } = await import("@/lib/ssh");
+    const sshHost = await connectWithRetry({
+      host: pveHost,
+      username: "root",
+      password: pveRootPassword,
+    });
 
-    // Fallback: Query Proxmox guest agent for runtime IP (DHCP containers)
-    if (!containerIp) {
-      const { getRuntimeIp } = await import("@/lib/proxmox/containers");
-      containerIp = await getRuntimeIp(client, nodeName, vmid);
+    try {
+      const pct = new PctExecSession(sshHost, vmid);
 
+      // Resolve container IP
+      const { getContainerConfig: getConfig, getRuntimeIp } =
+        await import("@/lib/proxmox/containers");
+      const config = await getConfig(client, nodeName, vmid);
+      const net0 = (config as Record<string, unknown>)["net0"] as
+        | string
+        | undefined;
+      let containerIp = net0 ? extractIpFromNet0(net0) : null;
       if (!containerIp) {
-        throw new ActionError(
-          "Unable to determine container IP address. Ensure container is running and has network connectivity, or configure a static IP.",
-        );
+        containerIp = await getRuntimeIp(client, nodeName, vmid);
       }
-    }
 
-    // Decrypt root password for SSH
-    const { decrypt } = await import("@/lib/encryption");
-    const rootPassword = decrypt(container.rootPassword);
-
-    // Get existing service names for targeted checking
-    const serviceNames = container.services.map((s) => s.name);
-
-    // Run monitoring
-    const { monitorContainer } = await import("@/lib/containers/monitoring");
-    const result = await monitorContainer(
-      containerId,
-      containerIp,
-      rootPassword,
-      serviceNames,
-    );
-
-    if (result.error) {
-      throw new ActionError(`Service refresh failed: ${result.error}`);
-    }
-
-    // Map monitoring results to service records
-    const { ServiceType, ServiceStatus } = await import("@/lib/db");
-    const { encrypt: encryptFn } = await import("@/lib/encryption");
-
-    // Build service records from monitoring data
-    const serviceRecords: Array<{
-      name: string;
-      type: (typeof ServiceType)[keyof typeof ServiceType];
-      port?: number;
-      webUrl?: string;
-      status?: (typeof ServiceStatus)[keyof typeof ServiceStatus];
-      credentials?: string;
-    }> = [];
-
-    // Map systemd services
-    for (const svc of result.services) {
-      const portInfo = result.ports.find(
-        (p) => p.process === svc.name || p.process.includes(svc.name),
+      // Run discovery and cache in Redis
+      const { getRedis } = await import("@/lib/redis");
+      const { discoverAndCacheServices } =
+        await import("@/lib/containers/discovery");
+      const redis = getRedis();
+      const cache = await discoverAndCacheServices(
+        redis,
+        containerId,
+        pct,
+        containerIp,
       );
-      const creds = result.credentials.filter((c) => c.service === svc.name);
 
-      let credentialsJson: string | undefined;
-      if (creds.length > 0) {
-        const credObj: Record<string, string> = {};
-        for (const c of creds) {
-          credObj[c.key] = c.value;
-        }
-        credentialsJson = encryptFn(JSON.stringify(credObj));
-      }
+      revalidatePath(`/containers/${containerId}`);
+      revalidatePath("/");
 
-      serviceRecords.push({
-        name: svc.name,
-        type: ServiceType.systemd,
-        port: portInfo?.port,
-        webUrl: portInfo?.port
-          ? `http://${containerIp}:${portInfo.port}`
-          : undefined,
-        status: svc.active ? ServiceStatus.running : ServiceStatus.stopped,
-        credentials: credentialsJson,
-      });
+      return { success: true as const, serviceCount: cache.services.length };
+    } finally {
+      sshHost.close();
     }
-
-    // Add ports not associated with known services as process-type services
-    const knownPorts = new Set(
-      serviceRecords.map((s) => s.port).filter(Boolean),
-    );
-    for (const port of result.ports) {
-      if (!knownPorts.has(port.port)) {
-        serviceRecords.push({
-          name: port.process || `port-${port.port}`,
-          type: ServiceType.process,
-          port: port.port,
-          webUrl: `http://${containerIp}:${port.port}`,
-          status: ServiceStatus.running,
-        });
-      }
-    }
-
-    // Update services in database
-    await DatabaseService.updateContainerServices(containerId, serviceRecords);
-
-    revalidatePath(`/containers/${containerId}`);
-    revalidatePath("/");
-
-    return { success: true as const, serviceCount: serviceRecords.length };
   });

@@ -36,19 +36,6 @@ enum ContainerLifecycle {
   error
 }
 
-enum ServiceType {
-  systemd
-  docker
-  process
-}
-
-enum ServiceStatus {
-  installing
-  running
-  stopped
-  error
-}
-
 enum EventType {
   created
   started
@@ -164,26 +151,11 @@ model Container {
   templateId String?
   template   Template?   @relation(fields: [templateId], references: [id])
 
-  services ContainerService[]
-  events   ContainerEvent[]
+  events ContainerEvent[]
 
   @@index([lifecycle])
   @@index([nodeId])
   @@index([templateId])
-}
-
-model ContainerService {
-  id          String        @id @default(cuid())
-  name        String
-  type        ServiceType
-  port        Int?
-  webUrl      String?
-  status      ServiceStatus @default(installing)
-  credentials String? // JSON blob
-  containerId String
-  container   Container     @relation(fields: [containerId], references: [id], onDelete: Cascade)
-
-  @@index([containerId])
 }
 
 model ContainerEvent {

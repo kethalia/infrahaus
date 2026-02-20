@@ -24,8 +24,6 @@ import {
   DatabaseService,
   ContainerLifecycle,
   EventType,
-  ServiceType,
-  ServiceStatus,
   prisma,
 } from "../lib/db";
 import { getProxmoxClient } from "../lib/proxmox";
@@ -33,7 +31,6 @@ import { type ProxmoxClient } from "../lib/proxmox/client";
 import { createContainer, startContainer } from "../lib/proxmox/containers";
 import { waitForTask } from "../lib/proxmox/tasks";
 import { connectWithRetry, PctExecSession, type SSHSession } from "../lib/ssh";
-import { encrypt } from "../lib/encryption";
 import {
   CONTAINER_CREATION_QUEUE,
   WORKER_CONCURRENCY,
@@ -42,6 +39,7 @@ import {
   CONTAINER_LOG_BUFFER_MAX,
   CONTAINER_LOG_BUFFER_TTL_S,
 } from "../lib/constants/infrastructure";
+import { discoverAndCacheServices } from "../lib/containers/discovery";
 import {
   TASK_POLL_INTERVAL_MS,
   TASK_TIMEOUT_LONG_MS,
@@ -198,26 +196,6 @@ async function resolveContainerIp(
 
   return null;
 }
-
-// ============================================================================
-// System services to exclude from discovery
-// ============================================================================
-
-const SYSTEM_SERVICES = new Set([
-  "systemd-journald.service",
-  "systemd-logind.service",
-  "systemd-udevd.service",
-  "systemd-networkd.service",
-  "systemd-resolved.service",
-  "systemd-timesyncd.service",
-  "ssh.service",
-  "sshd.service",
-  "cron.service",
-  "dbus.service",
-  "getty@tty1.service",
-  "serial-getty@ttyS0.service",
-  "user@0.service",
-]);
 
 // ============================================================================
 // 5-Phase Pipeline
@@ -721,155 +699,18 @@ save_credential() {
       message: "Discovering services...",
     });
 
-    // Phase 5a: Collect credentials, services, and ports in-memory then
-    //           merge into single DB rows per service.
-
-    // -- 1. Read per-service credential files from CREDENTIALS_DIR --
-    // save_credential() writes files like /etc/infrahaus/credentials/code-server
-    // containing KEY=VALUE lines. We parse them into JSON objects keyed by
-    // service name.
-    const credsByService = new Map<string, Record<string, string>>();
-
-    const credResult = await ssh.exec(
-      `ls ${CREDENTIALS_DIR} 2>/dev/null || echo '__EMPTY__'`,
+    // Phase 5a: Discover services + cache in Redis
+    const cache = await discoverAndCacheServices(
+      publisher,
+      containerId,
+      ssh as PctExecSession,
+      containerIp,
     );
 
-    if (credResult.stdout.trim() !== "__EMPTY__" && credResult.stdout.trim()) {
-      const files = credResult.stdout
-        .trim()
-        .split("\n")
-        .filter((f) => f.trim());
-      for (const file of files) {
-        try {
-          const content = await ssh.exec(`cat "${CREDENTIALS_DIR}${file}"`);
-          if (content.stdout.trim()) {
-            // Parse KEY=VALUE lines into an object
-            const creds: Record<string, string> = {};
-            for (const line of content.stdout.trim().split("\n")) {
-              const eqIdx = line.indexOf("=");
-              if (eqIdx > 0) {
-                creds[line.slice(0, eqIdx).trim()] = line
-                  .slice(eqIdx + 1)
-                  .trim();
-              }
-            }
-            if (Object.keys(creds).length > 0) {
-              credsByService.set(file.trim(), creds);
-              await publishProgress(containerId, {
-                type: "log",
-                message: `Discovered credentials for: ${file.trim()}`,
-              });
-            }
-          }
-        } catch {
-          await publishProgress(containerId, {
-            type: "log",
-            message: `Warning: could not read credentials file: ${file}`,
-          });
-        }
-      }
-    }
-
-    // -- 2. Discover listening ports via PID --
-    // We ask systemd for the MainPID of each service, then check what port
-    // that PID is listening on.  This avoids the fragile process-name matching.
-    const pidToPort = new Map<string, number>();
-    const portsResult = await ssh.exec("ss -tlnp 2>/dev/null | tail -n +2");
-    if (portsResult.stdout.trim()) {
-      for (const line of portsResult.stdout.trim().split("\n")) {
-        // Columns: State  Recv-Q  Send-Q  Local Address:Port  Peer Address:Port  Process
-        // e.g.:  LISTEN 0 511 0.0.0.0:8080 0.0.0.0:* users:(("node",pid=1234,fd=18))
-        const portMatch = line.match(/(?:0\.0\.0\.0|\*|::):(\d+)\s/);
-        const pidMatch = line.match(/pid=(\d+)/);
-        if (portMatch && pidMatch) {
-          pidToPort.set(pidMatch[1], parseInt(portMatch[1], 10));
-        }
-      }
-    }
-
-    // -- 3. Discover running systemd services and resolve their ports --
-    const servicesResult = await ssh.exec(
-      "systemctl list-units --type=service --state=running --no-pager --no-legend 2>/dev/null | awk '{print $1}'",
-    );
-
-    if (servicesResult.stdout.trim()) {
-      const unitNames = servicesResult.stdout
-        .trim()
-        .split("\n")
-        .filter((s) => s.trim() && !SYSTEM_SERVICES.has(s.trim()));
-
-      for (const unitName of unitNames) {
-        const cleanName = unitName.trim().replace(/\.service$/, "");
-
-        // Get all PIDs owned by this service unit (MainPID + children).
-        // code-server's MainPID is a wrapper; the child `node` process does
-        // the actual listen, so we need to check all cgroup PIDs.
-        let port: number | undefined;
-        const cgroupPidsResult = await ssh.exec(
-          `systemctl show -p MainPID --value ${unitName.trim()} 2>/dev/null`,
-        );
-        const mainPid = cgroupPidsResult.stdout.trim();
-        if (mainPid && mainPid !== "0") {
-          // Check MainPID first, then all its descendants
-          port = pidToPort.get(mainPid);
-          if (!port) {
-            const childResult = await ssh.exec(
-              `pgrep -P ${mainPid} 2>/dev/null || true`,
-            );
-            for (const childPid of childResult.stdout.trim().split("\n")) {
-              const p = childPid.trim();
-              if (p && pidToPort.has(p)) {
-                port = pidToPort.get(p);
-                break;
-              }
-            }
-          }
-        }
-
-        // Match credentials: try exact name first, then strip @instance suffix
-        //   e.g. "code-server@coder" → try "code-server@coder", then "code-server"
-        const baseName = cleanName.replace(/@.*$/, "");
-        const creds =
-          credsByService.get(cleanName) ?? credsByService.get(baseName);
-        // Remove matched keys so we know what's left over
-        if (creds) {
-          credsByService.delete(cleanName);
-          credsByService.delete(baseName);
-        }
-
-        const webUrl =
-          port && containerIp ? `http://${containerIp}:${port}` : undefined;
-
-        await DatabaseService.createContainerService({
-          containerId,
-          name: cleanName,
-          type: ServiceType.systemd,
-          port,
-          webUrl,
-          status: ServiceStatus.running,
-          credentials: creds ? encrypt(JSON.stringify(creds)) : undefined,
-        });
-
-        await publishProgress(containerId, {
-          type: "log",
-          message: `Discovered service: ${cleanName}${port ? ` (port ${port})` : ""}${creds ? " [credentials]" : ""}`,
-        });
-      }
-    }
-
-    // -- 4. Create records for any credential files that didn't match a running
-    //       systemd unit (e.g. service that failed to start but still has creds).
-    for (const [serviceName, creds] of credsByService) {
-      await DatabaseService.createContainerService({
-        containerId,
-        name: serviceName,
-        type: ServiceType.systemd,
-        status: ServiceStatus.stopped,
-        credentials: encrypt(JSON.stringify(creds)),
-      });
+    for (const svc of cache.services) {
       await publishProgress(containerId, {
         type: "log",
-        message: `Discovered credentials (no running service): ${serviceName}`,
+        message: `Discovered service: ${svc.name}${svc.port ? ` (port ${svc.port})` : ""}${svc.credentials ? " [credentials]" : ""}`,
       });
     }
 

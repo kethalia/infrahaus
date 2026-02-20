@@ -37,13 +37,12 @@ import { LogViewer } from "./log-viewer";
 // ============================================================================
 
 interface ContainerServiceInfo {
-  id: string;
   name: string;
   type: string;
   port: number | null;
-  webUrl: string | null;
   status: string;
-  credentials: string | null;
+  isSystem: boolean;
+  credentials: Record<string, string> | null;
 }
 
 // ============================================================================
@@ -215,7 +214,7 @@ export default function ContainerProgressPage() {
             <CardContent className="space-y-3">
               {services.map((service) => (
                 <ServiceCard
-                  key={service.id}
+                  key={service.name}
                   service={service}
                   containerIp={containerIp}
                 />
@@ -262,22 +261,13 @@ function ServiceCard({
   const [showCredentials, setShowCredentials] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const credentials = service.credentials
-    ? (() => {
-        try {
-          return JSON.parse(service.credentials) as Record<string, string>;
-        } catch {
-          return null;
-        }
-      })()
-    : null;
+  const credentials = service.credentials;
 
-  // Construct URL from port + containerIp when webUrl is not stored in DB
+  // Construct URL from port + containerIp
   const webUrl =
-    service.webUrl ??
-    (service.port && containerIp
+    service.port && containerIp
       ? `http://${containerIp}:${service.port}`
-      : null);
+      : null;
 
   async function copyToClipboard(value: string, field: string) {
     try {
