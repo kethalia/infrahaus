@@ -13,8 +13,6 @@ import {
   PrismaClient,
   ContainerLifecycle,
   EventType,
-  ServiceType,
-  ServiceStatus,
 } from "@/generated/prisma/client";
 import type {
   ProxmoxNode,
@@ -27,7 +25,6 @@ import type {
   FilePolicy,
   Container,
   ContainerEvent,
-  ContainerService,
 } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -58,7 +55,7 @@ if (process.env.NODE_ENV !== "production") {
 export { prismaInstance as prisma };
 
 /** Re-export enums for worker and consumer use */
-export { ContainerLifecycle, EventType, ServiceType, ServiceStatus };
+export { ContainerLifecycle, EventType };
 
 // ============================================================================
 // Derived Types
@@ -81,19 +78,17 @@ export type BucketWithPackages = PackageBucket & {
   packages: Package[];
 };
 
-/** Container with node, template, services, and latest events */
+/** Container with node, template, and latest events */
 export type ContainerWithRelations = Container & {
   node: ProxmoxNode;
   template: Template | null;
-  services: ContainerService[];
   events: ContainerEvent[];
 };
 
-/** Container with ALL relations (full events list, all services, node, template) */
+/** Container with ALL relations (full events list, node, template) */
 export type ContainerWithDetails = Container & {
   node: ProxmoxNode;
   template: Template | null;
-  services: ContainerService[];
   events: ContainerEvent[];
 };
 
@@ -622,19 +617,18 @@ export class DatabaseService {
   }
 
   /**
-   * Get a container by ID with related node, template, and services.
+   * Get a container by ID with related node and template.
    */
   static async getContainerById(id: string): Promise<
     | (Container & {
         node: ProxmoxNode;
         template: Template | null;
-        services: ContainerService[];
       })
     | null
   > {
     return this.prisma.container.findUnique({
       where: { id },
-      include: { node: true, template: true, services: true },
+      include: { node: true, template: true },
     });
   }
 
@@ -680,41 +674,11 @@ export class DatabaseService {
   }
 
   // ============================================================================
-  // ContainerService Operations
-  // ============================================================================
-
-  /**
-   * Create a container service record.
-   */
-  static async createContainerService(data: {
-    containerId: string;
-    name: string;
-    type: ServiceType;
-    port?: number;
-    webUrl?: string;
-    status?: ServiceStatus;
-    credentials?: string; // JSON string, encrypted
-  }): Promise<ContainerService> {
-    return this.prisma.containerService.create({ data });
-  }
-
-  /**
-   * Get all services for a container.
-   */
-  static async getContainerServices(
-    containerId: string,
-  ): Promise<ContainerService[]> {
-    return this.prisma.containerService.findMany({
-      where: { containerId },
-    });
-  }
-
-  // ============================================================================
   // Container Query Methods (Dashboard & Detail Page)
   // ============================================================================
 
   /**
-   * List all containers with relations (node, template, services, latest 3 events).
+   * List all containers with relations (node, template, latest 3 events).
    * Used by the dashboard page for container cards.
    */
   static async listContainersWithRelations(): Promise<
@@ -725,7 +689,6 @@ export class DatabaseService {
       include: {
         node: true,
         template: true,
-        services: true,
         events: {
           orderBy: { createdAt: "desc" },
           take: 3,
@@ -750,7 +713,7 @@ export class DatabaseService {
   }
 
   /**
-   * Get a single container with ALL relations (full events, all services, node, template).
+   * Get a single container with ALL relations (full events, node, template).
    * Used by the container detail page.
    */
   static async getContainerWithDetails(
@@ -761,7 +724,6 @@ export class DatabaseService {
       include: {
         node: true,
         template: true,
-        services: true,
         events: {
           orderBy: { createdAt: "desc" },
         },
@@ -777,42 +739,5 @@ export class DatabaseService {
     // Prisma cascade should handle children, but explicitly delete to be safe
     // since Container relations use onDelete: Cascade
     await this.prisma.container.delete({ where: { id } });
-  }
-
-  /**
-   * Bulk-update service records for a container.
-   * Replaces all existing services with the provided updates.
-   * Used by service monitoring engine.
-   */
-  static async updateContainerServices(
-    containerId: string,
-    services: Array<{
-      name: string;
-      type: ServiceType;
-      port?: number;
-      webUrl?: string;
-      status?: ServiceStatus;
-      credentials?: string;
-    }>,
-  ): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      // Delete existing services
-      await tx.containerService.deleteMany({ where: { containerId } });
-
-      // Create new service records
-      if (services.length > 0) {
-        await tx.containerService.createMany({
-          data: services.map((s) => ({
-            containerId,
-            name: s.name,
-            type: s.type,
-            port: s.port,
-            webUrl: s.webUrl,
-            status: s.status ?? "installing",
-            credentials: s.credentials,
-          })),
-        });
-      }
-    });
   }
 }

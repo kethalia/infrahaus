@@ -37,13 +37,12 @@ import { LogViewer } from "./log-viewer";
 // ============================================================================
 
 interface ContainerServiceInfo {
-  id: string;
   name: string;
   type: string;
   port: number | null;
-  webUrl: string | null;
   status: string;
-  credentials: string | null;
+  isSystem: boolean;
+  credentials: Record<string, string> | null;
 }
 
 // ============================================================================
@@ -59,6 +58,7 @@ export default function ContainerProgressPage() {
     useContainerProgress(containerId);
 
   const [services, setServices] = useState<ContainerServiceInfo[]>([]);
+  const [containerIp, setContainerIp] = useState<string | null>(null);
   const [loadingServices, setLoadingServices] = useState(false);
 
   // Fetch services on completion
@@ -67,8 +67,12 @@ export default function ContainerProgressPage() {
     try {
       const res = await fetch(`/api/containers/${containerId}/services`);
       if (res.ok) {
-        const data = (await res.json()) as ContainerServiceInfo[];
-        setServices(data);
+        const data = (await res.json()) as {
+          services: ContainerServiceInfo[];
+          containerIp: string | null;
+        };
+        setServices(data.services);
+        setContainerIp(data.containerIp);
       }
     } catch {
       // Non-fatal: services just won't display
@@ -86,7 +90,7 @@ export default function ContainerProgressPage() {
   // --- Connecting state ---
   if (status === "connecting") {
     return (
-      <div className="mx-auto w-full max-w-2xl space-y-6">
+      <div className="mx-auto w-full max-w-5xl space-y-6">
         <div className="flex items-center gap-3">
           <Loader2 className="text-muted-foreground size-5 animate-spin" />
           <h1 className="text-2xl font-bold">Creating Container</h1>
@@ -114,7 +118,7 @@ export default function ContainerProgressPage() {
   // --- Error state ---
   if (isError) {
     return (
-      <div className="mx-auto w-full max-w-2xl space-y-6">
+      <div className="mx-auto w-full max-w-5xl space-y-6">
         <div className="flex items-center gap-3">
           <XCircle className="text-destructive size-6" />
           <h1 className="text-2xl font-bold">Creation Failed</h1>
@@ -158,7 +162,7 @@ export default function ContainerProgressPage() {
   // --- Complete state ---
   if (isComplete) {
     return (
-      <div className="mx-auto w-full max-w-2xl space-y-6">
+      <div className="mx-auto w-full max-w-5xl space-y-6">
         {/* Success banner */}
         <Card className="border-green-500/30 bg-green-500/5">
           <CardContent className="flex flex-col items-center gap-3 py-8">
@@ -209,7 +213,11 @@ export default function ContainerProgressPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {services.map((service) => (
-                <ServiceCard key={service.id} service={service} />
+                <ServiceCard
+                  key={service.name}
+                  service={service}
+                  containerIp={containerIp}
+                />
               ))}
             </CardContent>
           </Card>
@@ -222,7 +230,7 @@ export default function ContainerProgressPage() {
 
   // --- Streaming state (default) ---
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       <div className="flex items-center gap-3">
         <Loader2 className="text-primary size-5 animate-spin" />
         <h1 className="text-2xl font-bold">Creating Container</h1>
@@ -243,19 +251,23 @@ export default function ContainerProgressPage() {
 // Service Card Sub-component
 // ============================================================================
 
-function ServiceCard({ service }: { service: ContainerServiceInfo }) {
+function ServiceCard({
+  service,
+  containerIp,
+}: {
+  service: ContainerServiceInfo;
+  containerIp: string | null;
+}) {
   const [showCredentials, setShowCredentials] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const credentials = service.credentials
-    ? (() => {
-        try {
-          return JSON.parse(service.credentials) as Record<string, string>;
-        } catch {
-          return null;
-        }
-      })()
-    : null;
+  const credentials = service.credentials;
+
+  // Construct URL from port + containerIp
+  const webUrl =
+    service.port && containerIp
+      ? `http://${containerIp}:${service.port}`
+      : null;
 
   async function copyToClipboard(value: string, field: string) {
     try {
@@ -285,17 +297,15 @@ function ServiceCard({ service }: { service: ContainerServiceInfo }) {
         )}
       </div>
 
-      {service.webUrl && (
-        <div className="mt-2">
-          <a
-            href={service.webUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
-          >
-            {service.webUrl}
-            <ExternalLink className="size-3" />
-          </a>
+      {webUrl && (
+        <div className="mt-2 flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <a href={webUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="size-3.5" />
+              Open Web UI
+            </a>
+          </Button>
+          <span className="text-muted-foreground text-xs">{webUrl}</span>
         </div>
       )}
 

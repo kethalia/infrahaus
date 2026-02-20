@@ -4,8 +4,8 @@
  * Standalone BullMQ worker process that executes the 5-phase container creation pipeline:
  * 1. Create LXC container via Proxmox API
  * 2. Start container via Proxmox API
- * 3. Deploy config-manager infrastructure + template files via SSH
- * 4. Run config-manager initial sync + execute template scripts via SSH
+ * 3. Deploy template files via SSH
+ * 4. Install packages + execute template scripts via SSH
  * 5. Discover services/credentials + finalize
  *
  * Run via: pnpm dev:worker (tsx --watch)
@@ -13,6 +13,7 @@
 
 import { Worker, type Job } from "bullmq";
 import Redis from "ioredis";
+import { z } from "zod";
 import {
   type ContainerJobData,
   type ContainerJobResult,
@@ -23,21 +24,22 @@ import {
   DatabaseService,
   ContainerLifecycle,
   EventType,
-  ServiceType,
-  ServiceStatus,
   prisma,
 } from "../lib/db";
 import { getProxmoxClient } from "../lib/proxmox";
+import { type ProxmoxClient } from "../lib/proxmox/client";
 import { createContainer, startContainer } from "../lib/proxmox/containers";
 import { waitForTask } from "../lib/proxmox/tasks";
 import { connectWithRetry, PctExecSession, type SSHSession } from "../lib/ssh";
-import { encrypt } from "../lib/encryption";
 import {
   CONTAINER_CREATION_QUEUE,
   WORKER_CONCURRENCY,
   CREDENTIALS_DIR,
-  CONFIG_MANAGER_DIRS,
+  getLogBufferKey,
+  CONTAINER_LOG_BUFFER_MAX,
+  CONTAINER_LOG_BUFFER_TTL_S,
 } from "../lib/constants/infrastructure";
+import { discoverAndCacheServices } from "../lib/containers/discovery";
 import {
   TASK_POLL_INTERVAL_MS,
   TASK_TIMEOUT_LONG_MS,
@@ -49,7 +51,7 @@ import {
 // ============================================================================
 // Redis Connections
 // ============================================================================
-
+console.log(process.env.REDIS_URL);
 // Worker connection MUST have maxRetriesPerRequest: null for BullMQ
 const workerConnection = new Redis(process.env.REDIS_URL!, {
   maxRetriesPerRequest: null,
@@ -64,8 +66,8 @@ const publisher = new Redis(process.env.REDIS_URL!);
 
 /**
  * Publish a progress event to Redis Pub/Sub and persist to DB.
- * Log events are only published to Redis (too many for DB).
- * Step, complete, and error events are persisted for late subscribers / audit.
+ * Log events are buffered in a Redis ring buffer (replay on page refresh).
+ * Step, complete, and error events are also persisted to DB for audit.
  */
 async function publishProgress(
   containerId: string,
@@ -75,12 +77,20 @@ async function publishProgress(
     ...event,
     timestamp: new Date().toISOString(),
   };
+  const serialized = JSON.stringify(fullEvent);
 
   // Publish to Redis Pub/Sub for real-time SSE subscribers
-  await publisher.publish(
-    getProgressChannel(containerId),
-    JSON.stringify(fullEvent),
-  );
+  await publisher.publish(getProgressChannel(containerId), serialized);
+
+  // Push ALL events (including logs) to the ring buffer so they can be
+  // replayed when the progress page is refreshed.
+  const logKey = getLogBufferKey(containerId);
+  await publisher
+    .pipeline()
+    .rpush(logKey, serialized)
+    .ltrim(logKey, -CONTAINER_LOG_BUFFER_MAX, -1) // keep last N entries
+    .expire(logKey, CONTAINER_LOG_BUFFER_TTL_S)
+    .exec();
 
   // Only persist step, complete, and error events to DB (skip log events)
   if (event.type !== "log") {
@@ -124,25 +134,68 @@ function extractIpFromConfig(ipConfig: string): string | null {
   return match ? match[1] : null;
 }
 
-// ============================================================================
-// System services to exclude from discovery
-// ============================================================================
+const IPV4_RE = /^\d+\.\d+\.\d+\.\d+$/;
 
-const SYSTEM_SERVICES = new Set([
-  "systemd-journald.service",
-  "systemd-logind.service",
-  "systemd-udevd.service",
-  "systemd-networkd.service",
-  "systemd-resolved.service",
-  "systemd-timesyncd.service",
-  "ssh.service",
-  "sshd.service",
-  "cron.service",
-  "dbus.service",
-  "getty@tty1.service",
-  "serial-getty@ttyS0.service",
-  "user@0.service",
-]);
+/**
+ * Resolve the container's IPv4 address using multiple strategies:
+ *   1. Static IP from the Proxmox ipConfig string
+ *   2. `hostname -I` inside the running container (via pct exec)
+ *   3. `ip -4 -o addr show` inside the container (fallback if hostname is missing)
+ *   4. Proxmox API: read the container config's net0 field (picks up DHCP leases
+ *      stored in the config after the container has started)
+ * Returns the first valid IPv4 address found, or null.
+ */
+async function resolveContainerIp(
+  ipConfig: string,
+  ssh: PctExecSession | null,
+  client: ProxmoxClient,
+  nodeName: string,
+  vmid: number,
+): Promise<string | null> {
+  // 1. Static IP from config (cheapest, no I/O)
+  const staticIp = extractIpFromConfig(ipConfig);
+  if (staticIp) return staticIp;
+
+  // 2. hostname -I (works on most distros)
+  if (ssh) {
+    try {
+      const r = await ssh.exec("hostname -I 2>/dev/null");
+      const ip = r.stdout.trim().split(/\s+/)[0];
+      if (ip && IPV4_RE.test(ip)) return ip;
+    } catch {
+      /* ignore */
+    }
+
+    // 3. ip addr (fallback if hostname command is missing)
+    try {
+      const r = await ssh.exec(
+        "ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | head -1",
+      );
+      const cidr = r.stdout.trim(); // e.g. "10.0.0.50/24"
+      const ip = cidr.split("/")[0];
+      if (ip && IPV4_RE.test(ip)) return ip;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // 4. Proxmox API — container config net0 field (may reflect DHCP lease)
+  try {
+    const { extractIpFromNet0 } = await import("../lib/proxmox/utils");
+    const configResult = await client.get(
+      `/nodes/${nodeName}/lxc/${vmid}/config`,
+      z.object({ net0: z.string().optional() }).passthrough(),
+    );
+    if (configResult.net0) {
+      const ip = extractIpFromNet0(configResult.net0);
+      if (ip) return ip;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return null;
+}
 
 // ============================================================================
 // 5-Phase Pipeline
@@ -242,8 +295,8 @@ async function processContainerCreation(
     // Phase 3: Deploy config-manager and template files via SSH (35-60%)
     // ========================================================================
 
-    // Extract container IP for web URLs in service discovery
-    const containerIp = extractIpFromConfig(config.ipConfig);
+    // Container IP — resolved later after SSH is connected (needs running container for DHCP).
+    let containerIp: string | null = null;
 
     await publishProgress(containerId, {
       type: "step",
@@ -311,13 +364,29 @@ async function processContainerCreation(
       message: "Container filesystem ready",
     });
 
-    // Phase 3a: Deploy config-manager infrastructure
-    await ssh.exec(`mkdir -p ${CONFIG_MANAGER_DIRS}`);
+    // Resolve container IP (static from config, or query the running container)
+    containerIp = await resolveContainerIp(
+      config.ipConfig,
+      ssh,
+      client,
+      pveNodeName,
+      config.vmid,
+    );
+    if (containerIp) {
+      await publishProgress(containerId, {
+        type: "log",
+        message: `Container IP: ${containerIp}`,
+      });
+    } else {
+      await publishProgress(containerId, {
+        type: "log",
+        message:
+          "Warning: could not determine container IP — service URLs will be unavailable",
+      });
+    }
 
-    await publishProgress(containerId, {
-      type: "log",
-      message: "Created directory structure",
-    });
+    // Create credentials directory for service discovery (Phase 5)
+    await ssh.exec(`mkdir -p ${CREDENTIALS_DIR}`);
 
     // Fetch template with scripts, files, packages from DB (if using a template)
     const template = templateId
@@ -335,117 +404,7 @@ async function processContainerCreation(
       throw new Error(`Template not found: ${templateId}`);
     }
 
-    // Write config.env
-    const configEnvContent = [
-      `CONFIG_REPO_URL=${process.env.CONFIG_REPO_URL || ""}`,
-      `CONFIG_BRANCH=main`,
-      `CONFIG_PATH=${template?.path || template?.name || "scratch"}`,
-      `TEMPLATE_NAME=${template?.name || "scratch"}`,
-      `CONTAINER_ID=${containerId}`,
-    ].join("\n");
-
-    await ssh.uploadFile(
-      configEnvContent,
-      "/etc/config-manager/config.env",
-      0o644,
-    );
-
-    await publishProgress(containerId, {
-      type: "log",
-      message: "Deployed config.env",
-    });
-
-    // Deploy config-sync.sh
-    const configSyncScript = `#!/bin/bash
-# Config Manager Sync Script
-# Pulls configuration from the configured repository and applies it
-
-set -euo pipefail
-
-LOG_DIR="/var/log/config-manager"
-CONFIG_DIR="/etc/config-manager"
-
-# Source environment
-if [ -f "\${CONFIG_DIR}/config.env" ]; then
-  source "\${CONFIG_DIR}/config.env"
-fi
-
-echo "[$(date -Iseconds)] Config sync started" >> "\${LOG_DIR}/sync.log"
-
-# If CONFIG_REPO_URL is set, attempt git sync
-if [ -n "\${CONFIG_REPO_URL:-}" ]; then
-  SYNC_DIR="/opt/config-sync"
-  mkdir -p "\${SYNC_DIR}"
-
-  if [ -d "\${SYNC_DIR}/.git" ]; then
-    cd "\${SYNC_DIR}"
-    git pull origin "\${CONFIG_BRANCH:-main}" 2>&1 >> "\${LOG_DIR}/sync.log" || true
-  else
-    git clone -b "\${CONFIG_BRANCH:-main}" "\${CONFIG_REPO_URL}" "\${SYNC_DIR}" 2>&1 >> "\${LOG_DIR}/sync.log" || true
-  fi
-
-  # Apply config if path exists in repo
-  if [ -d "\${SYNC_DIR}/\${CONFIG_PATH:-}" ]; then
-    echo "[$(date -Iseconds)] Applying config from \${CONFIG_PATH}" >> "\${LOG_DIR}/sync.log"
-    cp -r "\${SYNC_DIR}/\${CONFIG_PATH}/"* / 2>/dev/null || true
-  fi
-fi
-
-echo "[$(date -Iseconds)] Config sync completed" >> "\${LOG_DIR}/sync.log"
-`;
-
-    await ssh.uploadFile(
-      configSyncScript,
-      "/usr/local/bin/config-sync.sh",
-      0o755,
-    );
-
-    await publishProgress(containerId, {
-      type: "log",
-      message: "Deployed config-sync.sh",
-    });
-
-    // Deploy systemd service
-    const systemdUnit = `[Unit]
-Description=Config Manager Sync Service
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-EnvironmentFile=/etc/config-manager/config.env
-ExecStart=/usr/local/bin/config-sync.sh
-StandardOutput=append:/var/log/config-manager/sync.log
-StandardError=append:/var/log/config-manager/sync.log
-
-[Install]
-WantedBy=multi-user.target
-`;
-
-    await ssh.uploadFile(
-      systemdUnit,
-      "/etc/systemd/system/config-manager.service",
-      0o644,
-    );
-
-    // Enable the service
-    await ssh.exec(
-      "systemctl daemon-reload && systemctl enable config-manager.service",
-    );
-
-    await publishProgress(containerId, {
-      type: "log",
-      message: "Installed and enabled config-manager.service",
-    });
-
-    await publishProgress(containerId, {
-      type: "step",
-      step: "deploying",
-      percent: 50,
-      message: "Config-manager installed",
-    });
-
-    // Phase 3b: Deploy template files
+    // Phase 3: Deploy template files
     if (template && template.files.length > 0) {
       for (const file of template.files) {
         // Ensure target directory exists
@@ -471,42 +430,15 @@ WantedBy=multi-user.target
     });
 
     // ========================================================================
-    // Phase 4: Run config-manager and execute scripts (60-90%)
+    // Phase 4: Install packages and execute template scripts (60-90%)
     // ========================================================================
 
     await publishProgress(containerId, {
       type: "step",
       step: "syncing",
       percent: 65,
-      message: "Running config-manager initial sync...",
+      message: "Running setup...",
     });
-
-    // Run config-manager service once (initial sync)
-    // Use `;` instead of `&&` so journalctl runs regardless of sync outcome.
-    // The exit code comes from journalctl (always 0) — check sync separately via systemctl.
-    await ssh.execStreaming(
-      "systemctl start config-manager.service 2>&1; journalctl -u config-manager.service --no-pager -n 50 2>/dev/null",
-      (line) => {
-        publishProgress(containerId, {
-          type: "log",
-          message: line,
-        });
-      },
-    );
-
-    // Check actual sync result
-    const syncResult = await ssh.exec(
-      "systemctl is-failed config-manager.service 2>/dev/null || true",
-    );
-    const syncFailed = syncResult.stdout.trim() === "failed";
-
-    if (syncFailed) {
-      await publishProgress(containerId, {
-        type: "log",
-        message:
-          "Config-manager sync failed (non-fatal — scripts will still run)",
-      });
-    }
 
     // Install user-selected packages (from wizard enabledBuckets + additionalPackages)
     if ((enabledBuckets && enabledBuckets.length > 0) || additionalPackages) {
@@ -585,6 +517,124 @@ WantedBy=multi-user.target
       const scriptCount = enabledScripts.length;
       const percentPerScript = 25 / scriptCount; // Distribute 65-90% across scripts
 
+      // Upload a shared helpers file once so every script gets log_info,
+      // log_warn, log_error and basic env detection (OS, user, pkg manager).
+      // Scripts are sourced (not exec'd) so they run in the same bash process
+      // that has already sourced these helpers.
+      const scriptHelpers = `#!/usr/bin/env bash
+# Script helpers — sourced before each template script by the web app worker.
+# Provides log_info/log_warn/log_error and basic environment detection.
+
+# Ensure a complete PATH — pct exec starts bash with a minimal environment
+# that may not include /usr/local/bin (where Starship, custom tools, etc. land).
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Suppress locale errors and interactive apt prompts for all scripts
+export DEBIAN_FRONTEND=noninteractive
+export LC_ALL=C
+
+_log() { printf '[%s] [%-7s] %s\\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" "\${@:2}"; }
+log_info()  { _log INFO    "$@"; }
+log_warn()  { _log WARNING "$@"; }
+log_error() { _log ERROR   "$@"; }
+
+# OS detection
+if [[ -f /etc/os-release ]]; then
+  CONTAINER_OS="$(. /etc/os-release && echo "\${ID:-unknown}")"
+  CONTAINER_OS_VERSION="$(. /etc/os-release && echo "\${VERSION_ID:-unknown}")"
+else
+  CONTAINER_OS="unknown"
+  CONTAINER_OS_VERSION="unknown"
+fi
+export CONTAINER_OS CONTAINER_OS_VERSION
+
+# Package manager
+if command -v apt-get &>/dev/null; then _PKG_MGR="apt"
+elif command -v apk &>/dev/null;    then _PKG_MGR="apk"
+elif command -v dnf &>/dev/null;    then _PKG_MGR="dnf"
+else _PKG_MGR="unknown"; fi
+export _PKG_MGR
+
+# Primary non-root user (UID 1000)
+CONTAINER_USER="\$(getent passwd 1000 2>/dev/null | cut -d: -f1 || echo '')"
+export CONTAINER_USER
+
+# Helper functions available to scripts
+is_installed() { command -v "\$1" &>/dev/null; }
+
+# Run a command as the primary container user (CONTAINER_USER, UID 1000).
+# Uses sudo -H so that HOME is set to the user's home directory (required by
+# NVM, Foundry, and other user-local tools).  Root can always sudo to another
+# user without a password, so no sudoers entry is needed beyond the default.
+#   Usage: run_as_user <command> [args...]
+run_as_user() { sudo -H -u "\${CONTAINER_USER}" -- "\$@"; }
+
+# Lazy apt-get update: runs at most once per script invocation
+_apt_updated=false
+_apt_update_once() {
+  if [[ "\$_apt_updated" == false ]]; then
+    apt-get update -qq
+    _apt_updated=true
+  fi
+}
+
+ensure_installed() {
+  local pkg="\$1"
+  if ! command -v "\$pkg" &>/dev/null; then
+    _apt_update_once
+    apt-get install -y -qq "\$pkg"
+  fi
+}
+
+# Wait for apt/dpkg locks to be released (max 60s)
+wait_for_apt_lock() {
+  local lock_files=( /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock )
+  local max_wait=60 waited=0
+  while true; do
+    local locked=false
+    for f in "\${lock_files[@]}"; do
+      if [[ -f "\$f" ]] && fuser "\$f" &>/dev/null 2>&1; then
+        locked=true; break
+      fi
+    done
+    "\$locked" || return 0
+    if (( waited >= max_wait )); then
+      log_warn "Timed out waiting for apt lock after \${max_wait}s"
+      return 1
+    fi
+    sleep 2; (( waited += 2 )) || true
+  done
+}
+
+# Generate a random alphanumeric password.
+#   Usage: generate_password [length]   (default: 16)
+generate_password() {
+  local length="\${1:-16}"
+  tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "\$length"
+}
+
+# Save a credential to /etc/infrahaus/credentials/<service>.
+# Each service gets its own file containing JSON key-value pairs.
+# The file is root-only (mode 600).
+#   Usage: save_credential <service> <KEY> <VALUE>
+save_credential() {
+  local service="\$1" key="\$2" value="\$3"
+  local creds_dir="/etc/infrahaus/credentials"
+  local creds_file="\${creds_dir}/\${service}"
+
+  mkdir -p "\$creds_dir"
+
+  # Append or update key in the service file (simple KEY=VALUE format)
+  if [[ -f "\$creds_file" ]] && grep -q "^\${key}=" "\$creds_file" 2>/dev/null; then
+    sed -i "s|^\${key}=.*|\${key}=\${value}|" "\$creds_file"
+  else
+    echo "\${key}=\${value}" >> "\$creds_file"
+  fi
+  chmod 600 "\$creds_file"
+}
+`;
+      await ssh.uploadFile(scriptHelpers, "/tmp/script-helpers.sh", 0o644);
+
       for (let i = 0; i < enabledScripts.length; i++) {
         const script = enabledScripts[i];
         const scriptPercent = Math.round(65 + (i + 1) * percentPerScript);
@@ -596,11 +646,12 @@ WantedBy=multi-user.target
 
         // Upload script to /tmp
         const scriptPath = `/tmp/${script.name}`;
-        await ssh.uploadFile(script.content, scriptPath, 0o755);
+        await ssh.uploadFile(script.content, scriptPath, 0o644);
 
-        // Execute script with streaming output
+        // Source helpers then source the script in the same bash process so
+        // log_info/log_warn/log_error and env vars are available to the script.
         const exitCode = await ssh.execStreaming(
-          `bash "${scriptPath}"`,
+          `bash -c "source /tmp/script-helpers.sh; source '${scriptPath}'"`,
           (line) => {
             publishProgress(containerId, {
               type: "log",
@@ -625,6 +676,9 @@ WantedBy=multi-user.target
           message: `Script "${script.name}" completed`,
         });
       }
+
+      // Clean up helpers
+      await ssh.exec("rm -f /tmp/script-helpers.sh");
     }
 
     await publishProgress(containerId, {
@@ -645,104 +699,19 @@ WantedBy=multi-user.target
       message: "Discovering services...",
     });
 
-    // Phase 5a: Service and credential discovery
-
-    // Read credentials from credentials directory
-    const credResult = await ssh.exec(
-      `ls ${CREDENTIALS_DIR} 2>/dev/null || echo 'empty'`,
+    // Phase 5a: Discover services + cache in Redis
+    const cache = await discoverAndCacheServices(
+      publisher,
+      containerId,
+      ssh as PctExecSession,
+      containerIp,
     );
 
-    if (credResult.stdout.trim() !== "empty" && credResult.stdout.trim()) {
-      const files = credResult.stdout
-        .trim()
-        .split("\n")
-        .filter((f) => f.trim());
-      for (const file of files) {
-        try {
-          const content = await ssh.exec(`cat "${CREDENTIALS_DIR}${file}"`);
-          if (content.stdout.trim()) {
-            // Encrypt credentials before storing
-            const encryptedCreds = encrypt(content.stdout.trim());
-            const serviceName = file.replace(/\.(json|txt|conf)$/, "");
-
-            await DatabaseService.createContainerService({
-              containerId,
-              name: serviceName,
-              type: ServiceType.systemd,
-              status: ServiceStatus.running,
-              credentials: encryptedCreds,
-            });
-
-            await publishProgress(containerId, {
-              type: "log",
-              message: `Discovered credentials for: ${serviceName}`,
-            });
-          }
-        } catch {
-          // Non-fatal: skip unreadable credential files
-          await publishProgress(containerId, {
-            type: "log",
-            message: `Warning: could not read credentials file: ${file}`,
-          });
-        }
-      }
-    }
-
-    // Discover running services via systemd
-    const servicesResult = await ssh.exec(
-      "systemctl list-units --type=service --state=running --no-pager --no-legend 2>/dev/null | awk '{print $1}'",
-    );
-
-    // Discover listening ports
-    const portsResult = await ssh.exec(
-      "ss -tlnp 2>/dev/null | tail -n +2 | awk '{print $4, $6}'",
-    );
-
-    // Parse ports into a map: process name → port
-    const portMap = new Map<string, number>();
-    if (portsResult.stdout.trim()) {
-      for (const line of portsResult.stdout.trim().split("\n")) {
-        const parts = line.trim().split(/\s+/);
-        if (parts.length >= 2) {
-          // Extract port from address (e.g., "0.0.0.0:80" or "*:443")
-          const addrPart = parts[0];
-          const portMatch = addrPart.match(/:(\d+)$/);
-          // Extract process name from users: field
-          const processMatch = parts[1]?.match(/\("([^"]+)"/);
-          if (portMatch) {
-            const port = parseInt(portMatch[1], 10);
-            const processName = processMatch?.[1] || "unknown";
-            portMap.set(processName, port);
-          }
-        }
-      }
-    }
-
-    // Filter and create ContainerService records for application services
-    if (servicesResult.stdout.trim()) {
-      const services = servicesResult.stdout
-        .trim()
-        .split("\n")
-        .filter((s) => s.trim() && !SYSTEM_SERVICES.has(s.trim()));
-
-      for (const serviceName of services) {
-        const cleanName = serviceName.trim().replace(/\.service$/, "");
-        const port = portMap.get(cleanName) || undefined;
-
-        await DatabaseService.createContainerService({
-          containerId,
-          name: cleanName,
-          type: ServiceType.systemd,
-          port,
-          webUrl: port ? `http://${containerIp}:${port}` : undefined,
-          status: ServiceStatus.running,
-        });
-
-        await publishProgress(containerId, {
-          type: "log",
-          message: `Discovered service: ${cleanName}${port ? ` (port ${port})` : ""}`,
-        });
-      }
+    for (const svc of cache.services) {
+      await publishProgress(containerId, {
+        type: "log",
+        message: `Discovered service: ${svc.name}${svc.port ? ` (port ${svc.port})` : ""}${svc.credentials ? " [credentials]" : ""}`,
+      });
     }
 
     // Phase 5b: Finalize

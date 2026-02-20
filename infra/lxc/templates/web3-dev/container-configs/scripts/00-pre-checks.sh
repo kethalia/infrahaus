@@ -11,12 +11,9 @@ log_info "=== Running Pre-Flight Checks ==="
 
 # Log environment information
 log_info "Environment Variables:"
-log_info "  CONFIG_MANAGER_VERSION: ${CONFIG_MANAGER_VERSION:-not set}"
-log_info "  CONFIG_MANAGER_ROOT: ${CONFIG_MANAGER_ROOT:-not set}"
-log_info "  CONFIG_MANAGER_FIRST_RUN: ${CONFIG_MANAGER_FIRST_RUN:-not set}"
 log_info "  CONTAINER_OS: ${CONTAINER_OS:-not set}"
 log_info "  CONTAINER_OS_VERSION: ${CONTAINER_OS_VERSION:-not set}"
-log_info "  CONTAINER_USER: ${CONTAINER_USER:-not set}"
+log_info "  CONTAINER_USER: ${CONTAINER_USER:-not set (created in 01-setup-user)}"
 
 # Check OS compatibility
 log_info "Checking OS compatibility..."
@@ -55,27 +52,29 @@ if [[ $CPU_CORES -lt 2 ]]; then
     log_warn "  CPU cores below recommended 2. Consider allocating more cores."
 fi
 
-# Check network connectivity
+# Check network connectivity + DNS
+# Use curl (guaranteed by ensure_installed later) or wget/getent as fallback.
+# ping may not be installed on minimal Debian 13 containers.
 log_info "Checking network connectivity..."
-if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
-    log_info "✓ Network connectivity: OK"
-else
-    log_error "✗ Network connectivity: FAILED"
-    log_error "  Internet access is required for package installation."
-    exit 1
+_net_ok=false
+if command -v curl &>/dev/null; then
+    if curl -sf --max-time 5 -o /dev/null https://github.com 2>/dev/null; then
+        _net_ok=true
+    fi
+elif getent hosts github.com >/dev/null 2>&1; then
+    _net_ok=true
 fi
 
-# Check DNS resolution
-if getent hosts github.com >/dev/null 2>&1; then
-    log_info "✓ DNS resolution: OK"
+if [[ "$_net_ok" == true ]]; then
+    log_info "✓ Network connectivity + DNS: OK"
 else
-    log_warn "  DNS resolution may have issues. Retrying..."
-    sleep 2
+    log_warn "  Network check failed, retrying in 3s..."
+    sleep 3
     if getent hosts github.com >/dev/null 2>&1; then
-        log_info "✓ DNS resolution: OK (after retry)"
+        log_info "✓ Network connectivity + DNS: OK (after retry)"
     else
-        log_error "✗ DNS resolution: FAILED"
-        log_error "  Unable to resolve github.com. Check DNS settings."
+        log_error "✗ Network connectivity: FAILED"
+        log_error "  Internet access is required for package installation."
         exit 1
     fi
 fi
@@ -109,8 +108,4 @@ fi
 log_info "=== Pre-Flight Checks Complete ==="
 log_info "System is ready for configuration."
 
-if [[ "${CONFIG_MANAGER_FIRST_RUN:-false}" == "true" ]]; then
-    log_info "This is the FIRST RUN — full setup will be performed."
-else
-    log_info "This is a SYNC RUN — only changed configurations will be applied."
-fi
+log_info "Full setup will be performed."

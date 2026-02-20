@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "./status-badge";
 import { ContainerActions } from "./container-actions";
 import type { ContainerWithStatus } from "@/lib/containers/data";
-import type { ServiceStatus } from "@/generated/prisma/client";
+import type { ServiceStatus } from "@/lib/containers/discovery";
 import { formatBytes } from "@/lib/utils/format";
 import { MAX_PREVIEW_ITEMS } from "@/lib/constants/display";
 
@@ -42,9 +42,10 @@ export function ContainerCard({
 
   const displayName = hostname ?? `CT ${vmid}`;
 
-  // Show first N services with colored dots
-  const visibleServices = services.slice(0, MAX_PREVIEW_ITEMS);
-  const remainingCount = Math.max(0, services.length - MAX_PREVIEW_ITEMS);
+  // Show first N app services with colored dots (skip system services on dashboard)
+  const appServices = services.filter((s) => !s.isSystem);
+  const visibleServices = appServices.slice(0, MAX_PREVIEW_ITEMS);
+  const remainingCount = Math.max(0, appServices.length - MAX_PREVIEW_ITEMS);
 
   // Resource summary text
   const resourceText =
@@ -96,11 +97,11 @@ export function ContainerCard({
 
       <CardContent className="flex flex-col gap-2 py-0">
         {/* Services with colored dots */}
-        {services.length > 0 && (
+        {appServices.length > 0 && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {visibleServices.map((service) => (
               <div
-                key={service.id}
+                key={service.name}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground"
               >
                 <ServiceDot status={service.status} />

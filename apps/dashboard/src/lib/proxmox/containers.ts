@@ -169,13 +169,13 @@ export async function deleteContainer(
 }
 
 /**
- * Get runtime IP address from Proxmox guest agent
- * Queries the container's network interfaces via the guest agent to find
- * the actual assigned IP address (useful for DHCP containers where the
- * config only shows "ip=dhcp" but not the actual IP).
+ * Get runtime IP address for an LXC container.
+ * Queries the Proxmox LXC interfaces endpoint to find the actual assigned
+ * IP address (useful for DHCP containers where the config only shows
+ * "ip=dhcp" but not the actual IP).
  *
  * Returns the first non-loopback IPv4 address, or null if not found.
- * Returns null on any error (container stopped, agent not running, etc.).
+ * Returns null on any error (container stopped, etc.).
  */
 export async function getRuntimeIp(
   client: ProxmoxClient,
@@ -183,51 +183,31 @@ export async function getRuntimeIp(
   vmid: number,
 ): Promise<string | null> {
   try {
-    // Query Proxmox guest agent for network interfaces
+    // LXC-specific interfaces endpoint (NOT the QEMU guest agent endpoint)
     const response = await client.get(
-      `/nodes/${nodeName}/lxc/${vmid}/agent/network-get-interfaces`,
-      z.object({
-        result: z.array(
-          z.object({
-            name: z.string(),
-            "ip-addresses": z
-              .array(
-                z.object({
-                  "ip-address": z.string(),
-                  "ip-address-type": z.string(),
-                  prefix: z.number().optional(),
-                }),
-              )
-              .optional(),
-          }),
-        ),
-      }),
+      `/nodes/${nodeName}/lxc/${vmid}/interfaces`,
+      z.array(
+        z.object({
+          name: z.string(),
+          hwaddr: z.string().optional(),
+          inet: z.string().optional(), // e.g. "10.0.0.50/24"
+          inet6: z.string().optional(),
+        }),
+      ),
     );
 
-    // Find first non-loopback interface with valid IPv4 address
-    for (const iface of response.result) {
-      // Skip loopback
+    // Find first non-loopback interface with an IPv4 address
+    for (const iface of response) {
       if (iface.name === "lo") continue;
-
-      const addresses = iface["ip-addresses"];
-      if (!addresses) continue;
-
-      // Find first IPv4 address
-      for (const addr of addresses) {
-        if (addr["ip-address-type"] === "ipv4") {
-          const ip = addr["ip-address"];
-          // Skip loopback IPs
-          if (ip.startsWith("127.")) continue;
-          // Return IP without CIDR suffix (already without it from agent)
-          return ip;
-        }
+      if (iface.inet) {
+        const ip = iface.inet.split("/")[0]; // strip CIDR mask
+        if (ip && !ip.startsWith("127.")) return ip;
       }
     }
 
     return null;
-  } catch (err) {
-    // Return null on any error (agent not running, container stopped, etc.)
-    // Don't log - expected for stopped containers or containers without agent
+  } catch {
+    // Return null on any error (container stopped, API unavailable, etc.)
     return null;
   }
 }

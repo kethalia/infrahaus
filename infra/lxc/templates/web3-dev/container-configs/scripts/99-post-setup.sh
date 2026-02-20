@@ -57,7 +57,13 @@ check_tool() {
     local user_context=${2:-root}
     
     if [[ "$user_context" == "user" ]]; then
-        if run_as_user bash -c "command -v $tool" >/dev/null 2>&1; then
+        # Source NVM and add Foundry/opencode to PATH so tools are discoverable
+        if run_as_user bash -c "
+            export NVM_DIR=\"\$HOME/.nvm\"
+            [[ -s \"\$NVM_DIR/nvm.sh\" ]] && source \"\$NVM_DIR/nvm.sh\"
+            export PATH=\"\$HOME/.foundry/bin:\$HOME/.opencode/bin:\$PATH\"
+            command -v $tool
+        " >/dev/null 2>&1; then
             log_info "✓ $tool is installed (user context)"
         else
             log_warn "✗ $tool is not installed (user context)"
@@ -105,11 +111,14 @@ log_info "✓ Temporary files cleaned"
 # Get container IP address
 CONTAINER_IP=$(hostname -I | awk '{print $1}')
 
-# Load generated credentials
-CREDS_FILE="/etc/infrahaus/credentials"
-if [[ -f "$CREDS_FILE" ]]; then
-    # shellcheck disable=SC1090
-    source "$CREDS_FILE"
+# Load generated credentials from per-service files
+CREDS_DIR="/etc/infrahaus/credentials"
+if [[ -d "$CREDS_DIR" ]]; then
+    for cred_file in "$CREDS_DIR"/*; do
+        [[ -f "$cred_file" ]] || continue
+        # shellcheck disable=SC1090
+        source "$cred_file"
+    done
 fi
 
 # Set defaults if credentials weren't generated
@@ -174,23 +183,12 @@ cat << EOF
    ✓ GitHub CLI (gh) and act
    ✓ Starship prompt for bash
 
-🔧 Configuration Management:
-   
-   Auto-sync:       Enabled on boot
-   Manual sync:     sudo systemctl restart config-manager
-   View logs:       journalctl -u config-manager -f
-   Rollback:        config-rollback list
-   Status:          config-rollback status
-
 💡 Quick Start:
    
    1. Open http://${CONTAINER_IP}:8080 in your browser
    2. Enter password shown above
    3. Open folder: /home/coder/projects
    4. Start coding!
-
-📚 Repository:
-   https://github.com/kethalia/infrahaus
 
 ═══════════════════════════════════════════════════════════
 

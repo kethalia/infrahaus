@@ -12,7 +12,10 @@ import type {
   ProxmoxCredentials,
 } from "./types";
 import { DEFAULT_PVE_PORT } from "@/lib/constants/infrastructure";
-import { TICKET_REFRESH_THRESHOLD_MS } from "@/lib/constants/timeouts";
+import {
+  PVE_REQUEST_TIMEOUT_MS,
+  TICKET_REFRESH_THRESHOLD_MS,
+} from "@/lib/constants/timeouts";
 
 export class ProxmoxClient {
   private readonly baseUrl: string;
@@ -102,10 +105,17 @@ export class ProxmoxClient {
       ...this.getAuthHeaders(),
     };
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      PVE_REQUEST_TIMEOUT_MS,
+    );
+
     const fetchOptions: Record<string, unknown> = {
       method,
       headers,
       dispatcher: this.dispatcher,
+      signal: controller.signal,
     };
 
     if (body !== undefined && method !== "GET") {
@@ -123,6 +133,7 @@ export class ProxmoxClient {
         url,
         fetchOptions as Parameters<typeof undiciFetch>[1],
       );
+      clearTimeout(timeoutId);
 
       // Handle authentication errors
       if (response.status === 401) {
@@ -145,8 +156,17 @@ export class ProxmoxClient {
           errorBody,
         );
 
+        // 596 = Proxmox cross-node proxy timeout — never retryable.
+        // The target node is unreachable from the API node's perspective;
+        // retrying just wastes another 30s waiting for the proxy to time out.
+        const isProxyTimeout = response.status === 596;
+
         // Retry 5xx errors (server errors are typically transient)
-        if (response.status >= 500 && attempt < this.retryConfig.maxRetries) {
+        if (
+          response.status >= 500 &&
+          !isProxyTimeout &&
+          attempt < this.retryConfig.maxRetries
+        ) {
           const delay = Math.min(
             this.retryConfig.initialDelayMs * Math.pow(2, attempt),
             this.retryConfig.maxDelayMs,
@@ -155,7 +175,7 @@ export class ProxmoxClient {
           return this.request<T>(method, path, body, schema, attempt + 1);
         }
 
-        // Don't retry 4xx errors (client errors) or if max retries exceeded
+        // Don't retry 4xx errors, proxy timeouts, or if max retries exceeded
         throw error;
       }
 
@@ -166,12 +186,26 @@ export class ProxmoxClient {
       // Validate with schema if provided, otherwise return as-is
       return schema ? schema.parse(unwrapped) : unwrapped;
     } catch (error) {
+      clearTimeout(timeoutId);
+
       // Don't retry auth errors or API errors (already handled above)
       if (
         error instanceof ProxmoxAuthError ||
         error instanceof ProxmoxApiError
       ) {
         throw error;
+      }
+
+      // Don't retry aborted requests — we intentionally cancelled via timeout
+      if (
+        error instanceof Error &&
+        (error.name === "AbortError" || error.name === "TimeoutError")
+      ) {
+        throw new ProxmoxError(
+          `Request timed out after ${PVE_REQUEST_TIMEOUT_MS / 1000}s`,
+          undefined,
+          path,
+        );
       }
 
       // Retry on network errors

@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getContainerDetailData } from "@/lib/containers/data";
 import { ContainerDetail } from "./container-detail";
 
@@ -14,7 +14,10 @@ export default async function ContainerDetailPage({
   const data = await getContainerDetailData(id);
 
   if (!data) {
-    notFound();
+    // Container was deleted or never existed — redirect home rather than 404.
+    // This also handles the race where Next.js re-renders this RSC immediately
+    // after deleteContainerAction completes before router.push("/") fires.
+    redirect("/");
   }
 
   // Redirect creating containers to the progress page

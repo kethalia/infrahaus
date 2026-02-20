@@ -21,13 +21,17 @@ else
     fi
 fi
 
+# Ensure sudo is installed (not present on minimal Debian containers)
+if ! command -v sudo &>/dev/null; then
+    apt-get install -y -qq sudo
+fi
+
 # Configure sudoers
 echo "Configuring sudo access..."
+mkdir -p /etc/sudoers.d
 cat > /etc/sudoers.d/coder <<'EOF'
-# Allow coder user passwordless sudo for development operations
-coder ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/docker, /usr/bin/git, /usr/local/bin/config-sync.sh, /usr/local/bin/config-rollback
-# Allow full sudo with password for other operations
-coder ALL=(ALL:ALL) ALL
+# Allow coder user full passwordless sudo (dev container)
+coder ALL=(ALL) NOPASSWD:ALL
 EOF
 
 chmod 0440 /etc/sudoers.d/coder

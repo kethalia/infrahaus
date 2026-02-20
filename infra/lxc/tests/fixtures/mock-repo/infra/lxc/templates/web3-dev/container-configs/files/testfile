@@ -1,4 +1,0 @@
-# Test configuration file
-# Deployed by config-manager process-files
-SETTING_A=value_a
-SETTING_B=value_b

@@ -61,12 +61,22 @@ export const WORKER_CONCURRENCY = 2;
 /** Directory where per-service credential files are stored inside containers */
 export const CREDENTIALS_DIR = "/etc/infrahaus/credentials/";
 
+// ============================================================================
+// Container Log Buffer (Redis ring buffer for progress log replay on refresh)
+// ============================================================================
+
 /**
- * Directories created during container provisioning for config management.
- * Space-separated for direct use in `mkdir -p` commands.
+ * Build the Redis key for a container's log ring buffer.
+ * Usage: getLogBufferKey(containerId)  →  "container:{id}:logs"
  */
-export const CONFIG_MANAGER_DIRS =
-  "/etc/config-manager /etc/infrahaus/credentials /var/log/config-manager";
+export const getLogBufferKey = (containerId: string) =>
+  `container:${containerId}:logs`;
+
+/** Maximum log lines retained in the ring buffer (LTRIM cap) */
+export const CONTAINER_LOG_BUFFER_MAX = 2000;
+
+/** TTL for the log buffer key — 48 hours in seconds */
+export const CONTAINER_LOG_BUFFER_TTL_S = 172_800;
 
 // ============================================================================
 // SSE / Progress

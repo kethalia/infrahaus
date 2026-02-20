@@ -1,11 +1,18 @@
 /**
  * API route to fetch discovered services for a container.
  * Used by the progress page on completion to display services and credentials.
+ *
+ * Reads from Redis cache (populated by worker or refresh action).
+ * Returns { services: [...], containerIp: string | null }
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { DatabaseService } from "@/lib/db";
-import { decrypt } from "@/lib/encryption";
+import { getRedis } from "@/lib/redis";
+import {
+  getCachedServices,
+  decryptServiceCredentials,
+} from "@/lib/containers/discovery";
 
 export async function GET(
   _request: NextRequest,
@@ -18,21 +25,14 @@ export async function GET(
     return NextResponse.json({ error: "Container not found" }, { status: 404 });
   }
 
-  const services = await DatabaseService.getContainerServices(containerId);
+  const redis = getRedis();
+  const cache = await getCachedServices(redis, containerId);
 
-  // Decrypt credentials server-side before sending to client
-  const decryptedServices = services.map((service) => ({
-    ...service,
-    credentials: service.credentials
-      ? (() => {
-          try {
-            return decrypt(service.credentials);
-          } catch {
-            return null;
-          }
-        })()
-      : null,
-  }));
+  if (!cache) {
+    return NextResponse.json({ services: [], containerIp: null });
+  }
 
-  return NextResponse.json(decryptedServices);
+  const { services, containerIp } = decryptServiceCredentials(cache);
+
+  return NextResponse.json({ services, containerIp });
 }

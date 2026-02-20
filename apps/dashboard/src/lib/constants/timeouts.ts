@@ -36,6 +36,10 @@ export const DELETE_TIMEOUT_MS = 120_000;
 // Proxmox Client
 // ============================================================================
 
+/** Per-request timeout for Proxmox API calls (ms) — prevents indefinite hangs
+ *  when Proxmox tries to proxy to an unreachable cluster node (HTTP 596). */
+export const PVE_REQUEST_TIMEOUT_MS = 30_000;
+
 /** Ticket refresh threshold — refresh when less than this remains (ms) */
 export const TICKET_REFRESH_THRESHOLD_MS = 10 * 60 * 1000;
 
@@ -61,16 +65,6 @@ export const CONTAINER_FILESYSTEM_READY_MAX_ATTEMPTS = 15;
 
 /** Delay between container filesystem ready checks (ms) */
 export const CONTAINER_FILESYSTEM_CHECK_DELAY_MS = 1000;
-
-// ============================================================================
-// Monitoring & SSH
-// ============================================================================
-
-/** Max SSH connection attempts for service monitoring */
-export const MONITORING_SSH_MAX_ATTEMPTS = 2;
-
-/** Initial delay for monitoring SSH connection retry (ms) */
-export const MONITORING_SSH_INITIAL_DELAY_MS = 1000;
 
 // ============================================================================
 // Redis

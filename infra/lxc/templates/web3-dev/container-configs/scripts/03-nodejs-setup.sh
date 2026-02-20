@@ -91,18 +91,8 @@ NPM_VERSION=$(run_as_user bash -c "
 
 log_info "✓ npm installed: v${NPM_VERSION}"
 
-# Configure npm global directory (avoid permission issues)
-log_info "Configuring npm global directory..."
-NPM_GLOBAL_DIR="/home/${CONTAINER_USER}/.npm-global"
-
-run_as_user bash -c "
-    export NVM_DIR='${NVM_DIR}'
-    source \"\${NVM_DIR}/nvm.sh\"
-    mkdir -p ${NPM_GLOBAL_DIR}
-    npm config set prefix '${NPM_GLOBAL_DIR}'
-"
-
-log_info "✓ npm global directory set to: ${NPM_GLOBAL_DIR}"
+# NVM manages npm global installs per-node-version — no custom prefix needed.
+# A custom npm prefix conflicts with NVM and breaks "npm install -g" under NVM.
 
 # Ensure NVM is sourced in .bashrc (if not already present)
 BASHRC="/home/${CONTAINER_USER}/.bashrc"
@@ -125,26 +115,9 @@ else
     log_warn ".bashrc not found for user '$CONTAINER_USER'"
 fi
 
-# Ensure npm global binaries are in PATH
-NPM_PATH_SNIPPET='
-# NPM global binaries
-export PATH="$HOME/.npm-global/bin:$PATH"
-'
-
-if [[ -f "$BASHRC" ]]; then
-    if ! grep -q ".npm-global/bin" "$BASHRC"; then
-        log_info "Adding npm global path to .bashrc..."
-        run_as_user bash -c "echo '$NPM_PATH_SNIPPET' >> $BASHRC"
-        log_info "✓ npm global path added to .bashrc"
-    else
-        log_info "npm global path already present in .bashrc"
-    fi
-fi
-
 log_info "=== Node.js Setup Complete ==="
 log_info "Node.js: ${NODE_VERSION_INSTALLED}"
 log_info "npm: v${NPM_VERSION}"
 log_info "NVM directory: ${NVM_DIR}"
-log_info "npm global directory: ${NPM_GLOBAL_DIR}"
 log_info ""
 log_info "Note: User '$CONTAINER_USER' must restart shell or run 'source ~/.bashrc' to use Node"
