@@ -6,6 +6,9 @@
  * Server actions for creating containers, fetching wizard initialization data,
  * and managing container lifecycle (start/stop/shutdown/restart/delete).
  * Uses authActionClient for authenticated access and next-safe-action patterns.
+ *
+ * All Proxmox client creation is DB-based via createProxmoxClientFromNode().
+ * No env-var references (PVE_HOST, PVE_PORT, PVE_ROOT_PASSWORD, PVE_NODE).
  */
 
 import { revalidatePath } from "next/cache";
@@ -13,10 +16,10 @@ import { z } from "zod";
 
 import { authActionClient, ActionError } from "@/lib/safe-action";
 import { DatabaseService, EventType, prisma } from "@/lib/db";
-import { encrypt } from "@/lib/encryption";
+import { decrypt } from "@/lib/encryption";
 import { getContainerCreationQueue } from "@/lib/queue/container-creation";
 import {
-  getProxmoxClient,
+  createProxmoxClientFromNode,
   storage,
   nodes as proxmoxNodes,
   templates as proxmoxTemplates,
@@ -32,8 +35,8 @@ import {
 import { waitForTask } from "@/lib/proxmox/tasks";
 import { acquireLock, releaseLock } from "@/lib/utils/redis-lock";
 import { extractIpFromNet0 } from "@/lib/proxmox/utils";
+import { invalidateVmidCache } from "@/lib/vmid-cache";
 import {
-  DEFAULT_PVE_PORT,
   DEFAULT_NEXT_VMID,
   CONTAINER_LOCK_PREFIX,
   CONTAINER_LOCK_TTL,
@@ -112,78 +115,16 @@ export interface WizardData {
 }
 
 // ============================================================================
-// Proxmox Node Helpers
-// ============================================================================
-
-/**
- * Get or create a ProxmoxNode DB record for the given target node.
- * Auto-creates a DB record using PVE_HOST/PVE_PORT from env vars if one
- * doesn't exist yet. Uses env-based auth (no session needed).
- *
- * TODO(03.5-04): Remove this helper entirely — nodes will be created via
- * the Settings page and resolved from the user's session.
- */
-async function getOrCreateNode(
-  targetNode?: string,
-): Promise<{ nodeId: string; nodeName: string }> {
-  // Temporary userId for env-var based auth path
-  // TODO(03.5-04): Get from session context
-  const userId = "root@pam";
-
-  // If a target node is specified, look for it in DB first
-  if (targetNode) {
-    const existing = await DatabaseService.getNodeByName(userId, targetNode);
-    if (existing) {
-      return { nodeId: existing.id, nodeName: existing.name };
-    }
-  }
-
-  // Check if any nodes exist in DB for this user
-  const existingNodes = await DatabaseService.listNodesForUser(userId);
-  if (!targetNode && existingNodes.length > 0) {
-    return { nodeId: existingNodes[0].id, nodeName: existingNodes[0].name };
-  }
-
-  // Need to create a DB record for the target node
-  const host = process.env.PVE_HOST;
-  if (!host) {
-    throw new Error("PVE_HOST env var is not set.");
-  }
-  const port = process.env.PVE_PORT
-    ? parseInt(process.env.PVE_PORT, 10)
-    : DEFAULT_PVE_PORT;
-
-  // Use target node name, or discover from API
-  let nodeName = targetNode;
-  if (!nodeName) {
-    const client = await getProxmoxClient();
-    const clusterNodes = await proxmoxNodes.listNodes(client);
-    nodeName = clusterNodes[0]?.node || "pve";
-  }
-
-  // Create a DB record with placeholder token fields (env auth used)
-  const placeholderToken = encrypt("env-auth-no-token");
-  const node = await DatabaseService.createNode({
-    name: nodeName,
-    host,
-    port,
-    tokenId: "root@pam!env",
-    tokenSecret: placeholderToken,
-    userId,
-  });
-
-  return { nodeId: node.id, nodeName: node.name };
-}
-
-// ============================================================================
 // Fetch wizard initialization data
 // ============================================================================
 
 /**
  * Fetches all data needed to initialize the container creation wizard.
- * Uses env-based auth via getProxmoxClient() — no user session needed.
+ * Resolves Proxmox node from DB via userId (session-based auth).
+ *
+ * @param userId - The authenticated user's ID (from session)
  */
-export async function getWizardData(): Promise<WizardData> {
+export async function getWizardData(userId: string): Promise<WizardData> {
   // Fetch templates from database
   const templates = await prisma.template.findMany({
     include: {
@@ -203,13 +144,14 @@ export async function getWizardData(): Promise<WizardData> {
     clusterNodes: [],
   };
 
-  // Check env vars are configured
-  if (!process.env.PVE_HOST || !process.env.PVE_ROOT_PASSWORD) {
+  // Get the user's default node from DB
+  const defaultNode = await DatabaseService.getDefaultNodeForUser(userId);
+  if (!defaultNode) {
     return emptyResult;
   }
 
   try {
-    const client = await getProxmoxClient();
+    const client = createProxmoxClientFromNode(defaultNode);
 
     // Fetch cluster nodes and next VMID
     const [clusterNodeList, nextVmidResponse] = await Promise.all([
@@ -219,13 +161,11 @@ export async function getWizardData(): Promise<WizardData> {
 
     const onlineNodes = clusterNodeList.filter((n) => n.status === "online");
 
-    // If PVE_NODE is set, only fetch data for that node — avoids slow
-    // cross-node proxy calls in clusters where some nodes are unreachable
-    // from the API host (e.g. the API host proxying back to itself).
-    const pveNode = process.env.PVE_NODE?.trim();
-    const targetNodes = pveNode
-      ? onlineNodes.filter((n) => n.node === pveNode)
-      : onlineNodes;
+    // Only fetch data for nodes the user has configured in DB.
+    // This replaces the old PVE_NODE env-var filtering.
+    const userNodes = await DatabaseService.listNodesForUser(userId);
+    const userNodeNames = new Set(userNodes.map((n) => n.name));
+    const targetNodes = onlineNodes.filter((n) => userNodeNames.has(n.node));
 
     // Fetch per-node data (storage, bridges, OS templates) for each node.
     // Each node is fetched independently — if one node is unreachable via
@@ -415,22 +355,32 @@ function mapTemplate(t: {
  * Create a new container record and enqueue a BullMQ job for provisioning.
  *
  * 1. Validates input via Zod
- * 2. Finds first Proxmox node
- * 3. Encrypts root password for DB storage
- * 4. Creates Container record
- * 5. Resolves OS template path
- * 6. Enqueues BullMQ job with plaintext password (Proxmox API needs it)
+ * 2. Resolves Proxmox node from ctx.userId + data.targetNode
+ * 3. Creates Container record
+ * 4. Resolves OS template path
+ * 5. Enqueues BullMQ job
+ * 6. Invalidates VMID cache for the node
  * 7. Returns container ID for redirect
  */
 export const createContainerAction = authActionClient
   .schema(createContainerInputSchema)
-  .action(async ({ parsedInput: data }) => {
-    // Get or create a Proxmox node DB record for the target node
-    const { nodeId, nodeName } = await getOrCreateNode(data.targetNode);
+  .action(async ({ parsedInput: data, ctx }) => {
+    // Resolve the target Proxmox node from DB
+    let node;
+    if (data.targetNode) {
+      node = await DatabaseService.getNodeByName(ctx.userId, data.targetNode);
+    }
+    if (!node) {
+      node = await DatabaseService.getDefaultNodeForUser(ctx.userId);
+    }
+    if (!node) {
+      throw new ActionError("No Proxmox node configured. Add one in Settings.");
+    }
+
+    const nodeId = node.id;
+    const nodeName = node.name;
 
     // Create container record — handle VMID conflicts from stale records
-    // Note: rootPassword is no longer stored in DB (clean break per 03.5-01)
-    // The password is still passed to the worker for Proxmox API use only
     let container;
     try {
       container = await DatabaseService.createContainer({
@@ -456,13 +406,12 @@ export const createContainerAction = authActionClient
         if (existing) {
           // DB has a record for this VMID — check if the container actually
           // still exists on Proxmox before deciding what to do.
-          const client = await getProxmoxClient();
+          const client = createProxmoxClientFromNode(node);
           let existsOnProxmox = false;
           try {
             // Try to fetch the container status from the target node
-            const targetNode = data.targetNode || nodeName;
             await client.get(
-              `/nodes/${targetNode}/lxc/${data.vmid}/status/current`,
+              `/nodes/${nodeName}/lxc/${data.vmid}/status/current`,
               z.object({}).passthrough(),
             );
             existsOnProxmox = true;
@@ -507,7 +456,7 @@ export const createContainerAction = authActionClient
       );
     }
 
-    // Enqueue creation job — worker resolves credentials from DB via nodeId
+    // Enqueue creation job — worker resolves auth from nodeId via DB
     const queue = getContainerCreationQueue();
     await queue.add("create-container", {
       containerId: container.id,
@@ -535,6 +484,9 @@ export const createContainerAction = authActionClient
       additionalPackages: data.additionalPackages,
       scripts: data.scripts,
     });
+
+    // Invalidate VMID cache for this node (new container being created)
+    await invalidateVmidCache(nodeId);
 
     revalidatePath("/containers");
 
@@ -577,6 +529,7 @@ async function releaseContainerLock(
 
 /**
  * Get Proxmox client and node name for a given container.
+ * Resolves the client from the container's node record in the DB.
  * Returns the client, node name, and container VMID.
  */
 async function getContainerContext(containerId: string) {
@@ -585,7 +538,7 @@ async function getContainerContext(containerId: string) {
     throw new ActionError("Container not found");
   }
 
-  const client = await getProxmoxClient();
+  const client = createProxmoxClientFromNode(container.node);
   return {
     client,
     nodeName: container.node.name,
@@ -807,7 +760,8 @@ export const deleteContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid } = await getContainerContext(containerId);
+      const { client, nodeName, vmid, container } =
+        await getContainerContext(containerId);
 
       try {
         // Stop the container first if it's running
@@ -847,6 +801,9 @@ export const deleteContainerAction = authActionClient
         redis.del(getLogBufferKey(containerId)),
       ]);
 
+      // Invalidate VMID cache for this node (container deleted)
+      await invalidateVmidCache(container.node.id);
+
       // Delete from database (cascade handles events)
       await DatabaseService.deleteContainerById(containerId);
 
@@ -866,6 +823,9 @@ export const deleteContainerAction = authActionClient
 /**
  * Re-discover container services by SSHing into the PVE host and running
  * discovery via `pct exec`. Results are cached in Redis (not DB).
+ *
+ * SSH credentials come from the container's node record in the DB
+ * (node.host + node.sshPassword), not from env vars.
  */
 export const refreshContainerServicesAction = authActionClient
   .schema(containerIdSchema)
@@ -882,7 +842,7 @@ export const refreshContainerServicesAction = authActionClient
     }
 
     // Check container is running on Proxmox
-    const client = await getProxmoxClient();
+    const client = createProxmoxClientFromNode(container.node);
     const nodeName = container.node.name;
     const vmid = container.vmid;
 
@@ -899,15 +859,14 @@ export const refreshContainerServicesAction = authActionClient
       throw new ActionError("Container must be running to refresh services.");
     }
 
-    // Connect to PVE host via SSH, then pct exec into container.
-    // Uses the same PVE_HOST + PVE_ROOT_PASSWORD env vars as the worker.
-    const pveHost = process.env.PVE_HOST;
-    const pveRootPassword = process.env.PVE_ROOT_PASSWORD;
-    if (!pveHost || !pveRootPassword) {
+    // Connect to PVE host via SSH using DB-stored credentials
+    const pveHost = container.node.host;
+    if (!container.node.sshPassword) {
       throw new ActionError(
-        "PVE_HOST and PVE_ROOT_PASSWORD environment variables are required for service discovery.",
+        "SSH password not configured for this node. Update node settings to enable service discovery.",
       );
     }
+    const pveRootPassword = decrypt(container.node.sshPassword);
 
     const { connectWithRetry, PctExecSession } = await import("@/lib/ssh");
     const sshHost = await connectWithRetry({

@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { getWizardData } from "@/lib/containers/actions";
+import { getSessionData } from "@/lib/session";
 import { ContainerWizard } from "./container-wizard";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +11,9 @@ export const metadata = {
 };
 
 export default async function NewContainerPage() {
+  const session = await getSessionData();
+  if (!session) redirect("/login");
+
   const {
     templates,
     storages,
@@ -17,7 +22,7 @@ export default async function NewContainerPage() {
     noNodeConfigured,
     osTemplates,
     clusterNodes,
-  } = await getWizardData();
+  } = await getWizardData(session.username);
 
   return (
     <div className="flex flex-1 flex-col gap-6">
