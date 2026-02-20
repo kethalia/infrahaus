@@ -130,8 +130,14 @@ export async function GET(
           })()
         : null;
 
-      // Compute which steps have been seen from persisted events
+      // Compute which steps have been seen and extract script info from
+      // persisted events for snapshot hydration.
       const seenSteps: string[] = [];
+      let snapshotScriptNames: string[] | undefined;
+      let snapshotScriptTotal: number | undefined;
+      const snapshotCompletedScripts: string[] = [];
+      let snapshotActiveScript: string | null = null;
+
       for (const event of existingEvents) {
         if (event.metadata) {
           try {
@@ -139,10 +145,33 @@ export async function GET(
             if (meta.step && !seenSteps.includes(meta.step)) {
               seenSteps.push(meta.step);
             }
+            // Extract script tracking info
+            if (meta.scriptNames) {
+              snapshotScriptNames = meta.scriptNames;
+            }
+            if (meta.scriptTotal != null) {
+              snapshotScriptTotal = meta.scriptTotal;
+            }
+            // Script completion events have scriptName on syncing steps
+            if (meta.scriptName && meta.step === "syncing") {
+              if (!snapshotCompletedScripts.includes(meta.scriptName)) {
+                snapshotCompletedScripts.push(meta.scriptName);
+              }
+            }
           } catch {
             // ignore
           }
         }
+      }
+
+      // Determine active script: if we have script names and the step is
+      // syncing (not terminal), the active script is the first one not
+      // completed yet.
+      if (snapshotScriptNames && !isTerminal && lastStep === "syncing") {
+        snapshotActiveScript =
+          snapshotScriptNames.find(
+            (name) => !snapshotCompletedScripts.includes(name),
+          ) ?? null;
       }
 
       // Check terminal state — use container lifecycle as source of truth,
@@ -164,6 +193,14 @@ export async function GET(
             (isTerminal && container.lifecycle === "error"
               ? "Container creation failed"
               : null),
+          // Script tracking
+          scriptNames: snapshotScriptNames,
+          scriptTotal: snapshotScriptTotal,
+          completedScripts:
+            snapshotCompletedScripts.length > 0
+              ? snapshotCompletedScripts
+              : undefined,
+          activeScript: snapshotActiveScript,
         }),
       );
 

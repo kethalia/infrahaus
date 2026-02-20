@@ -115,7 +115,14 @@ async function publishProgress(
       containerId,
       type: dbEventType,
       message: event.message,
-      metadata: JSON.stringify({ step: event.step, percent: event.percent }),
+      metadata: JSON.stringify({
+        step: event.step,
+        percent: event.percent,
+        ...(event.scriptName && { scriptName: event.scriptName }),
+        ...(event.scriptIndex != null && { scriptIndex: event.scriptIndex }),
+        ...(event.scriptTotal != null && { scriptTotal: event.scriptTotal }),
+        ...(event.scriptNames && { scriptNames: event.scriptNames }),
+      }),
     });
   }
 }
@@ -433,11 +440,32 @@ async function processContainerCreation(
     // Phase 4: Install packages and execute template scripts (60-90%)
     // ========================================================================
 
+    // Filter template scripts by user's wizard selections (if provided).
+    // Must be computed before the Phase 4 start event so we can report
+    // the script count and names.
+    const enabledScripts = template
+      ? scriptSelections
+        ? template.scripts.filter((s) => {
+            const selection = scriptSelections.find((sel) => sel.id === s.id);
+            return selection ? selection.enabled : s.enabled;
+          })
+        : template.scripts
+      : [];
+
     await publishProgress(containerId, {
       type: "step",
       step: "syncing",
       percent: 65,
-      message: "Running setup...",
+      message:
+        enabledScripts.length > 0
+          ? `Running ${enabledScripts.length} setup scripts...`
+          : "Running setup...",
+      scriptTotal:
+        enabledScripts.length > 0 ? enabledScripts.length : undefined,
+      scriptNames:
+        enabledScripts.length > 0
+          ? enabledScripts.map((s) => s.name)
+          : undefined,
     });
 
     // Install user-selected packages (from wizard enabledBuckets + additionalPackages)
@@ -501,16 +529,6 @@ async function processContainerCreation(
         }
       }
     }
-
-    // Filter template scripts by user's wizard selections (if provided)
-    const enabledScripts = template
-      ? scriptSelections
-        ? template.scripts.filter((s) => {
-            const selection = scriptSelections.find((sel) => sel.id === s.id);
-            return selection ? selection.enabled : s.enabled;
-          })
-        : template.scripts
-      : [];
 
     // Execute template scripts
     if (enabledScripts.length > 0) {
@@ -642,6 +660,9 @@ save_credential() {
         await publishProgress(containerId, {
           type: "log",
           message: `Running script: ${script.name} (${i + 1}/${scriptCount})`,
+          scriptName: script.name,
+          scriptIndex: i,
+          scriptTotal: scriptCount,
         });
 
         // Upload script to /tmp
@@ -656,6 +677,7 @@ save_credential() {
             publishProgress(containerId, {
               type: "log",
               message: line,
+              scriptName: script.name,
             });
           },
         );
@@ -674,6 +696,9 @@ save_credential() {
           step: "syncing",
           percent: scriptPercent,
           message: `Script "${script.name}" completed`,
+          scriptName: script.name,
+          scriptIndex: i,
+          scriptTotal: scriptCount,
         });
       }
 

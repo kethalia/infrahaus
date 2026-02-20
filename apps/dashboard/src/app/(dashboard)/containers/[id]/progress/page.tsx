@@ -54,12 +54,23 @@ export default function ContainerProgressPage() {
   const router = useRouter();
   const containerId = params.id;
 
-  const { status, percent, isComplete, isError, errorMessage, steps, logs } =
-    useContainerProgress(containerId);
+  const {
+    status,
+    percent,
+    isComplete,
+    isError,
+    errorMessage,
+    steps,
+    logs,
+    scripts,
+  } = useContainerProgress(containerId);
 
   const [services, setServices] = useState<ContainerServiceInfo[]>([]);
   const [containerIp, setContainerIp] = useState<string | null>(null);
   const [loadingServices, setLoadingServices] = useState(false);
+
+  // Script log filtering — controlled by clicking scripts in the stepper
+  const [selectedScript, setSelectedScript] = useState<string | null>(null);
 
   // Fetch services on completion
   const fetchServices = useCallback(async () => {
@@ -126,7 +137,13 @@ export default function ContainerProgressPage() {
 
         <Card>
           <CardContent className="space-y-4">
-            <ProgressStepper steps={steps} percent={percent} />
+            <ProgressStepper
+              steps={steps}
+              percent={percent}
+              scripts={scripts}
+              selectedScript={selectedScript}
+              onScriptClick={setSelectedScript}
+            />
           </CardContent>
         </Card>
 
@@ -154,7 +171,11 @@ export default function ContainerProgressPage() {
           </CardFooter>
         </Card>
 
-        <LogViewer logs={logs} />
+        <LogViewer
+          logs={logs}
+          selectedScript={selectedScript}
+          onClearFilter={() => setSelectedScript(null)}
+        />
       </div>
     );
   }
@@ -192,7 +213,13 @@ export default function ContainerProgressPage() {
 
         <Card>
           <CardContent className="space-y-4">
-            <ProgressStepper steps={steps} percent={percent} />
+            <ProgressStepper
+              steps={steps}
+              percent={percent}
+              scripts={scripts}
+              selectedScript={selectedScript}
+              onScriptClick={setSelectedScript}
+            />
           </CardContent>
         </Card>
 
@@ -223,7 +250,11 @@ export default function ContainerProgressPage() {
           </Card>
         ) : null}
 
-        <LogViewer logs={logs} />
+        <LogViewer
+          logs={logs}
+          selectedScript={selectedScript}
+          onClearFilter={() => setSelectedScript(null)}
+        />
       </div>
     );
   }
@@ -238,11 +269,21 @@ export default function ContainerProgressPage() {
 
       <Card>
         <CardContent className="space-y-4">
-          <ProgressStepper steps={steps} percent={percent} />
+          <ProgressStepper
+            steps={steps}
+            percent={percent}
+            scripts={scripts}
+            selectedScript={selectedScript}
+            onScriptClick={setSelectedScript}
+          />
         </CardContent>
       </Card>
 
-      <LogViewer logs={logs} />
+      <LogViewer
+        logs={logs}
+        selectedScript={selectedScript}
+        onClearFilter={() => setSelectedScript(null)}
+      />
     </div>
   );
 }
