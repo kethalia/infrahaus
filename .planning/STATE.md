@@ -5,10 +5,10 @@
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 03.5-infrastructure-refactor — In progress
 **Plan:** 5 of 8 in current phase
-**Status:** In progress — Worker + service logs route migrated to DB-based auth
-**Last activity:** 2026-02-20 — Completed 03.5-05-PLAN.md
+**Status:** In progress — Container actions & data layer migrated to DB-based Proxmox auth
+**Last activity:** 2026-02-20 — Completed 03.5-04-PLAN.md
 
-Progress: ███████████░░░░░░ 69% (27/39 plans)
+Progress: ██████████░░░░░░░ 65% (28/43 plans)
 
 ## Completed Work
 
@@ -99,6 +99,17 @@ Progress: ███████████░░░░░░ 69% (27/39 plans)
 - Connection testing on create/update (hit /version endpoint before persisting)
 - Auto-default first node, delete protection for nodes with containers
 
+**03.5-04 — Container actions & data layer migration to DB-based auth** ✓
+
+- Deleted getProxmoxClient() entirely from proxmox/index.ts; added getProxmoxClientForNode() convenience function
+- All 8 container call sites (actions.ts + data.ts) use createProxmoxClientFromNode()
+- rootPassword removed from container schemas (base, config, input)
+- getContainersWithStatus() accepts userId, iterates user's DB nodes in parallel
+- getContainerDetailData() resolves Proxmox client from container.node relation
+- SSH in refreshContainerServicesAction uses node.sshPassword from DB
+- Dashboard and wizard pages pass session userId to data layer
+- VMID cache invalidation wired into container create and delete
+
 **03.5-05 — Worker + service logs route migration to DB-based auth** ✓
 
 - Worker resolves Proxmox client from DB via createProxmoxClientFromNode(node) instead of env-var getProxmoxClient()
@@ -168,10 +179,14 @@ Progress: ███████████░░░░░░ 69% (27/39 plans)
 - Worker generates random 32-char hex password for Proxmox API container creation — not stored, containers accessed via pct exec
 - rootPassword removed from ContainerJobData and container schemas in plan 05 (not deferred to 07)
 - Service logs API route requires session auth via getSessionData()
+- getContainersWithStatus iterates user's DB nodes in parallel (not cluster listNodes API) with per-node error isolation
+- getContainerDetailData resolves client from container.node relation (no userId needed)
+- Dashboard page.tsx follows same session-check pattern as wizard page (getSessionData + redirect)
 
 ## Pending Work
 
 - Phase 3.5: Plans 06-08 remaining (settings UI, wizard updates, dashboard updates)
+  - Note: Client-side wizard still has rootPassword form fields (stripped by Zod) — clean up in Plan 07
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -188,6 +203,6 @@ Progress: ███████████░░░░░░ 69% (27/39 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-20T20:41:19Z
-Stopped at: Completed 03.5-05-PLAN.md (worker + service logs migration)
+Last session: 2026-02-20
+Stopped at: Completed 03.5-04-PLAN.md (container actions & data migration)
 Resume file: None
