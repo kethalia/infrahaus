@@ -60,9 +60,28 @@ export const setDefaultNodeSchema = z.object({
   id: z.string().min(1),
 });
 
+/**
+ * Form schema for NodeFormDialog (client-side with zodResolver).
+ * Uses z.number() instead of z.coerce.number() for react-hook-form compatibility.
+ * tokenSecret is optional — required for create is enforced manually in onSubmit.
+ */
+export const editNodeFormSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100, "Name too long"),
+  host: z.string().min(1, "Host is required"),
+  port: z
+    .number()
+    .int()
+    .min(1, "Port must be at least 1")
+    .max(65535, "Port must be at most 65535"),
+  tokenId: z.string().min(1, "API Token ID is required"),
+  tokenSecret: z.string().optional(), // Optional — required for create enforced in onSubmit
+  sshPassword: z.string().optional(),
+});
+
 // ============================================================================
 // Inferred Types (for use in forms and server actions)
 // ============================================================================
 
 export type CreateNodeInput = z.infer<typeof createNodeSchema>;
 export type UpdateNodeInput = z.infer<typeof updateNodeSchema>;
+export type EditNodeFormInput = z.infer<typeof editNodeFormSchema>;
