@@ -90,6 +90,32 @@ Plans:
 
 ---
 
+### Phase 03.6: Remove Container from Database
+
+**Goal:** Remove Container and ContainerEvent models from PostgreSQL. Proxmox becomes sole source of truth for container state. Redis provides ephemeral creation tracking and service caching.
+**Status:** Not started
+**Depends on:** Phase 03.5
+**Plans:** 4 plans
+
+Key deliverables:
+
+- Redis-based creation state module replaces DB Container model for in-progress jobs
+- Container creation action + worker write to Redis instead of PostgreSQL
+- Dashboard and detail pages fetch from Proxmox API exclusively (Redis for creation state)
+- SSE progress route uses Redis ring buffer only (no DB ContainerEvent replay)
+- Lifecycle actions (start/stop/shutdown/restart/delete) operate without DB Container records
+- Container and ContainerEvent tables dropped from PostgreSQL
+- All container IDs are VMIDs (uniform, no more cuid/pve-{vmid} mix)
+
+Plans:
+
+- [ ] 03.6-01-PLAN.md — Redis creation state module (key patterns, TTLs, CRUD functions)
+- [ ] 03.6-02-PLAN.md — Creation flow + actions refactor (action, worker, lifecycle → Redis)
+- [ ] 03.6-03-PLAN.md — Data layer + routes + UI → Proxmox/Redis only
+- [ ] 03.6-04-PLAN.md — Schema removal + DatabaseService cleanup + build verification
+
+---
+
 ### Phase 04: Container Management ✓
 
 **Goal:** Users can monitor and control container lifecycle with a dashboard overview
