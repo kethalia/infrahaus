@@ -32,10 +32,8 @@ export async function GET(
 ) {
   const { id: containerId } = await params;
 
-  // Parse compound container ID ({nodeName}/{vmid})
-  // The [id] param is URL-encoded, so "pve-04/100" arrives as "pve-04%2F100"
-  const decoded = decodeURIComponent(containerId);
-  const parsed = parseContainerId(decoded);
+  // Parse compound container ID ({nodeName}~{vmid})
+  const parsed = parseContainerId(containerId);
   if (!parsed) {
     return NextResponse.json(
       { error: "Invalid container ID" },
@@ -53,7 +51,11 @@ export async function GET(
   if (redisUrl) {
     const replayClient = new Redis(redisUrl);
     try {
-      bufferedLogs = await replayClient.lrange(getLogBufferKey(decoded), 0, -1);
+      bufferedLogs = await replayClient.lrange(
+        getLogBufferKey(containerId),
+        0,
+        -1,
+      );
     } finally {
       replayClient.disconnect();
     }
@@ -223,7 +225,7 @@ export async function GET(
       }
 
       subscriber = new Redis(redisUrl);
-      const channel = getProgressChannel(decoded);
+      const channel = getProgressChannel(containerId);
 
       subscriber.subscribe(channel).catch((err) => {
         console.error("Redis subscribe error:", err);

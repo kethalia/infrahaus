@@ -608,7 +608,7 @@ export const startContainerAction = authActionClient
       await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
       revalidatePath("/");
-      revalidatePath(`/containers/${encodeURIComponent(containerId)}`);
+      revalidatePath(`/containers/${containerId}`);
 
       return { success: true as const };
     } finally {
@@ -647,7 +647,7 @@ export const stopContainerAction = authActionClient
       await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
       revalidatePath("/");
-      revalidatePath(`/containers/${encodeURIComponent(containerId)}`);
+      revalidatePath(`/containers/${containerId}`);
 
       return { success: true as const };
     } finally {
@@ -705,7 +705,7 @@ export const shutdownContainerAction = authActionClient
       }
 
       revalidatePath("/");
-      revalidatePath(`/containers/${encodeURIComponent(containerId)}`);
+      revalidatePath(`/containers/${containerId}`);
 
       return { success: true as const, method };
     } finally {
@@ -751,7 +751,7 @@ export const restartContainerAction = authActionClient
       });
 
       revalidatePath("/");
-      revalidatePath(`/containers/${encodeURIComponent(containerId)}`);
+      revalidatePath(`/containers/${containerId}`);
 
       return { success: true as const };
     } finally {
@@ -913,7 +913,7 @@ export const refreshContainerServicesAction = authActionClient
         containerIp,
       );
 
-      revalidatePath(`/containers/${encodeURIComponent(containerId)}`);
+      revalidatePath(`/containers/${containerId}`);
       revalidatePath("/");
 
       return { success: true as const, serviceCount: cache.services.length };

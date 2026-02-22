@@ -54,31 +54,35 @@ export interface CreationJob {
 // Key Helpers
 // ============================================================================
 
+/** Separator for compound container IDs. Using ~ avoids URL-encoding issues
+ *  that arise with / in path segments (%2F is decoded by some proxies/frameworks). */
+const CONTAINER_ID_SEP = "~";
+
 /**
  * Build the compound container identifier from node name and VMID.
  * This is the canonical ID format used across Redis keys, URLs, and Pub/Sub channels.
  *
  * @param nodeName - Proxmox node name (unique per user)
  * @param vmid - Container VMID (unique per node)
- * @returns Compound ID, e.g. "pve-04/100"
+ * @returns Compound ID, e.g. "pve-04~100"
  */
 export function toContainerId(nodeName: string, vmid: number): string {
-  return `${nodeName}/${vmid}`;
+  return `${nodeName}${CONTAINER_ID_SEP}${vmid}`;
 }
 
 /**
  * Parse a compound container ID into node name and VMID.
  *
- * @param containerId - Compound ID, e.g. "pve-04/100"
+ * @param containerId - Compound ID, e.g. "pve-04~100"
  * @returns { nodeName, vmid } or null if invalid
  */
 export function parseContainerId(
   containerId: string,
 ): { nodeName: string; vmid: number } | null {
-  const slashIdx = containerId.lastIndexOf("/");
-  if (slashIdx <= 0) return null;
-  const nodeName = containerId.slice(0, slashIdx);
-  const vmid = parseInt(containerId.slice(slashIdx + 1), 10);
+  const sepIdx = containerId.lastIndexOf(CONTAINER_ID_SEP);
+  if (sepIdx <= 0) return null;
+  const nodeName = containerId.slice(0, sepIdx);
+  const vmid = parseInt(containerId.slice(sepIdx + 1), 10);
   if (!nodeName || isNaN(vmid)) return null;
   return { nodeName, vmid };
 }
@@ -88,10 +92,10 @@ export function parseContainerId(
  *
  * @param nodeName - Proxmox node name
  * @param vmid - Container VMID
- * @returns Redis key string, e.g. "container:job:pve-04/100"
+ * @returns Redis key string, e.g. "container:job:pve-04~100"
  */
 export function getCreationKey(nodeName: string, vmid: number): string {
-  return `${CREATION_JOB_KEY_PREFIX}${nodeName}/${vmid}`;
+  return `${CREATION_JOB_KEY_PREFIX}${toContainerId(nodeName, vmid)}`;
 }
 
 // ============================================================================

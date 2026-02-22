@@ -159,9 +159,7 @@ export function ContainerWizard({
 
       if (result?.data?.containerId) {
         toast.success("Container creation started!");
-        router.push(
-          `/containers/${encodeURIComponent(result.data.containerId)}/progress`,
-        );
+        router.push(`/containers/${result.data.containerId}/progress`);
       } else {
         const errorMessage =
           result?.serverError ??

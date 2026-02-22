@@ -20,9 +20,8 @@ export async function GET(
 ) {
   const { id: containerId } = await params;
 
-  // Parse compound container ID ({nodeName}/{vmid})
-  const decoded = decodeURIComponent(containerId);
-  const parsed = parseContainerId(decoded);
+  // Parse compound container ID ({nodeName}~{vmid})
+  const parsed = parseContainerId(containerId);
   if (!parsed) {
     return NextResponse.json(
       { error: "Invalid container ID" },
@@ -31,7 +30,7 @@ export async function GET(
   }
 
   const redis = getRedis();
-  const cache = await getCachedServices(redis, decoded);
+  const cache = await getCachedServices(redis, containerId);
 
   if (!cache) {
     return NextResponse.json({ services: [], containerIp: null });

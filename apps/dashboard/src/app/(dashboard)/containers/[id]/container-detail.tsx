@@ -9,6 +9,7 @@ import { ContainerHeader } from "@/components/containers/detail/container-header
 import { OverviewTab } from "@/components/containers/detail/overview-tab";
 import { ServicesTab } from "@/components/containers/detail/services-tab";
 import { EventsTab } from "@/components/containers/detail/events-tab";
+import { toContainerId } from "@/lib/containers/redis-state";
 import type { ContainerDetailData } from "@/lib/containers/data";
 
 interface ContainerDetailProps {
@@ -30,7 +31,7 @@ export function ContainerDetail({
     <div className="space-y-6">
       {/* Header with lifecycle actions */}
       <ContainerHeader
-        containerId={`${container.node.name}/${container.vmid}`}
+        containerId={toContainerId(container.node.name, container.vmid)}
         hostname={container.hostname}
         vmid={container.vmid}
         status={container.status}
@@ -97,7 +98,7 @@ export function ContainerDetail({
 
         <TabsContent value="services">
           <ServicesTab
-            containerId={`${container.node.name}/${container.vmid}`}
+            containerId={toContainerId(container.node.name, container.vmid)}
             services={container.servicesWithCredentials}
             status={container.status}
             containerIp={container.containerIp}

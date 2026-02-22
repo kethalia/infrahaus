@@ -6,6 +6,7 @@ import { StatusBadge } from "./status-badge";
 import { ContainerActions } from "./container-actions";
 import type { ContainerWithStatus } from "@/lib/containers/data";
 import type { ServiceStatus } from "@/lib/containers/discovery";
+import { toContainerId } from "@/lib/containers/redis-state";
 import { formatBytes } from "@/lib/utils/format";
 import { MAX_PREVIEW_ITEMS } from "@/lib/constants/display";
 
@@ -41,7 +42,7 @@ export function ContainerCard({
     container;
 
   const displayName = hostname ?? `CT ${vmid}`;
-  const containerId = `${node.name}/${vmid}`;
+  const containerId = toContainerId(node.name, vmid);
 
   // Show first N app services with colored dots (skip system services on dashboard)
   const appServices = (services ?? []).filter((s) => !s.isSystem);
@@ -59,7 +60,7 @@ export function ContainerCard({
       <CardHeader className="gap-1 py-0">
         <div className="flex items-start justify-between gap-2">
           <Link
-            href={`/containers/${encodeURIComponent(containerId)}`}
+            href={`/containers/${containerId}`}
             className="group flex min-w-0 flex-1 items-center gap-2"
           >
             <Server className="size-4 shrink-0 text-muted-foreground" />
@@ -111,7 +112,7 @@ export function ContainerCard({
             ))}
             {remainingCount > 0 && (
               <Link
-                href={`/containers/${encodeURIComponent(containerId)}`}
+                href={`/containers/${containerId}`}
                 className="text-xs text-muted-foreground hover:text-foreground hover:underline"
               >
                 +{remainingCount} more

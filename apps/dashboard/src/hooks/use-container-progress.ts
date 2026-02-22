@@ -123,7 +123,7 @@ export function useContainerProgress(containerId: string) {
   }, []);
 
   useEffect(() => {
-    const url = `/api/containers/${encodeURIComponent(containerId)}/progress`;
+    const url = `/api/containers/${containerId}/progress`;
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
 
