@@ -23,7 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { ContainerDetailData } from "@/lib/containers/data";
 import type { ResourceMetrics } from "@/hooks/use-resource-polling";
-import type { ResourceMetrics } from "@/hooks/use-resource-polling";
 import { formatBytes, formatUptime } from "@/lib/utils/format";
 import {
   RESOURCE_WARNING_THRESHOLD,
@@ -320,23 +319,24 @@ export function OverviewTab({ container, liveMetrics }: OverviewTabProps) {
               </div>
 
               {/* Network I/O — shown when live metrics are available */}
-              {liveMetrics && (liveMetrics.netin > 0 || liveMetrics.netout > 0) && (
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Network className="text-muted-foreground size-3.5" />
-                    <span className="text-muted-foreground">In:</span>
-                    <span className="font-medium">
-                      {formatBytes(liveMetrics.netin)}
-                    </span>
+              {liveMetrics &&
+                (liveMetrics.netin > 0 || liveMetrics.netout > 0) && (
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Network className="text-muted-foreground size-3.5" />
+                      <span className="text-muted-foreground">In:</span>
+                      <span className="font-medium">
+                        {formatBytes(liveMetrics.netin)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Out:</span>
+                      <span className="font-medium">
+                        {formatBytes(liveMetrics.netout)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Out:</span>
-                    <span className="font-medium">
-                      {formatBytes(liveMetrics.netout)}
-                    </span>
-                  </div>
-                </div>
-              )}
+                )}
             </>
           ) : (
             <div className="text-muted-foreground flex flex-col items-center justify-center py-12 text-center">
