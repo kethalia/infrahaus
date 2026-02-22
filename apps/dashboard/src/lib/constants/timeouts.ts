@@ -56,6 +56,9 @@ export const AUTO_REFRESH_INTERVAL_S = 30;
 /** Duration to show "refreshing" animation before resetting countdown (ms) */
 export const REFRESH_ANIMATION_MS = 500;
 
+/** Resource metric polling interval for detail page (ms) */
+export const RESOURCE_POLL_INTERVAL_MS = 2_000;
+
 // ============================================================================
 // Container Provisioning
 // ============================================================================

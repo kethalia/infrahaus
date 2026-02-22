@@ -22,6 +22,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { ContainerDetailData } from "@/lib/containers/data";
+import type { ResourceMetrics } from "@/hooks/use-resource-polling";
+import type { ResourceMetrics } from "@/hooks/use-resource-polling";
 import { formatBytes, formatUptime } from "@/lib/utils/format";
 import {
   RESOURCE_WARNING_THRESHOLD,
@@ -34,15 +36,28 @@ import {
 
 interface OverviewTabProps {
   container: ContainerDetailData["container"];
+  /** Live metrics from polling hook — preferred over server-rendered data */
+  liveMetrics?: ResourceMetrics | null;
 }
 
 // ============================================================================
 // Overview Tab
 // ============================================================================
 
-export function OverviewTab({ container }: OverviewTabProps) {
+export function OverviewTab({ container, liveMetrics }: OverviewTabProps) {
   const config = container.config;
-  const resources = container.resources;
+
+  // Prefer live metrics from polling over server-rendered data
+  const resources = liveMetrics
+    ? {
+        cpu: liveMetrics.cpu,
+        mem: liveMetrics.mem,
+        maxmem: liveMetrics.maxmem,
+        disk: liveMetrics.disk,
+        maxdisk: liveMetrics.maxdisk,
+        uptime: liveMetrics.uptime,
+      }
+    : container.resources;
 
   // Parse features from config
   const featuresStr = config?.features as string | undefined;
@@ -304,8 +319,24 @@ export function OverviewTab({ container }: OverviewTabProps) {
                 </span>
               </div>
 
-              {/* Network I/O — data available from proxmox status but not in
-                  the current ContainerWithStatus type. Show uptime only for now. */}
+              {/* Network I/O — shown when live metrics are available */}
+              {liveMetrics && (liveMetrics.netin > 0 || liveMetrics.netout > 0) && (
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Network className="text-muted-foreground size-3.5" />
+                    <span className="text-muted-foreground">In:</span>
+                    <span className="font-medium">
+                      {formatBytes(liveMetrics.netin)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Out:</span>
+                    <span className="font-medium">
+                      {formatBytes(liveMetrics.netout)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="text-muted-foreground flex flex-col items-center justify-center py-12 text-center">
