@@ -200,7 +200,7 @@ export async function getContainersWithStatus(
     proxmoxReachable = false;
   }
 
-  // Fetch cached services from Redis for all Proxmox containers (keyed by {nodeName}/{vmid})
+  // Fetch cached services from Redis for all Proxmox containers (keyed by nodeName/vmid)
   const redis = getRedis();
   const servicesByKey = new Map<
     string,
@@ -319,11 +319,11 @@ export async function getContainersWithStatus(
 
 /**
  * Fetch a single container with full detail data for the detail page.
- * Uses the compound containerId ({nodeName}/{vmid}) to directly target the
- * correct node. Falls back to Redis creation state for in-progress containers
- * not yet visible on Proxmox.
+ * Uses the compound containerId (nodeName/vmid, e.g. "pve-04/601") to
+ * directly target the correct node. Falls back to Redis creation state
+ * for in-progress containers not yet visible on Proxmox.
  *
- * @param containerId - Compound ID "{nodeName}/{vmid}" (e.g., "pve-04/601")
+ * @param containerId - Compound ID "nodeName/vmid" (e.g., "pve-04/601")
  * @param userId - User ID for resolving Proxmox nodes
  */
 export async function getContainerDetailData(

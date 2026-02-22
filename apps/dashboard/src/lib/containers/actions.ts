@@ -534,11 +534,11 @@ async function releaseContainerLock(
 /**
  * Get Proxmox client and node name for a given container.
  *
- * Takes a compound containerId ({nodeName}/{vmid}) and resolves the specific
- * node directly — no scanning needed. Falls back to scanning all nodes if
- * the ID is a bare VMID (legacy format).
+ * Takes a compound containerId ({nodeName}/{vmid}, e.g. "pve-04/100")
+ * and resolves the specific node directly — no scanning needed.
+ * Falls back to scanning all nodes if the ID is a bare VMID (legacy format).
  *
- * @param containerId - Compound "{nodeName}/{vmid}" or bare VMID string
+ * @param containerId - Compound "nodeName/vmid" or bare VMID string
  * @param userId - Authenticated user ID (required)
  */
 async function getContainerContext(containerId: string, userId: string) {
@@ -819,7 +819,7 @@ export const deleteContainerAction = authActionClient
         await import("@/lib/containers/discovery");
       const { getLogBufferKey } =
         await import("@/lib/constants/infrastructure");
-      // Use the compound containerId (already {nodeName}/{vmid} format if parsed correctly)
+      // Use the compound containerId (already nodeName/vmid format if parsed correctly)
       await Promise.all([
         deleteCreationJob(redis, nodeName, vmid),
         clearCachedServices(redis, containerId),

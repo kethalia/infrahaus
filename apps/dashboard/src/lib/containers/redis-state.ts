@@ -5,12 +5,16 @@
  *
  * Tracks container creation lifecycle in Redis, replacing the DB Container
  * model for in-progress creation jobs. Each creation job is stored as a
- * JSON hash keyed by {nodeName}/{vmid}, with an accompanying SET for
- * efficient listing of active creations (no KEYS scan).
+ * JSON hash keyed by compound ID ({nodeName}/{vmid}), with an accompanying
+ * SET for efficient listing of active creations (no KEYS scan).
  *
- * The compound key {nodeName}/{vmid} is required because VMIDs are only
- * unique within a Proxmox cluster — standalone nodes can share VMIDs.
- * Node names are unique per user (@@unique([userId, name]) constraint).
+ * Compound keys are required because VMIDs are only unique within a single
+ * Proxmox cluster — standalone nodes can share VMIDs. Node names are
+ * unique per user (@@unique([userId, name]) Prisma constraint).
+ *
+ * Note: URLs use separate path segments (/containers/[node]/[vmid]),
+ * NOT the compound ID. The compound format is for Redis keys and internal
+ * identifiers only.
  *
  * Usage:
  *   - Creation action calls `storeCreationJob()` when enqueuing
@@ -54,35 +58,32 @@ export interface CreationJob {
 // Key Helpers
 // ============================================================================
 
-/** Separator for compound container IDs. Using ~ avoids URL-encoding issues
- *  that arise with / in path segments (%2F is decoded by some proxies/frameworks). */
-const CONTAINER_ID_SEP = "~";
-
 /**
  * Build the compound container identifier from node name and VMID.
- * This is the canonical ID format used across Redis keys, URLs, and Pub/Sub channels.
+ * This is the canonical ID format used across Redis keys and Pub/Sub channels.
+ * URLs use separate [node]/[vmid] path segments instead.
  *
  * @param nodeName - Proxmox node name (unique per user)
  * @param vmid - Container VMID (unique per node)
- * @returns Compound ID, e.g. "pve-04~100"
+ * @returns Compound ID, e.g. "pve-04/100"
  */
 export function toContainerId(nodeName: string, vmid: number): string {
-  return `${nodeName}${CONTAINER_ID_SEP}${vmid}`;
+  return `${nodeName}/${vmid}`;
 }
 
 /**
  * Parse a compound container ID into node name and VMID.
  *
- * @param containerId - Compound ID, e.g. "pve-04~100"
+ * @param containerId - Compound ID, e.g. "pve-04/100"
  * @returns { nodeName, vmid } or null if invalid
  */
 export function parseContainerId(
   containerId: string,
 ): { nodeName: string; vmid: number } | null {
-  const sepIdx = containerId.lastIndexOf(CONTAINER_ID_SEP);
-  if (sepIdx <= 0) return null;
-  const nodeName = containerId.slice(0, sepIdx);
-  const vmid = parseInt(containerId.slice(sepIdx + 1), 10);
+  const idx = containerId.lastIndexOf("/");
+  if (idx <= 0) return null;
+  const nodeName = containerId.slice(0, idx);
+  const vmid = parseInt(containerId.slice(idx + 1), 10);
   if (!nodeName || isNaN(vmid)) return null;
   return { nodeName, vmid };
 }
@@ -92,7 +93,7 @@ export function parseContainerId(
  *
  * @param nodeName - Proxmox node name
  * @param vmid - Container VMID
- * @returns Redis key string, e.g. "container:job:pve-04~100"
+ * @returns Redis key string, e.g. "container:job:pve-04/100"
  */
 export function getCreationKey(nodeName: string, vmid: number): string {
   return `${CREATION_JOB_KEY_PREFIX}${toContainerId(nodeName, vmid)}`;
