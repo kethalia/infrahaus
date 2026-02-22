@@ -133,34 +133,32 @@ export interface ContainerDetailData {
 export async function getContainersWithStatus(
   userId: string,
 ): Promise<DashboardData> {
-  // Fetch DB data in parallel with Proxmox live status
-  const [dbContainers, counts] = await Promise.all([
-    DatabaseService.listContainersWithRelations(),
-    DatabaseService.getContainerCounts(),
-  ]);
-
-  // If no containers, skip Proxmox call
-  if (dbContainers.length === 0) {
-    return {
-      containers: [],
-      counts,
-      proxmoxReachable: true,
-    };
-  }
-
-  // Try to fetch Proxmox live status from all user's nodes
-  const proxmoxStatusMap: Map<number, ProxmoxContainerStatus> = new Map();
+  // Proxmox is the source of truth — fetch live containers from all user nodes
   let proxmoxReachable = true;
+
+  // Collect Proxmox containers with their node info
+  type PveContainerWithNode = {
+    vmid: number;
+    status: "running" | "stopped" | "mounted" | "paused";
+    cpu: number;
+    mem: number;
+    maxmem: number;
+    disk: number;
+    maxdisk: number;
+    uptime: number;
+    name: string | null;
+    node: { id: string; name: string; host: string; port: number };
+  };
+  const pveContainers: PveContainerWithNode[] = [];
 
   try {
     const userNodes = await DatabaseService.listNodesForUser(userId);
 
     if (userNodes.length === 0) {
-      // No nodes configured — can't fetch live status
       proxmoxReachable = false;
     } else {
       // Fetch container list from each node in parallel
-      const allContainers = await Promise.all(
+      const perNode = await Promise.all(
         userNodes.map(async (dbNode) => {
           try {
             const client = await createSessionClient(dbNode);
@@ -175,39 +173,34 @@ export async function getContainersWithStatus(
               maxdisk: c.maxdisk ?? 0,
               uptime: c.uptime ?? 0,
               name: c.name ?? null,
+              node: {
+                id: dbNode.id,
+                name: dbNode.name,
+                host: dbNode.host,
+                port: dbNode.port,
+              },
             }));
           } catch (error) {
-            // Node-level failure — continue with other nodes
             console.error(`Node ${dbNode.name} container list failed:`, error);
             return [];
           }
         }),
       );
 
-      // Build VMID → status map
-      for (const nodeContainers of allContainers) {
-        for (const c of nodeContainers) {
-          proxmoxStatusMap.set(c.vmid, {
-            vmid: c.vmid,
-            status: c.status,
-            cpu: c.cpu,
-            mem: c.mem,
-            maxmem: c.maxmem,
-            disk: c.disk,
-            maxdisk: c.maxdisk,
-            uptime: c.uptime,
-            name: c.name ?? undefined,
-          });
-        }
+      for (const nodeContainers of perNode) {
+        pveContainers.push(...nodeContainers);
       }
     }
   } catch (error) {
-    // Proxmox API completely unreachable
     console.error("Proxmox API unreachable:", error);
     proxmoxReachable = false;
   }
 
-  // Fetch cached services from Redis for all containers
+  // Fetch DB records for enrichment (template, events, services, lifecycle)
+  const dbContainers = await DatabaseService.listContainersWithRelations();
+  const dbByVmid = new Map(dbContainers.map((db) => [db.vmid, db]));
+
+  // Fetch cached services from Redis for DB-tracked containers
   const redis = getRedis();
   const serviceCacheMap = new Map<
     string,
@@ -237,18 +230,86 @@ export async function getContainersWithStatus(
     });
     await Promise.all(cachePromises);
   } catch {
-    // Redis failure is non-fatal — services just won't show on dashboard cards
+    // Redis failure is non-fatal
   }
 
-  // Merge DB + Proxmox + Redis data
-  const containers: ContainerWithStatus[] = dbContainers.map((db) =>
-    mergeContainerStatus(
-      db,
-      proxmoxStatusMap.get(db.vmid) ?? null,
-      proxmoxReachable,
-      serviceCacheMap.get(db.id) ?? [],
-    ),
-  );
+  // Track which DB containers appeared in Proxmox (for "creating" containers that aren't on PVE yet)
+  const seenVmids = new Set<number>();
+
+  // Build container list: Proxmox is primary, DB enriches
+  const containers: ContainerWithStatus[] = pveContainers.map((pve) => {
+    seenVmids.add(pve.vmid);
+    const db = dbByVmid.get(pve.vmid);
+
+    // Resolve status from Proxmox live data
+    let status: ContainerStatus;
+    if (pve.status === "running") {
+      status = "running";
+    } else if (pve.status === "stopped") {
+      status = "stopped";
+    } else {
+      status = "unknown";
+    }
+
+    return {
+      // Use DB id if tracked, otherwise synthesize from vmid
+      id: db?.id ?? `pve-${pve.vmid}`,
+      vmid: pve.vmid,
+      hostname: pve.name ?? db?.hostname ?? null,
+      lifecycle: db?.lifecycle ?? "ready",
+      status,
+      createdAt: db?.createdAt ?? new Date(),
+      updatedAt: db?.updatedAt ?? new Date(),
+      node: pve.node,
+      template: db?.template
+        ? { id: db.template.id, name: db.template.name }
+        : null,
+      services: db ? (serviceCacheMap.get(db.id) ?? []) : [],
+      events: db
+        ? ("events" in db ? db.events : []).slice(0, 3).map((e) => ({
+            id: e.id,
+            type: e.type,
+            message: e.message,
+            createdAt: e.createdAt,
+          }))
+        : [],
+      resources: {
+        cpu: Math.round(pve.cpu * 100),
+        mem: pve.mem,
+        maxmem: pve.maxmem,
+        disk: pve.disk,
+        maxdisk: pve.maxdisk,
+        uptime: pve.uptime,
+      },
+    };
+  });
+
+  // Add DB-only containers not found on Proxmox (e.g. "creating" or "error" lifecycle)
+  for (const db of dbContainers) {
+    if (seenVmids.has(db.vmid)) continue;
+
+    containers.push(
+      mergeContainerStatus(
+        db,
+        null,
+        proxmoxReachable,
+        serviceCacheMap.get(db.id) ?? [],
+      ),
+    );
+  }
+
+  // Sort by VMID for stable ordering
+  containers.sort((a, b) => a.vmid - b.vmid);
+
+  // Compute counts from the merged list
+  const counts: ContainerCounts = {
+    total: containers.length,
+    creating: containers.filter((c) => c.status === "creating").length,
+    ready: containers.filter(
+      (c) => c.status === "running" || c.status === "stopped",
+    ).length,
+    error: containers.filter((c) => c.status === "error").length,
+  };
 
   return {
     containers,
