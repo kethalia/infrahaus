@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 03.6-remove-container-db — In progress
-**Plan:** 5 of 6 in current phase
-**Status:** In progress — Plans 01-05 complete (04, 06 completed in parallel)
-**Last activity:** 2026-02-22 — Completed 03.6-05-PLAN.md (dashboard UX)
+**Plan:** 6 of 6 in current phase
+**Status:** In progress — Plans 01-06 complete (04 in parallel)
+**Last activity:** 2026-02-22 — Completed 03.6-06-PLAN.md (service cache + resource polling)
 
-Progress: ████████████████░ 73% (36/49 plans)
+Progress: ████████████████░ 76% (37/49 plans)
 
 ## Completed Work
 
@@ -268,6 +268,12 @@ Progress: ████████████████░ 73% (36/49 plans)
 - loading.tsx uses Next.js App Router convention for instant skeleton rendering while page.tsx suspends
 - Partial node failure: dismissible client-side banner; all-unreachable: persistent banner with settings link
 - Detail page unreachable: WifiOff error page triggers on !proxmoxReachable && status === "unknown"
+- SERVICE_CACHE_TTL_S = 86_400 (24h) — cache auto-expires, next view triggers fresh discovery
+- discoveredAt fetched client-side from services API to avoid modifying data.ts during parallel execution
+- RESOURCE_POLL_INTERVAL_MS = 2_000 — 2s polling for detail page resource metrics
+- Status API route at [node]/[vmid]/status for lightweight polling (no config/services/events)
+- OverviewTab prefers liveMetrics from polling over server-rendered resources
+- 30s auto-refresh kept for full page; 2s polling only for lightweight resource metrics
 
 ## Pending Work
 
@@ -290,6 +296,6 @@ Progress: ████████████████░ 73% (36/49 plans)
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 03.6-05-PLAN.md (dashboard UX — loading, errors, empty states)
+Stopped at: Completed 03.6-06-PLAN.md (service cache lifecycle + resource polling)
 Resume file: None
-Next step: Phase 3.6 complete — force-push branch + update PR
+Next step: Phase 3.6 Plan 04 (schema removal — only remaining plan)
