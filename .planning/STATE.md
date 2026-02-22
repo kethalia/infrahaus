@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 03.6-remove-container-db — In progress
-**Plan:** 6 of 6 in current phase
-**Status:** In progress — Plans 01-06 complete (04 in parallel)
-**Last activity:** 2026-02-22 — Completed 03.6-06-PLAN.md (service cache + resource polling)
+**Phase:** 03.6-remove-container-db — Complete ✓
+**Plan:** 6 of 6 in current phase (all complete)
+**Status:** Phase complete — All 6 plans executed
+**Last activity:** 2026-02-22 — Completed 03.6-04-PLAN.md (schema removal, final plan)
 
-Progress: ████████████████░ 76% (37/49 plans)
+Progress: █████████████████ 78% (38/49 plans)
 
 ## Completed Work
 
@@ -76,7 +76,7 @@ Progress: ████████████████░ 76% (37/49 plans)
   - Four of five lifecycle operations now require user confirmation (Start, Shutdown, Stop, Delete; Restart executes immediately)
   - Consistent UX with educational messaging and color-coded action buttons
 
-### Phase 3.5: Infrastructure Refactor (In Progress)
+### Phase 3.5: Infrastructure Refactor ✓
 
 **03.5-01 — Schema migration + DB service refactor** ✓
 
@@ -128,7 +128,7 @@ Progress: ████████████████░ 76% (37/49 plans)
 - Wizard page shows NoNodesBanner when no nodes configured
 - VMID cache refreshed server-side on wizard page load
 
-### Phase 3.6: Remove Container from Database (In Progress)
+### Phase 3.6: Remove Container from Database ✓
 
 **03.6-01 — Redis creation state module** ✓
 
@@ -274,11 +274,13 @@ Progress: ████████████████░ 76% (37/49 plans)
 - Status API route at [node]/[vmid]/status for lightweight polling (no config/services/events)
 - OverviewTab prefers liveMetrics from polling over server-rendered resources
 - 30s auto-refresh kept for full page; 2s polling only for lightweight resource metrics
+- Migration created with `--create-only` for container table removal — PostgreSQL unreachable in CI workspace
+- Redis `.set()` param widened to `...args: any[]` for ioredis overload compatibility (discovery.ts)
 
 ## Pending Work
 
 - Phase 3.5: Plan 08 remaining (dashboard updates: node badge, filtering, no-nodes banner)
-- Phase 3.6: All 6 plans complete
+- Phase 3.6: Complete ✓ — All 6 plans executed
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -296,6 +298,6 @@ Progress: ████████████████░ 76% (37/49 plans)
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 03.6-06-PLAN.md (service cache lifecycle + resource polling)
+Stopped at: Completed 03.6-04-PLAN.md (schema removal — phase 3.6 fully complete)
 Resume file: None
-Next step: Phase 3.6 Plan 04 (schema removal — only remaining plan)
+Next step: Phase 3.5 Plan 08 (dashboard updates: node badge, filtering, no-nodes banner) or Phase 5
