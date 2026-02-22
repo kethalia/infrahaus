@@ -95,6 +95,13 @@ export const CREATION_TTL_ACTIVE_S = 86400;
 export const CREATION_TTL_COMPLETE_S = 3600;
 
 // ============================================================================
+// Service Discovery Cache (Redis — per-container service scan results)
+// ============================================================================
+
+/** TTL for service discovery cache — 24 hours in seconds */
+export const SERVICE_CACHE_TTL_S = 86_400;
+
+// ============================================================================
 // VMID Cache (Redis SET per Proxmox node)
 // ============================================================================
 
