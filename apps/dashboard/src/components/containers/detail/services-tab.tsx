@@ -223,7 +223,7 @@ function ServiceCard({
     setLogsError(null);
     try {
       const res = await fetch(
-        `/api/containers/${containerId}/services/logs?service=${encodeURIComponent(service.name)}&lines=50`,
+        `/api/containers/${encodeURIComponent(containerId)}/services/logs?service=${encodeURIComponent(service.name)}&lines=50`,
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

@@ -30,7 +30,7 @@ export function ContainerDetail({
     <div className="space-y-6">
       {/* Header with lifecycle actions */}
       <ContainerHeader
-        containerId={String(container.vmid)}
+        containerId={`${container.node.name}/${container.vmid}`}
         hostname={container.hostname}
         vmid={container.vmid}
         status={container.status}
@@ -97,7 +97,7 @@ export function ContainerDetail({
 
         <TabsContent value="services">
           <ServicesTab
-            containerId={String(container.vmid)}
+            containerId={`${container.node.name}/${container.vmid}`}
             services={container.servicesWithCredentials}
             status={container.status}
             containerIp={container.containerIp}

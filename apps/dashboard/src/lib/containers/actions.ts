@@ -24,6 +24,8 @@ import {
   storeCreationJob,
   getCreationJob,
   deleteCreationJob,
+  toContainerId,
+  parseContainerId,
 } from "@/lib/containers/redis-state";
 import {
   storage,
@@ -422,9 +424,9 @@ export const createContainerAction = authActionClient
     const nodeId = node.id;
     const nodeName = node.name;
 
-    // Check Redis creation state — reject if VMID has an active creation
+    // Check Redis creation state — reject if VMID has an active creation on this node
     const redis = getRedis();
-    const existingJob = await getCreationJob(redis, data.vmid);
+    const existingJob = await getCreationJob(redis, nodeName, data.vmid);
     if (existingJob && existingJob.lifecycle === "creating") {
       throw new ActionError(
         "VMID has an active creation in progress. Please wait for it to complete.",
@@ -491,7 +493,7 @@ export const createContainerAction = authActionClient
 
     revalidatePath("/containers");
 
-    return { vmid: data.vmid };
+    return { containerId: toContainerId(nodeName, data.vmid) };
   });
 
 // ============================================================================
@@ -531,25 +533,39 @@ async function releaseContainerLock(
 /**
  * Get Proxmox client and node name for a given container.
  *
- * Takes a containerId (vmid as string) and searches all user's configured
- * Proxmox nodes to find the container. Returns client, node name, VMID, and nodeId.
+ * Takes a compound containerId ({nodeName}/{vmid}) and resolves the specific
+ * node directly — no scanning needed. Falls back to scanning all nodes if
+ * the ID is a bare VMID (legacy format).
  *
- * @param containerId - VMID as string (from URL param)
+ * @param containerId - Compound "{nodeName}/{vmid}" or bare VMID string
  * @param userId - Authenticated user ID (required)
  */
 async function getContainerContext(containerId: string, userId: string) {
-  // Strip legacy "pve-" prefix if present
-  const raw = containerId.startsWith("pve-")
-    ? containerId.replace("pve-", "")
-    : containerId;
-  const vmid = parseInt(raw, 10);
+  const parsed = parseContainerId(containerId);
+  const userNodes = await DatabaseService.listNodesForUser(userId);
+
+  if (parsed) {
+    // Compound ID — resolve directly to the target node
+    const dbNode = userNodes.find((n) => n.name === parsed.nodeName);
+    if (!dbNode) throw new ActionError("Node not found");
+    const client = await createSessionClient(dbNode);
+    // Verify container exists on this node
+    await getContainer(client, dbNode.name, parsed.vmid);
+    return {
+      client,
+      nodeName: dbNode.name,
+      vmid: parsed.vmid,
+      nodeId: dbNode.id,
+    };
+  }
+
+  // Fallback: bare VMID string — scan all nodes (legacy compat)
+  const vmid = parseInt(containerId, 10);
   if (isNaN(vmid)) throw new ActionError("Invalid container ID");
 
-  const userNodes = await DatabaseService.listNodesForUser(userId);
   for (const dbNode of userNodes) {
     try {
       const client = await createSessionClient(dbNode);
-      // Verify container exists on this node
       await getContainer(client, dbNode.name, vmid);
       return {
         client,
@@ -558,7 +574,6 @@ async function getContainerContext(containerId: string, userId: string) {
         nodeId: dbNode.id,
       };
     } catch {
-      // Not on this node — try next
       continue;
     }
   }
@@ -596,7 +611,7 @@ export const startContainerAction = authActionClient
       await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
       revalidatePath("/");
-      revalidatePath(`/containers/${containerId}`);
+      revalidatePath(`/containers/${encodeURIComponent(containerId)}`);
 
       return { success: true as const };
     } finally {
@@ -635,7 +650,7 @@ export const stopContainerAction = authActionClient
       await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
       revalidatePath("/");
-      revalidatePath(`/containers/${containerId}`);
+      revalidatePath(`/containers/${encodeURIComponent(containerId)}`);
 
       return { success: true as const };
     } finally {
@@ -693,7 +708,7 @@ export const shutdownContainerAction = authActionClient
       }
 
       revalidatePath("/");
-      revalidatePath(`/containers/${containerId}`);
+      revalidatePath(`/containers/${encodeURIComponent(containerId)}`);
 
       return { success: true as const, method };
     } finally {
@@ -739,7 +754,7 @@ export const restartContainerAction = authActionClient
       });
 
       revalidatePath("/");
-      revalidatePath(`/containers/${containerId}`);
+      revalidatePath(`/containers/${encodeURIComponent(containerId)}`);
 
       return { success: true as const };
     } finally {
@@ -802,11 +817,11 @@ export const deleteContainerAction = authActionClient
         await import("@/lib/containers/discovery");
       const { getLogBufferKey } =
         await import("@/lib/constants/infrastructure");
-      const containerKey = String(vmid);
+      // Use the compound containerId (already {nodeName}/{vmid} format if parsed correctly)
       await Promise.all([
-        deleteCreationJob(redis, vmid),
-        clearCachedServices(redis, containerKey),
-        redis.del(getLogBufferKey(containerKey)),
+        deleteCreationJob(redis, nodeName, vmid),
+        clearCachedServices(redis, containerId),
+        redis.del(getLogBufferKey(containerId)),
       ]);
 
       revalidatePath("/");
@@ -900,7 +915,7 @@ export const refreshContainerServicesAction = authActionClient
         containerIp,
       );
 
-      revalidatePath(`/containers/${containerId}`);
+      revalidatePath(`/containers/${encodeURIComponent(containerId)}`);
       revalidatePath("/");
 
       return { success: true as const, serviceCount: cache.services.length };

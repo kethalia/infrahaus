@@ -41,6 +41,7 @@ export function ContainerCard({
     container;
 
   const displayName = hostname ?? `CT ${vmid}`;
+  const containerId = `${node.name}/${vmid}`;
 
   // Show first N app services with colored dots (skip system services on dashboard)
   const appServices = (services ?? []).filter((s) => !s.isSystem);
@@ -58,7 +59,7 @@ export function ContainerCard({
       <CardHeader className="gap-1 py-0">
         <div className="flex items-start justify-between gap-2">
           <Link
-            href={`/containers/${vmid}`}
+            href={`/containers/${encodeURIComponent(containerId)}`}
             className="group flex min-w-0 flex-1 items-center gap-2"
           >
             <Server className="size-4 shrink-0 text-muted-foreground" />
@@ -74,7 +75,7 @@ export function ContainerCard({
               )}
             </div>
             <ContainerActions
-              containerId={String(vmid)}
+              containerId={containerId}
               hostname={hostname}
               vmid={vmid}
               status={status}
@@ -110,7 +111,7 @@ export function ContainerCard({
             ))}
             {remainingCount > 0 && (
               <Link
-                href={`/containers/${vmid}`}
+                href={`/containers/${encodeURIComponent(containerId)}`}
                 className="text-xs text-muted-foreground hover:text-foreground hover:underline"
               >
                 +{remainingCount} more

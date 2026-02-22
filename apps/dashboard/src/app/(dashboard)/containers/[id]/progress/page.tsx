@@ -76,7 +76,9 @@ export default function ContainerProgressPage() {
   const fetchServices = useCallback(async () => {
     setLoadingServices(true);
     try {
-      const res = await fetch(`/api/containers/${containerId}/services`);
+      const res = await fetch(
+        `/api/containers/${encodeURIComponent(containerId)}/services`,
+      );
       if (res.ok) {
         const data = (await res.json()) as {
           services: ContainerServiceInfo[];

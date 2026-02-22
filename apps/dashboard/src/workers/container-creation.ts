@@ -21,7 +21,10 @@ import {
   getProgressChannel,
 } from "../lib/queue/container-creation";
 import { DatabaseService, prisma } from "../lib/db";
-import { updateCreationLifecycle } from "../lib/containers/redis-state";
+import {
+  updateCreationLifecycle,
+  toContainerId,
+} from "../lib/containers/redis-state";
 import { createProxmoxClientFromNode } from "../lib/proxmox";
 import { type ProxmoxClient } from "../lib/proxmox/client";
 import { createContainer, startContainer } from "../lib/proxmox/containers";
@@ -182,7 +185,7 @@ async function processContainerCreation(
     additionalPackages,
     scripts: scriptSelections,
   } = job.data;
-  const containerKey = String(config.vmid); // Used as Redis key for channels, log buffer, services
+  const containerKey = toContainerId(nodeName, config.vmid); // Compound key for Redis channels, log buffer, services
   let ssh: SSHSession | PctExecSession | null = null;
 
   try {
@@ -710,7 +713,7 @@ save_credential() {
     });
 
     // Update container lifecycle to ready in Redis
-    await updateCreationLifecycle(publisher, config.vmid, "ready");
+    await updateCreationLifecycle(publisher, nodeName, config.vmid, "ready");
 
     // Close SSH session
     ssh.close();
@@ -735,6 +738,7 @@ save_credential() {
     try {
       await updateCreationLifecycle(
         publisher,
+        nodeName,
         config.vmid,
         "error",
         errorMessage,

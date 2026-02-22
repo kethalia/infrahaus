@@ -12,6 +12,7 @@ import {
   getCachedServices,
   decryptServiceCredentials,
 } from "@/lib/containers/discovery";
+import { parseContainerId } from "@/lib/containers/redis-state";
 
 export async function GET(
   _request: NextRequest,
@@ -19,9 +20,10 @@ export async function GET(
 ) {
   const { id: containerId } = await params;
 
-  // Parse vmid from URL param
-  const vmid = parseInt(containerId, 10);
-  if (isNaN(vmid)) {
+  // Parse compound container ID ({nodeName}/{vmid})
+  const decoded = decodeURIComponent(containerId);
+  const parsed = parseContainerId(decoded);
+  if (!parsed) {
     return NextResponse.json(
       { error: "Invalid container ID" },
       { status: 400 },
@@ -29,7 +31,7 @@ export async function GET(
   }
 
   const redis = getRedis();
-  const cache = await getCachedServices(redis, String(vmid));
+  const cache = await getCachedServices(redis, decoded);
 
   if (!cache) {
     return NextResponse.json({ services: [], containerIp: null });

@@ -155,14 +155,17 @@ export function ContainerGrid({
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((container) => (
-            <ContainerCard
-              key={container.vmid}
-              container={container}
-              isActionPending={pendingContainers.has(String(container.vmid))}
-              onPendingChange={handlePendingChange}
-            />
-          ))}
+          {filtered.map((container) => {
+            const cid = `${container.node.name}/${container.vmid}`;
+            return (
+              <ContainerCard
+                key={cid}
+                container={container}
+                isActionPending={pendingContainers.has(cid)}
+                onPendingChange={handlePendingChange}
+              />
+            );
+          })}
         </div>
       )}
     </div>

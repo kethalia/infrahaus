@@ -31,6 +31,8 @@ import {
 import {
   listActiveCreations,
   getCreationJob,
+  toContainerId,
+  parseContainerId,
 } from "@/lib/containers/redis-state";
 import { getLogBufferKey } from "@/lib/constants/infrastructure";
 
@@ -198,10 +200,10 @@ export async function getContainersWithStatus(
     proxmoxReachable = false;
   }
 
-  // Fetch cached services from Redis for all Proxmox containers (keyed by vmid string)
+  // Fetch cached services from Redis for all Proxmox containers (keyed by {nodeName}/{vmid})
   const redis = getRedis();
-  const servicesByVmid = new Map<
-    number,
+  const servicesByKey = new Map<
+    string,
     {
       services: CachedServiceInfo[];
       serviceCount: number;
@@ -210,9 +212,10 @@ export async function getContainersWithStatus(
   >();
   try {
     const cachePromises = pveContainers.map(async (pve) => {
-      const cache = await getCachedServices(redis, String(pve.vmid));
+      const cacheKey = toContainerId(pve.node.name, pve.vmid);
+      const cache = await getCachedServices(redis, cacheKey);
       if (cache) {
-        servicesByVmid.set(pve.vmid, {
+        servicesByKey.set(cacheKey, {
           services: cache.services.map((s) => ({
             name: s.name,
             type: s.type,
@@ -250,7 +253,7 @@ export async function getContainersWithStatus(
       status = "unknown";
     }
 
-    const cached = servicesByVmid.get(pve.vmid);
+    const cached = servicesByKey.get(toContainerId(pve.node.name, pve.vmid));
 
     return {
       vmid: pve.vmid,
@@ -279,9 +282,11 @@ export async function getContainersWithStatus(
   });
 
   // Add Redis creation state containers not yet visible in Proxmox
-  const pveVmids = new Set(pveContainers.map((p) => p.vmid));
+  const pveKeys = new Set(
+    pveContainers.map((p) => toContainerId(p.node.name, p.vmid)),
+  );
   for (const creation of activeCreations) {
-    if (!pveVmids.has(creation.vmid)) {
+    if (!pveKeys.has(toContainerId(creation.nodeName, creation.vmid))) {
       containers.push({
         vmid: creation.vmid,
         hostname: creation.hostname,
@@ -314,23 +319,28 @@ export async function getContainersWithStatus(
 
 /**
  * Fetch a single container with full detail data for the detail page.
- * Searches all user nodes via Proxmox API. Falls back to Redis creation state
- * for in-progress containers not yet visible on Proxmox.
+ * Uses the compound containerId ({nodeName}/{vmid}) to directly target the
+ * correct node. Falls back to Redis creation state for in-progress containers
+ * not yet visible on Proxmox.
  *
- * @param containerId - vmid as string (e.g., "601")
+ * @param containerId - Compound ID "{nodeName}/{vmid}" (e.g., "pve-04/601")
  * @param userId - User ID for resolving Proxmox nodes
  */
 export async function getContainerDetailData(
   containerId: string,
   userId?: string,
 ): Promise<ContainerDetailData | null> {
-  const vmid = parseInt(containerId, 10);
-  if (isNaN(vmid) || !userId) return null;
+  if (!userId) return null;
+
+  const parsed = parseContainerId(containerId);
+  if (!parsed) return null;
+  const { nodeName, vmid } = parsed;
 
   const userNodes = await DatabaseService.listNodesForUser(userId);
+  const dbNode = userNodes.find((n) => n.name === nodeName);
 
-  // Search each node for this VMID
-  for (const dbNode of userNodes) {
+  // Try Proxmox lookup on the specific node
+  if (dbNode) {
     try {
       const client = await createSessionClient(dbNode);
       const [status, config] = await Promise.all([
@@ -362,9 +372,9 @@ export async function getContainerDetailData(
         resolvedStatus = "unknown";
       }
 
-      // Read cached services from Redis (keyed by vmid string)
+      // Read cached services from Redis (keyed by compound ID)
       const redis = getRedis();
-      const serviceCache = await getCachedServices(redis, String(vmid));
+      const serviceCache = await getCachedServices(redis, containerId);
       const cachedServices: CachedServiceInfo[] = serviceCache
         ? serviceCache.services.map((s) => ({
             name: s.name,
@@ -414,15 +424,14 @@ export async function getContainerDetailData(
 
       return { container, events, proxmoxReachable: true };
     } catch {
-      // Container not on this node — try next
-      continue;
+      // Container not found on this node — fall through to Redis creation state
     }
   }
 
-  // Not found on any node — check Redis creation state
+  // Not found on Proxmox — check Redis creation state
   const redis = getRedis();
   try {
-    const creationJob = await getCreationJob(redis, vmid);
+    const creationJob = await getCreationJob(redis, nodeName, vmid);
     if (creationJob) {
       const events = await getRedisLogEvents(redis, containerId);
       const container: ContainerDetailData["container"] = {
@@ -443,7 +452,7 @@ export async function getContainerDetailData(
     // Redis failure — fall through to not found
   }
 
-  // VMID not found anywhere
+  // Container not found anywhere
   return null;
 }
 

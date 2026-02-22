@@ -20,7 +20,7 @@ import {
   getLogBufferKey,
 } from "@/lib/constants/infrastructure";
 import { getRedis } from "@/lib/redis";
-import { getCreationJob } from "@/lib/containers/redis-state";
+import { getCreationJob, parseContainerId } from "@/lib/containers/redis-state";
 import {
   getProgressChannel,
   type ContainerProgressEvent,
@@ -32,9 +32,11 @@ export async function GET(
 ) {
   const { id: containerId } = await params;
 
-  // Parse vmid from URL param
-  const vmid = parseInt(containerId, 10);
-  if (isNaN(vmid)) {
+  // Parse compound container ID ({nodeName}/{vmid})
+  // The [id] param is URL-encoded, so "pve-04/100" arrives as "pve-04%2F100"
+  const decoded = decodeURIComponent(containerId);
+  const parsed = parseContainerId(decoded);
+  if (!parsed) {
     return NextResponse.json(
       { error: "Invalid container ID" },
       { status: 400 },
@@ -43,7 +45,7 @@ export async function GET(
 
   // Check Redis creation state
   const redis = getRedis();
-  const creationJob = await getCreationJob(redis, vmid);
+  const creationJob = await getCreationJob(redis, parsed.nodeName, parsed.vmid);
 
   // Fetch the log ring buffer for replay
   const redisUrl = process.env.REDIS_URL;
@@ -51,11 +53,7 @@ export async function GET(
   if (redisUrl) {
     const replayClient = new Redis(redisUrl);
     try {
-      bufferedLogs = await replayClient.lrange(
-        getLogBufferKey(containerId),
-        0,
-        -1,
-      );
+      bufferedLogs = await replayClient.lrange(getLogBufferKey(decoded), 0, -1);
     } finally {
       replayClient.disconnect();
     }
@@ -225,7 +223,7 @@ export async function GET(
       }
 
       subscriber = new Redis(redisUrl);
-      const channel = getProgressChannel(containerId);
+      const channel = getProgressChannel(decoded);
 
       subscriber.subscribe(channel).catch((err) => {
         console.error("Redis subscribe error:", err);
