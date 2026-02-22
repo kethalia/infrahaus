@@ -79,6 +79,22 @@ export const CONTAINER_LOG_BUFFER_MAX = 2000;
 export const CONTAINER_LOG_BUFFER_TTL_S = 172_800;
 
 // ============================================================================
+// Container Creation State (Redis — replaces DB Container model for in-progress jobs)
+// ============================================================================
+
+/** Redis key prefix for per-VMID creation job state */
+export const CREATION_JOB_KEY_PREFIX = "container:job:";
+
+/** Redis SET tracking VMIDs of actively-creating containers (avoids KEYS scan) */
+export const ACTIVE_CREATIONS_SET = "container:active-creations";
+
+/** TTL for actively-creating jobs — 24 hours in seconds */
+export const CREATION_TTL_ACTIVE_S = 86400;
+
+/** TTL for completed AND errored jobs — 1 hour in seconds */
+export const CREATION_TTL_COMPLETE_S = 3600;
+
+// ============================================================================
 // VMID Cache (Redis SET per Proxmox node)
 // ============================================================================
 
