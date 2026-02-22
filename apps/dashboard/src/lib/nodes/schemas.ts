@@ -9,7 +9,8 @@ import { z } from "zod";
 
 /**
  * Schema for creating a new Proxmox node.
- * All credential fields required on create.
+ * API token fields are optional — only needed for background jobs (worker).
+ * Node can be auto-provisioned at login without tokens.
  */
 export const createNodeSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name too long"),
@@ -20,10 +21,8 @@ export const createNodeSchema = z.object({
     .min(1, "Port must be at least 1")
     .max(65535, "Port must be at most 65535")
     .default(8006),
-  tokenId: z
-    .string()
-    .min(1, "API Token ID is required (e.g., root@pam!mytoken)"),
-  tokenSecret: z.string().min(1, "API Token Secret is required"),
+  tokenId: z.string().optional(), // Optional — needed for background container creation
+  tokenSecret: z.string().optional(), // Optional — paired with tokenId
   sshPassword: z.string().optional(), // Optional — needed for pct exec monitoring
 });
 
@@ -41,7 +40,7 @@ export const updateNodeSchema = z.object({
     .min(1, "Port must be at least 1")
     .max(65535, "Port must be at most 65535")
     .default(8006),
-  tokenId: z.string().min(1, "API Token ID is required"),
+  tokenId: z.string().optional(), // Optional — only needed for background jobs
   tokenSecret: z.string().optional(), // Optional on update — keep existing if empty
   sshPassword: z.string().optional(),
 });
@@ -73,8 +72,8 @@ export const editNodeFormSchema = z.object({
     .int()
     .min(1, "Port must be at least 1")
     .max(65535, "Port must be at most 65535"),
-  tokenId: z.string().min(1, "API Token ID is required"),
-  tokenSecret: z.string().optional(), // Optional — required for create enforced in onSubmit
+  tokenId: z.string().optional(), // Optional — only needed for background container creation
+  tokenSecret: z.string().optional(), // Optional — paired with tokenId
   sshPassword: z.string().optional(),
 });
 

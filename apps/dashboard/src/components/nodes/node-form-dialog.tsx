@@ -94,20 +94,12 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
 
   const onSubmit = (values: EditNodeFormInput) => {
     if (mode === "create") {
-      // Manual validation: tokenSecret is required for create
-      if (!values.tokenSecret) {
-        form.setError("tokenSecret", {
-          message: "API Token Secret is required",
-        });
-        return;
-      }
-
       executeCreate({
         name: values.name,
         host: values.host,
         port: values.port,
-        tokenId: values.tokenId,
-        tokenSecret: values.tokenSecret,
+        tokenId: values.tokenId || undefined,
+        tokenSecret: values.tokenSecret || undefined,
         sshPassword: values.sshPassword,
       });
     } else if (node) {

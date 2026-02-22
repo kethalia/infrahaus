@@ -86,11 +86,20 @@ export const createNodeAction = authActionClient
   .action(async ({ parsedInput: data, ctx }) => {
     const userId = ctx.userId;
 
-    // 1. Test connection with plaintext credentials
-    await testConnection(data.host, data.port, data.tokenId, data.tokenSecret);
+    // 1. Test connection if API token provided
+    if (data.tokenId && data.tokenSecret) {
+      await testConnection(
+        data.host,
+        data.port,
+        data.tokenId,
+        data.tokenSecret,
+      );
+    }
 
     // 2. Encrypt secrets before storage
-    const encryptedSecret = encrypt(data.tokenSecret);
+    const encryptedSecret = data.tokenSecret
+      ? encrypt(data.tokenSecret)
+      : undefined;
     const encryptedSshPassword = data.sshPassword
       ? encrypt(data.sshPassword)
       : undefined;
@@ -130,22 +139,34 @@ export const updateNodeAction = authActionClient
     // 1. Verify ownership
     const existingNode = await verifyOwnership(data.id, userId);
 
-    // 2. Resolve credentials for connection test
-    // If tokenSecret provided, use new plaintext value; otherwise decrypt existing
-    const plaintextSecret = data.tokenSecret
+    // 2. Resolve credentials for connection test (only if tokens available)
+    const resolvedTokenId = data.tokenId || existingNode.tokenId;
+    const resolvedSecret = data.tokenSecret
       ? data.tokenSecret
-      : decrypt(existingNode.tokenSecret);
+      : existingNode.tokenSecret
+        ? decrypt(existingNode.tokenSecret)
+        : null;
 
-    // 3. Test connection with resolved credentials
-    await testConnection(data.host, data.port, data.tokenId, plaintextSecret);
+    // 3. Test connection if we have token credentials
+    if (resolvedTokenId && resolvedSecret) {
+      await testConnection(
+        data.host,
+        data.port,
+        resolvedTokenId,
+        resolvedSecret,
+      );
+    }
 
     // 4. Build update data — encrypt new secrets, keep existing if not provided
     const updateData: Record<string, unknown> = {
       name: data.name,
       host: data.host,
       port: data.port,
-      tokenId: data.tokenId,
     };
+
+    if (data.tokenId !== undefined) {
+      updateData.tokenId = data.tokenId || null;
+    }
 
     if (data.tokenSecret) {
       updateData.tokenSecret = encrypt(data.tokenSecret);
@@ -241,19 +262,26 @@ export const testNodeConnectionAction = authActionClient
     // 1. Verify ownership and get node
     const node = await verifyOwnership(data.id, userId);
 
-    // 2. Decrypt token secret and test connection
-    const plaintextSecret = decrypt(node.tokenSecret);
+    // 2. Create client — use API token if available, otherwise session ticket
+    let client: InstanceType<typeof ProxmoxClient>;
 
-    const client = new ProxmoxClient({
-      host: node.host,
-      port: node.port,
-      credentials: {
-        type: "token",
-        tokenId: node.tokenId,
-        tokenSecret: plaintextSecret,
-      },
-      verifySsl: false,
-    });
+    if (node.tokenId && node.tokenSecret) {
+      const plaintextSecret = decrypt(node.tokenSecret);
+      client = new ProxmoxClient({
+        host: node.host,
+        port: node.port,
+        credentials: {
+          type: "token",
+          tokenId: node.tokenId,
+          tokenSecret: plaintextSecret,
+        },
+        verifySsl: false,
+      });
+    } else {
+      // Fall back to session ticket
+      const { createSessionClient } = await import("@/lib/containers/helpers");
+      client = await createSessionClient(node);
+    }
 
     try {
       const result = await client.get(

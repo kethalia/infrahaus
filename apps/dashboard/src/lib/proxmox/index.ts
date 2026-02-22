@@ -52,8 +52,11 @@ export function createProxmoxClient(
 }
 
 /**
- * Create a Proxmox client from a Prisma ProxmoxNode model
- * Automatically decrypts the stored tokenSecret
+ * Create a Proxmox client from a Prisma ProxmoxNode model using API token auth.
+ * Automatically decrypts the stored tokenSecret.
+ *
+ * Used by the worker process (no user session available).
+ * Throws if tokenId/tokenSecret are not configured on the node.
  *
  * @param node - ProxmoxNode from database
  * @param verifySsl - Whether to verify SSL certificates (default: false for self-signed certs)
@@ -62,6 +65,14 @@ export function createProxmoxClientFromNode(
   node: ProxmoxNode,
   verifySsl = false,
 ): ProxmoxClient {
+  if (!node.tokenId || !node.tokenSecret) {
+    throw new Error(
+      `Node "${node.name}" does not have API token credentials configured. ` +
+        "API tokens are required for background operations (container creation). " +
+        "Add them in Settings → Nodes.",
+    );
+  }
+
   // Decrypt the token secret
   const tokenSecret = decrypt(node.tokenSecret);
 
