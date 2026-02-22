@@ -321,10 +321,24 @@ export async function getContainersWithStatus(
 /**
  * Fetch a single container with full detail data for the detail page.
  * Includes full events list and Proxmox config.
+ *
+ * Supports two ID formats:
+ * - DB cuid (e.g. "cmlvbua8q0002swsp9y8y3l10") — DB-tracked container
+ * - Proxmox synthetic ID (e.g. "pve-601") — Proxmox-only container, fetched live
+ *
+ * @param containerId - DB id or "pve-{vmid}" for untracked containers
+ * @param userId - Required for Proxmox-only containers (to resolve nodes)
  */
 export async function getContainerDetailData(
   containerId: string,
+  userId?: string,
 ): Promise<ContainerDetailData | null> {
+  // Handle Proxmox-only containers (synthetic pve-{vmid} IDs from dashboard)
+  if (containerId.startsWith("pve-") && userId) {
+    return getProxmoxOnlyContainerDetail(containerId, userId);
+  }
+
+  // Standard DB-tracked container path
   const dbContainer =
     await DatabaseService.getContainerWithDetails(containerId);
   if (!dbContainer) {
@@ -418,6 +432,94 @@ export async function getContainerDetailData(
     },
     proxmoxReachable,
   };
+}
+
+/**
+ * Fetch detail data for a Proxmox-only container (not tracked in DB).
+ * Searches all user nodes for the VMID and returns live Proxmox data.
+ */
+async function getProxmoxOnlyContainerDetail(
+  containerId: string,
+  userId: string,
+): Promise<ContainerDetailData | null> {
+  const vmid = parseInt(containerId.replace("pve-", ""), 10);
+  if (isNaN(vmid)) return null;
+
+  const userNodes = await DatabaseService.listNodesForUser(userId);
+
+  // Search each node for this VMID
+  for (const dbNode of userNodes) {
+    try {
+      const client = await createSessionClient(dbNode);
+      const [status, config] = await Promise.all([
+        getContainer(client, dbNode.name, vmid),
+        getContainerConfig(client, dbNode.name, vmid),
+      ]);
+
+      // Resolve container IP
+      let containerIp: string | null = null;
+      const { extractIpFromNet0 } = await import("@/lib/proxmox/utils");
+      const { getRuntimeIp } = await import("@/lib/proxmox/containers");
+      const net0 = (config as Record<string, unknown>)["net0"] as
+        | string
+        | undefined;
+      if (net0) {
+        containerIp = extractIpFromNet0(net0);
+      }
+      if (!containerIp) {
+        containerIp = await getRuntimeIp(client, dbNode.name, vmid);
+      }
+
+      // Resolve status
+      let resolvedStatus: ContainerStatus;
+      if (status.status === "running") {
+        resolvedStatus = "running";
+      } else if (status.status === "stopped") {
+        resolvedStatus = "stopped";
+      } else {
+        resolvedStatus = "unknown";
+      }
+
+      const container: ContainerDetailData["container"] = {
+        id: containerId,
+        vmid,
+        hostname: status.name ?? null,
+        lifecycle: "ready",
+        status: resolvedStatus,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        node: {
+          id: dbNode.id,
+          name: dbNode.name,
+          host: dbNode.host,
+          port: dbNode.port,
+        },
+        template: null,
+        services: [],
+        events: [],
+        resources: {
+          cpu: Math.round((status.cpu ?? 0) * 100),
+          mem: status.mem ?? 0,
+          maxmem: status.maxmem ?? 0,
+          disk: status.disk ?? 0,
+          maxdisk: status.maxdisk ?? 0,
+          uptime: status.uptime ?? 0,
+        },
+        allEvents: [],
+        config,
+        containerIp,
+        servicesWithCredentials: [],
+      };
+
+      return { container, proxmoxReachable: true };
+    } catch {
+      // Container not on this node — try next
+      continue;
+    }
+  }
+
+  // VMID not found on any node
+  return null;
 }
 
 // ============================================================================
