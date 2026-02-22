@@ -59,10 +59,6 @@ export function NodeCard({ node }: NodeCardProps) {
 
   const isPending = isDeleting || isSettingDefault;
 
-  // Mask the token ID to show just the format hint
-  const maskedTokenId =
-    node.tokenId.length > 10 ? `${node.tokenId.slice(0, 10)}...` : node.tokenId;
-
   return (
     <Card className={isPending ? "opacity-50" : ""}>
       <CardHeader>
@@ -85,8 +81,10 @@ export function NodeCard({ node }: NodeCardProps) {
       <CardContent>
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Token ID</span>
-            <span className="font-mono text-xs">{maskedTokenId}</span>
+            <span className="text-muted-foreground">API Token</span>
+            <span className="text-xs">
+              {node.tokenId ? "Configured" : "Not set"}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">SSH Password</span>
