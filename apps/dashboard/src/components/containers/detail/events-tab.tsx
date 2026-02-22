@@ -31,11 +31,10 @@ import { eventTypeConfig, defaultEventConfig } from "@/lib/constants/display";
 // ============================================================================
 
 interface EventInfo {
-  id: string;
   type: string;
   message: string;
-  metadata: string | null;
-  createdAt: Date;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
 }
 
 interface EventsTabProps {
@@ -53,6 +52,9 @@ const eventTypeIcons: Record<string, React.ElementType> = {
   error: XCircle,
   service_ready: Cog,
   script_completed: CheckCircle2,
+  step: Cog,
+  log: History,
+  complete: CheckCircle2,
 };
 
 const defaultIcon = AlertTriangle;
@@ -84,7 +86,7 @@ export function EventsTab({ events }: EventsTabProps) {
             <CardDescription>
               {events.length > 0
                 ? `${events.length} event${events.length !== 1 ? "s" : ""} recorded`
-                : "No events recorded yet"}
+                : "No events recorded"}
             </CardDescription>
           </div>
         </div>
@@ -93,7 +95,7 @@ export function EventsTab({ events }: EventsTabProps) {
         {events.length === 0 ? (
           <div className="text-muted-foreground flex flex-col items-center justify-center py-12 text-center">
             <History className="mb-3 size-8 opacity-30" />
-            <p className="text-sm">No events yet</p>
+            <p className="text-sm">No events recorded</p>
             <p className="mt-1 text-xs">
               Events will appear as the container lifecycle progresses.
             </p>
@@ -132,8 +134,8 @@ export function EventsTab({ events }: EventsTabProps) {
               {/* Vertical line */}
               <div className="border-muted absolute top-2 bottom-2 left-3 border-l-2" />
 
-              {filteredEvents.map((event) => (
-                <EventRow key={event.id} event={event} />
+              {filteredEvents.map((event, index) => (
+                <EventRow key={`${event.timestamp}-${index}`} event={event} />
               ))}
             </div>
           </>
@@ -152,20 +154,11 @@ function EventRow({ event }: { event: EventInfo }) {
   const conf = eventTypeConfig[event.type] ?? defaultEventConfig;
   const Icon = eventTypeIcons[event.type] ?? defaultIcon;
 
-  const hasMetadata = event.metadata !== null;
+  const hasMetadata =
+    event.metadata !== undefined && Object.keys(event.metadata).length > 0;
 
   // Format relative timestamp
-  const timeAgo = formatRelativeTime(event.createdAt);
-
-  // Parse metadata
-  let metadata: Record<string, unknown> | null = null;
-  if (hasMetadata) {
-    try {
-      metadata = JSON.parse(event.metadata!) as Record<string, unknown>;
-    } catch {
-      metadata = null;
-    }
-  }
+  const timeAgo = formatRelativeTime(new Date(event.timestamp));
 
   return (
     <div className="relative flex gap-3 py-2 pl-1">
@@ -193,7 +186,7 @@ function EventRow({ event }: { event: EventInfo }) {
           </div>
 
           {/* Expand metadata */}
-          {metadata && (
+          {hasMetadata && (
             <Button
               variant="ghost"
               size="icon-xs"
@@ -209,10 +202,10 @@ function EventRow({ event }: { event: EventInfo }) {
         </div>
 
         {/* Expanded metadata */}
-        {expanded && metadata && (
+        {expanded && hasMetadata && (
           <div className="mt-2 rounded-md bg-zinc-950 p-3 font-mono text-xs">
             <pre className="overflow-x-auto text-zinc-300">
-              {JSON.stringify(metadata, null, 2)}
+              {JSON.stringify(event.metadata, null, 2)}
             </pre>
           </div>
         )}

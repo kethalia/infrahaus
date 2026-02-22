@@ -25,13 +25,14 @@ export default async function ContainerDetailPage({
   }
 
   // Redirect creating containers to the progress page
-  if (data.container.lifecycle === "creating") {
+  if (data.container.status === "creating") {
     redirect(`/containers/${id}/progress`);
   }
 
   return (
     <ContainerDetail
       container={data.container}
+      events={data.events}
       proxmoxReachable={data.proxmoxReachable}
     />
   );

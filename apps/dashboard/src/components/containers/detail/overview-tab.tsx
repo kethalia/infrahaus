@@ -244,18 +244,6 @@ export function OverviewTab({ container }: OverviewTabProps) {
               <span className="text-muted-foreground">Template</span>
               <p className="font-medium">{container.template?.name ?? "—"}</p>
             </div>
-            <div>
-              <span className="text-muted-foreground">Created</span>
-              <p className="font-medium">
-                {container.createdAt.toLocaleDateString()}
-              </p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Updated</span>
-              <p className="font-medium">
-                {container.updatedAt.toLocaleDateString()}
-              </p>
-            </div>
           </div>
         </CardContent>
       </Card>

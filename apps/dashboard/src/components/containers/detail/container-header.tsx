@@ -302,10 +302,7 @@ export function ContainerHeader({
               </TooltipTrigger>
               {isProxmoxUnreachable && (
                 <TooltipContent>
-                  <p>
-                    Will remove from database. Proxmox cleanup may fail if API
-                    remains unreachable.
-                  </p>
+                  <p>Proxmox cleanup may fail if API remains unreachable.</p>
                 </TooltipContent>
               )}
             </Tooltip>
@@ -347,7 +344,7 @@ export function ContainerHeader({
             <AlertDialogDescription>
               This will permanently delete{" "}
               <span className="font-semibold">{displayName}</span> (VMID {vmid})
-              from both Proxmox and the database. This action cannot be undone.
+              from Proxmox. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
