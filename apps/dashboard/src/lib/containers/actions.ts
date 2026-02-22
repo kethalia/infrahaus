@@ -490,7 +490,11 @@ export const createContainerAction = authActionClient
 
     revalidatePath("/containers");
 
-    return { containerId: toContainerId(nodeName, data.vmid) };
+    return {
+      containerId: toContainerId(nodeName, data.vmid),
+      nodeName,
+      vmid: data.vmid,
+    };
   });
 
 // ============================================================================
@@ -608,7 +612,7 @@ export const startContainerAction = authActionClient
       await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
       revalidatePath("/");
-      revalidatePath(`/containers/${containerId}`);
+      revalidatePath(`/containers/${nodeName}/${vmid}`);
 
       return { success: true as const };
     } finally {
@@ -647,7 +651,7 @@ export const stopContainerAction = authActionClient
       await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
       revalidatePath("/");
-      revalidatePath(`/containers/${containerId}`);
+      revalidatePath(`/containers/${nodeName}/${vmid}`);
 
       return { success: true as const };
     } finally {
@@ -705,7 +709,7 @@ export const shutdownContainerAction = authActionClient
       }
 
       revalidatePath("/");
-      revalidatePath(`/containers/${containerId}`);
+      revalidatePath(`/containers/${nodeName}/${vmid}`);
 
       return { success: true as const, method };
     } finally {
@@ -751,7 +755,7 @@ export const restartContainerAction = authActionClient
       });
 
       revalidatePath("/");
-      revalidatePath(`/containers/${containerId}`);
+      revalidatePath(`/containers/${nodeName}/${vmid}`);
 
       return { success: true as const };
     } finally {
@@ -913,7 +917,7 @@ export const refreshContainerServicesAction = authActionClient
         containerIp,
       );
 
-      revalidatePath(`/containers/${containerId}`);
+      revalidatePath(`/containers/${nodeName}/${vmid}`);
       revalidatePath("/");
 
       return { success: true as const, serviceCount: cache.services.length };

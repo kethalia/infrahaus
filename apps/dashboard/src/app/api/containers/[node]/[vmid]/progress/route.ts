@@ -20,7 +20,7 @@ import {
   getLogBufferKey,
 } from "@/lib/constants/infrastructure";
 import { getRedis } from "@/lib/redis";
-import { getCreationJob, parseContainerId } from "@/lib/containers/redis-state";
+import { getCreationJob, toContainerId } from "@/lib/containers/redis-state";
 import {
   getProgressChannel,
   type ContainerProgressEvent,
@@ -28,22 +28,21 @@ import {
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ node: string; vmid: string }> },
 ) {
-  const { id: containerId } = await params;
-
-  // Parse compound container ID ({nodeName}~{vmid})
-  const parsed = parseContainerId(containerId);
-  if (!parsed) {
+  const { node: nodeName, vmid: vmidStr } = await params;
+  const vmid = parseInt(vmidStr, 10);
+  if (!nodeName || isNaN(vmid)) {
     return NextResponse.json(
       { error: "Invalid container ID" },
       { status: 400 },
     );
   }
+  const containerId = toContainerId(nodeName, vmid);
 
   // Check Redis creation state
   const redis = getRedis();
-  const creationJob = await getCreationJob(redis, parsed.nodeName, parsed.vmid);
+  const creationJob = await getCreationJob(redis, nodeName, vmid);
 
   // Fetch the log ring buffer for replay
   const redisUrl = process.env.REDIS_URL;

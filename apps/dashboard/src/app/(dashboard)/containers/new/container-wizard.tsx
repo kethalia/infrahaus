@@ -157,9 +157,11 @@ export function ContainerWizard({
         })),
       });
 
-      if (result?.data?.containerId) {
+      if (result?.data?.nodeName && result?.data?.vmid) {
         toast.success("Container creation started!");
-        router.push(`/containers/${result.data.containerId}/progress`);
+        router.push(
+          `/containers/${result.data.nodeName}/${result.data.vmid}/progress`,
+        );
       } else {
         const errorMessage =
           result?.serverError ??

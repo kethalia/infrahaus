@@ -59,7 +59,7 @@ const PIPELINE_STEPS: { name: StepName; label: string }[] = [
 // Hook
 // ============================================================================
 
-export function useContainerProgress(containerId: string) {
+export function useContainerProgress(nodeName: string, vmid: number) {
   const [events, setEvents] = useState<ProgressEvent[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [currentStep, setCurrentStep] = useState<StepName | null>(null);
@@ -123,7 +123,7 @@ export function useContainerProgress(containerId: string) {
   }, []);
 
   useEffect(() => {
-    const url = `/api/containers/${containerId}/progress`;
+    const url = `/api/containers/${nodeName}/${vmid}/progress`;
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
 
@@ -201,7 +201,7 @@ export function useContainerProgress(containerId: string) {
       eventSource.close();
       eventSourceRef.current = null;
     };
-  }, [containerId, processEvent]);
+  }, [nodeName, vmid, processEvent]);
 
   // Derive step statuses from explicitly seen steps
   const steps: StepInfo[] = PIPELINE_STEPS.map((step) => {
