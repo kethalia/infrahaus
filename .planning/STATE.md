@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 03.5-infrastructure-refactor — In progress
-**Plan:** 7 of 8 in current phase
-**Status:** In progress — Wizard updated with VMID validation, node selector, no password fields
-**Last activity:** 2026-02-20 — Completed 03.5-07-PLAN.md
+**Phase:** 03.6-remove-container-db — In progress
+**Plan:** 1 of 6 in current phase
+**Status:** In progress — Redis creation state module complete
+**Last activity:** 2026-02-22 — Completed 03.6-01-PLAN.md
 
-Progress: ███████████░░░░░░ 67% (29/43 plans)
+Progress: ██████████░░░░░░░ 61% (30/49 plans)
 
 ## Completed Work
 
@@ -128,6 +128,16 @@ Progress: ███████████░░░░░░ 67% (29/43 plans)
 - Wizard page shows NoNodesBanner when no nodes configured
 - VMID cache refreshed server-side on wizard page load
 
+### Phase 3.6: Remove Container from Database (In Progress)
+
+**03.6-01 — Redis creation state module** ✓
+
+- redis-state.ts: CreationJob type, CreationLifecycle type, 6 CRUD functions
+- SET-based active creation tracking (ACTIVE_CREATIONS_SET, no KEYS scan)
+- Tiered TTLs: 24h active, 1h completed/errored
+- Pipeline-atomic operations (SET+SADD, DEL+SREM)
+- No server-only guard — worker-compatible
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -188,17 +198,22 @@ Progress: ███████████░░░░░░ 67% (29/43 plans)
 - Worker generates random 32-char hex password for Proxmox API container creation — not stored, containers accessed via pct exec
 - rootPassword removed from ContainerJobData and container schemas in plan 05 (not deferred to 07)
 - Service logs API route requires session auth via getSessionData()
-- getContainersWithStatus iterates user's DB nodes in parallel (not cluster listNodes API) with per-node error isolation
+- getContainersWithStatus iterates user's DB nodes in parallel (not cluster listNode API) with per-node error isolation
 - getContainerDetailData resolves client from container.node relation (no userId needed)
 - Dashboard page.tsx follows same session-check pattern as wizard page (getSessionData + redirect)
-
 - VmidField uses debounced useAction (500ms) for server-side validation rather than client-side cache
 - VMID cache refreshed server-side on wizard page load for freshest data
 - Node selector shows Proxmox node names with '(default)' badge, syncs DB nodeId for VMID validation
+- redis-state.ts has no server-only — worker process must import it
+- Redis instance passed as first param to creation state functions (not getRedis() internally) for testability and worker compatibility
+- ACTIVE_CREATIONS_SET uses Redis SET to avoid O(N) KEYS scan for listing active creations
+- Both ready and error creation jobs get 1h TTL (CREATION_TTL_COMPLETE_S)
+- listActiveCreations fire-and-forgets stale member SREM cleanup
 
 ## Pending Work
 
 - Phase 3.5: Plan 08 remaining (dashboard updates: node badge, filtering, no-nodes banner)
+- Phase 3.6: Plans 02-06 remaining (creation flow refactor, data layer, schema removal, dashboard UX, service cache)
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -215,6 +230,6 @@ Progress: ███████████░░░░░░ 67% (29/43 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: Completed 03.5-07-PLAN.md (wizard updates: password removal, VMID validation, node selector)
+Last session: 2026-02-22
+Stopped at: Completed 03.6-01-PLAN.md (Redis creation state module)
 Resume file: None
