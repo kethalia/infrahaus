@@ -7,7 +7,8 @@
  * and managing container lifecycle (start/stop/shutdown/restart/delete).
  * Uses authActionClient for authenticated access and next-safe-action patterns.
  *
- * All Proxmox client creation is DB-based via createProxmoxClientFromNode().
+ * All Proxmox client creation uses session ticket auth via createSessionClient().
+ * The session ticket is obtained at login; host/port come from the DB node record.
  * No env-var references (PVE_HOST, PVE_PORT, PVE_ROOT_PASSWORD, PVE_NODE).
  */
 
@@ -19,11 +20,11 @@ import { DatabaseService, EventType, prisma } from "@/lib/db";
 import { decrypt } from "@/lib/encryption";
 import { getContainerCreationQueue } from "@/lib/queue/container-creation";
 import {
-  createProxmoxClientFromNode,
   storage,
   nodes as proxmoxNodes,
   templates as proxmoxTemplates,
 } from "@/lib/proxmox";
+import { createSessionClient } from "@/lib/containers/helpers";
 import { ProxmoxApiError } from "@/lib/proxmox/errors";
 import {
   startContainer,
@@ -79,7 +80,7 @@ export const refreshVmidCacheAction = authActionClient
   .action(async ({ parsedInput: { nodeId } }) => {
     const node = await DatabaseService.getNodeById(nodeId);
     if (!node) throw new ActionError("Node not found");
-    const client = createProxmoxClientFromNode(node);
+    const client = await createSessionClient(node);
     const vmids = await refreshVmidCache(nodeId, node.name, client);
     return { count: vmids.length };
   });
@@ -186,7 +187,7 @@ export async function getWizardData(userId: string): Promise<WizardData> {
   }
 
   try {
-    const client = createProxmoxClientFromNode(defaultNode);
+    const client = await createSessionClient(defaultNode);
 
     // Fetch cluster nodes and next VMID
     const [clusterNodeList, nextVmidResponse] = await Promise.all([
@@ -441,7 +442,7 @@ export const createContainerAction = authActionClient
         if (existing) {
           // DB has a record for this VMID — check if the container actually
           // still exists on Proxmox before deciding what to do.
-          const client = createProxmoxClientFromNode(node);
+          const client = await createSessionClient(node);
           let existsOnProxmox = false;
           try {
             // Try to fetch the container status from the target node
@@ -573,7 +574,7 @@ async function getContainerContext(containerId: string) {
     throw new ActionError("Container not found");
   }
 
-  const client = createProxmoxClientFromNode(container.node);
+  const client = await createSessionClient(container.node);
   return {
     client,
     nodeName: container.node.name,
@@ -877,7 +878,7 @@ export const refreshContainerServicesAction = authActionClient
     }
 
     // Check container is running on Proxmox
-    const client = createProxmoxClientFromNode(container.node);
+    const client = await createSessionClient(container.node);
     const nodeName = container.node.name;
     const vmid = container.vmid;
 

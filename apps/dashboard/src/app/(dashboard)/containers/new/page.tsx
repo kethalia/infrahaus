@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getWizardData } from "@/lib/containers/actions";
 import { getSessionData } from "@/lib/session";
 import { DatabaseService } from "@/lib/db";
-import { createProxmoxClientFromNode } from "@/lib/proxmox";
+import { createSessionClient } from "@/lib/containers/helpers";
 import { refreshVmidCache } from "@/lib/vmid-cache";
 import { NoNodesBanner } from "@/components/nodes/no-nodes-banner";
 import { ContainerWizard } from "./container-wizard";
@@ -43,7 +43,7 @@ export default async function NewContainerPage() {
 
   // Refresh VMID cache for default node on page load
   try {
-    const client = createProxmoxClientFromNode(defaultNode);
+    const client = await createSessionClient(defaultNode);
     await refreshVmidCache(defaultNode.id, defaultNode.name, client);
   } catch (err) {
     // Non-fatal: wizard still works, just won't have fresh cache

@@ -14,7 +14,7 @@ import {
   type ContainerWithDetails,
   type ContainerCounts,
 } from "@/lib/db";
-import { createProxmoxClientFromNode } from "@/lib/proxmox";
+import { createSessionClient } from "@/lib/containers/helpers";
 import { getRedis } from "@/lib/redis";
 import {
   listContainers,
@@ -163,7 +163,7 @@ export async function getContainersWithStatus(
       const allContainers = await Promise.all(
         userNodes.map(async (dbNode) => {
           try {
-            const client = createProxmoxClientFromNode(dbNode);
+            const client = await createSessionClient(dbNode);
             const containers = await listContainers(client, dbNode.name);
             return containers.map((c) => ({
               vmid: c.vmid,
@@ -278,7 +278,7 @@ export async function getContainerDetailData(
   // Only fetch Proxmox data for ready containers
   if (dbContainer.lifecycle === "ready") {
     try {
-      const client = createProxmoxClientFromNode(dbContainer.node);
+      const client = await createSessionClient(dbContainer.node);
       const [status, config] = await Promise.all([
         getContainer(client, dbContainer.node.name, dbContainer.vmid),
         getContainerConfig(client, dbContainer.node.name, dbContainer.vmid),
