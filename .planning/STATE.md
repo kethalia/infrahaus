@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 03.6-remove-container-db — In progress
-**Plan:** 3 of 6 in current phase
-**Status:** In progress — Plans 01-03 complete + compound key migration
-**Last activity:** 2026-02-22 — Committed compound {nodeName}/{vmid} key migration
+**Plan:** 5 of 6 in current phase
+**Status:** In progress — Plans 01-05 complete (04, 06 completed in parallel)
+**Last activity:** 2026-02-22 — Completed 03.6-05-PLAN.md (dashboard UX)
 
-Progress: ███████████░░░░░░ 67% (33/49 plans)
+Progress: ████████████████░ 73% (36/49 plans)
 
 ## Completed Work
 
@@ -162,6 +162,29 @@ Progress: ███████████░░░░░░ 67% (33/49 plans)
 - revalidatePath calls encode compound IDs for URL safety
 - 13 files updated, TypeScript passes with zero errors
 
+**03.6-04 — Schema removal (Container/ContainerEvent)** ✓
+
+- Removed Container, ContainerEvent models from Prisma schema
+- Removed ContainerLifecycle, EventType enums
+- Removed containers relation from ProxmoxNode and Template
+- Created migration to drop tables and enums
+- Removed all container-related methods from DatabaseService
+
+**03.6-05 — Dashboard UX (loading, errors, empty states)** ✓
+
+- Removed listActiveCreations merge from dashboard (CONTEXT: progress page only)
+- Added PROXMOX_NODE_TIMEOUT_MS (5s) with Promise.race per-node timeout
+- Created loading.tsx skeleton with card-shaped Skeleton placeholders
+- Added failedNodes tracking + dismissible partial failure banner
+- Added all-unreachable banner with settings link
+- Updated empty state: "No containers found" + Create CTA
+- Detail page: WifiOff error page when node unreachable
+
+**03.6-06 — Service cache TTL** ✓
+
+- Added SERVICE_CACHE_TTL_S = 86_400 to infrastructure.ts
+- Updated discoverAndCacheServices() with Redis EX option for auto-expiry
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -238,11 +261,18 @@ Progress: ███████████░░░░░░ 67% (33/49 plans)
 - revalidatePath() calls must encode compound IDs: `revalidatePath(\`/containers/\${encodeURIComponent(containerId)}\`)`
 - getContainerDetailData now targets a specific node directly (no scanning) — performance improvement from compound keys
 - getContainerContext has fallback path for bare VMID strings (legacy compat) but primary path uses compound IDs
+- **CONTEXT enforced: No in-progress creations on dashboard** — progress page is the single place to watch creation. listActiveCreations merge removed from getContainersWithStatus.
+- PROXMOX_NODE_TIMEOUT_MS = 5_000 with Promise.race pattern (listContainers doesn't accept AbortSignal)
+- failedNodes tracking: accumulate names on error, pass to UI for dismissible banner display
+- SummaryBar uses inline counts type — no db.ts dependency, no creating count
+- loading.tsx uses Next.js App Router convention for instant skeleton rendering while page.tsx suspends
+- Partial node failure: dismissible client-side banner; all-unreachable: persistent banner with settings link
+- Detail page unreachable: WifiOff error page triggers on !proxmoxReachable && status === "unknown"
 
 ## Pending Work
 
 - Phase 3.5: Plan 08 remaining (dashboard updates: node badge, filtering, no-nodes banner)
-- Phase 3.6: Plans 04-06 remaining (schema removal, dashboard UX, service cache)
+- Phase 3.6: All 6 plans complete
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -260,6 +290,6 @@ Progress: ███████████░░░░░░ 67% (33/49 plans)
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Committed compound key migration (70f11ae) — Plans 01-03 + cross-cutting compound key fix
+Stopped at: Completed 03.6-05-PLAN.md (dashboard UX — loading, errors, empty states)
 Resume file: None
-Next step: Phase 3.6 Plan 04 (schema removal) or force-push branch + update PR
+Next step: Phase 3.6 complete — force-push branch + update PR
