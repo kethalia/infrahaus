@@ -565,10 +565,43 @@ async function releaseContainerLock(
 
 /**
  * Get Proxmox client and node name for a given container.
- * Resolves the client from the container's node record in the DB.
- * Returns the client, node name, and container VMID.
+ *
+ * Supports two ID formats:
+ * - DB cuid — resolves from container's node record in DB
+ * - "pve-{vmid}" — searches all user nodes via Proxmox API (untracked containers)
+ *
+ * Returns the client, node name, VMID, and container DB record (null if untracked).
  */
-async function getContainerContext(containerId: string) {
+async function getContainerContext(containerId: string, userId?: string) {
+  // Proxmox-only container (not in DB)
+  if (containerId.startsWith("pve-") && userId) {
+    const vmid = parseInt(containerId.replace("pve-", ""), 10);
+    if (isNaN(vmid)) throw new ActionError("Invalid container ID");
+
+    const userNodes = await DatabaseService.listNodesForUser(userId);
+    for (const dbNode of userNodes) {
+      try {
+        const client = await createSessionClient(dbNode);
+        // Verify container exists on this node
+        await getContainer(client, dbNode.name, vmid);
+        return {
+          client,
+          nodeName: dbNode.name,
+          vmid,
+          container: null as Awaited<
+            ReturnType<typeof DatabaseService.getContainerById>
+          >,
+          nodeId: dbNode.id,
+        };
+      } catch {
+        // Not on this node — try next
+        continue;
+      }
+    }
+    throw new ActionError("Container not found on any configured node");
+  }
+
+  // DB-tracked container
   const container = await DatabaseService.getContainerById(containerId);
   if (!container) {
     throw new ActionError("Container not found");
@@ -580,6 +613,7 @@ async function getContainerContext(containerId: string) {
     nodeName: container.node.name,
     vmid: container.vmid,
     container,
+    nodeId: container.node.id,
   };
 }
 
@@ -589,7 +623,7 @@ async function getContainerContext(containerId: string) {
  */
 export const startContainerAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
     const token = await acquireContainerLock(containerId);
     if (!token) {
       throw new ActionError(
@@ -598,7 +632,10 @@ export const startContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid } = await getContainerContext(containerId);
+      const { client, nodeName, vmid, container } = await getContainerContext(
+        containerId,
+        ctx.userId,
+      );
 
       // Validate current state
       const status = await getContainer(client, nodeName, vmid);
@@ -610,12 +647,14 @@ export const startContainerAction = authActionClient
       const upid = await startContainer(client, nodeName, vmid);
       await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
-      // Create audit event
-      await DatabaseService.createContainerEvent({
-        containerId,
-        type: EventType.started,
-        message: `Container started (VMID ${vmid})`,
-      });
+      // Create audit event (only for DB-tracked containers)
+      if (container) {
+        await DatabaseService.createContainerEvent({
+          containerId: container.id,
+          type: EventType.started,
+          message: `Container started (VMID ${vmid})`,
+        });
+      }
 
       revalidatePath("/");
       revalidatePath(`/containers/${containerId}`);
@@ -632,7 +671,7 @@ export const startContainerAction = authActionClient
  */
 export const stopContainerAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
     const token = await acquireContainerLock(containerId);
     if (!token) {
       throw new ActionError(
@@ -641,7 +680,10 @@ export const stopContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid } = await getContainerContext(containerId);
+      const { client, nodeName, vmid, container } = await getContainerContext(
+        containerId,
+        ctx.userId,
+      );
 
       // Validate current state
       const status = await getContainer(client, nodeName, vmid);
@@ -653,12 +695,14 @@ export const stopContainerAction = authActionClient
       const upid = await stopContainer(client, nodeName, vmid);
       await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
-      // Create audit event
-      await DatabaseService.createContainerEvent({
-        containerId,
-        type: EventType.stopped,
-        message: `Container stopped (VMID ${vmid})`,
-      });
+      // Create audit event (only for DB-tracked containers)
+      if (container) {
+        await DatabaseService.createContainerEvent({
+          containerId: container.id,
+          type: EventType.stopped,
+          message: `Container stopped (VMID ${vmid})`,
+        });
+      }
 
       revalidatePath("/");
       revalidatePath(`/containers/${containerId}`);
@@ -676,7 +720,7 @@ export const stopContainerAction = authActionClient
  */
 export const shutdownContainerAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
     const token = await acquireContainerLock(containerId);
     if (!token) {
       throw new ActionError(
@@ -685,7 +729,10 @@ export const shutdownContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid } = await getContainerContext(containerId);
+      const { client, nodeName, vmid, container } = await getContainerContext(
+        containerId,
+        ctx.userId,
+      );
 
       // Validate current state
       const status = await getContainer(client, nodeName, vmid);
@@ -715,12 +762,14 @@ export const shutdownContainerAction = authActionClient
         });
       }
 
-      // Create audit event
-      await DatabaseService.createContainerEvent({
-        containerId,
-        type: EventType.stopped,
-        message: `Container shutdown (${method}) (VMID ${vmid})`,
-      });
+      // Create audit event (only for DB-tracked containers)
+      if (container) {
+        await DatabaseService.createContainerEvent({
+          containerId: container.id,
+          type: EventType.stopped,
+          message: `Container shutdown (${method}) (VMID ${vmid})`,
+        });
+      }
 
       revalidatePath("/");
       revalidatePath(`/containers/${containerId}`);
@@ -737,7 +786,7 @@ export const shutdownContainerAction = authActionClient
  */
 export const restartContainerAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
     const token = await acquireContainerLock(containerId);
     if (!token) {
       throw new ActionError(
@@ -746,7 +795,10 @@ export const restartContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid } = await getContainerContext(containerId);
+      const { client, nodeName, vmid, container } = await getContainerContext(
+        containerId,
+        ctx.userId,
+      );
 
       // Check current state
       const status = await getContainer(client, nodeName, vmid);
@@ -765,12 +817,14 @@ export const restartContainerAction = authActionClient
         timeout: TASK_TIMEOUT_MS,
       });
 
-      // Create audit event
-      await DatabaseService.createContainerEvent({
-        containerId,
-        type: EventType.started,
-        message: `Container restarted (VMID ${vmid})`,
-      });
+      // Create audit event (only for DB-tracked containers)
+      if (container) {
+        await DatabaseService.createContainerEvent({
+          containerId: container.id,
+          type: EventType.started,
+          message: `Container restarted (VMID ${vmid})`,
+        });
+      }
 
       revalidatePath("/");
       revalidatePath(`/containers/${containerId}`);
@@ -787,7 +841,7 @@ export const restartContainerAction = authActionClient
  */
 export const deleteContainerAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
     const token = await acquireContainerLock(containerId);
     if (!token) {
       throw new ActionError(
@@ -796,8 +850,8 @@ export const deleteContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid, container } =
-        await getContainerContext(containerId);
+      const { client, nodeName, vmid, container, nodeId } =
+        await getContainerContext(containerId, ctx.userId);
 
       try {
         // Stop the container first if it's running
@@ -825,23 +879,25 @@ export const deleteContainerAction = authActionClient
         if (!isGone) throw err;
       }
 
-      // Clean up Redis service cache
-      const { getRedis } = await import("@/lib/redis");
-      const { clearCachedServices } =
-        await import("@/lib/containers/discovery");
-      const { getLogBufferKey } =
-        await import("@/lib/constants/infrastructure");
-      const redis = getRedis();
-      await Promise.all([
-        clearCachedServices(redis, containerId),
-        redis.del(getLogBufferKey(containerId)),
-      ]);
-
       // Invalidate VMID cache for this node (container deleted)
-      await invalidateVmidCache(container.node.id);
+      await invalidateVmidCache(nodeId);
 
-      // Delete from database (cascade handles events)
-      await DatabaseService.deleteContainerById(containerId);
+      // Clean up DB and Redis only for DB-tracked containers
+      if (container) {
+        const { getRedis } = await import("@/lib/redis");
+        const { clearCachedServices } =
+          await import("@/lib/containers/discovery");
+        const { getLogBufferKey } =
+          await import("@/lib/constants/infrastructure");
+        const redis = getRedis();
+        await Promise.all([
+          clearCachedServices(redis, container.id),
+          redis.del(getLogBufferKey(container.id)),
+        ]);
+
+        // Delete from database (cascade handles events)
+        await DatabaseService.deleteContainerById(container.id);
+      }
 
       revalidatePath("/");
       revalidatePath("/containers");
