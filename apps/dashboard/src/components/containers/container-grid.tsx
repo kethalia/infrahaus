@@ -25,13 +25,17 @@ const filterOptions: { value: FilterStatus; label: string }[] = [
 interface ContainerGridProps {
   containers: ContainerWithStatus[];
   proxmoxReachable: boolean;
+  /** Unique node names for multi-node filtering. Omit or empty to hide filter. */
+  nodeNames?: string[];
 }
 
 export function ContainerGrid({
   containers,
   proxmoxReachable,
+  nodeNames = [],
 }: ContainerGridProps) {
   const [filter, setFilter] = useState<FilterStatus>("all");
+  const [nodeFilter, setNodeFilter] = useState<string>("all");
   const [pendingContainers, setPendingContainers] = useState<Set<string>>(
     new Set(),
   );
@@ -39,10 +43,13 @@ export function ContainerGrid({
     intervalSeconds: 30,
   });
 
-  const filtered =
-    filter === "all"
-      ? containers
-      : containers.filter((c) => c.status === filter);
+  const showNodeFilter = nodeNames.length > 1;
+
+  const filtered = containers.filter((c) => {
+    const matchesStatus = filter === "all" || c.status === filter;
+    const matchesNode = nodeFilter === "all" || c.node.name === nodeFilter;
+    return matchesStatus && matchesNode;
+  });
 
   const handlePendingChange = useCallback(
     (containerId: string, isPending: boolean) => {
@@ -75,17 +82,45 @@ export function ContainerGrid({
       {/* Toolbar: filters + refresh controls */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Status filter pills */}
-        <div className="flex items-center gap-1.5">
-          {filterOptions.map((option) => (
-            <Button
-              key={option.value}
-              variant={filter === option.value ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            {filterOptions.map((option) => (
+              <Button
+                key={option.value}
+                variant={filter === option.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilter(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+
+          {/* Node filter — only shown for multi-node users */}
+          {showNodeFilter && (
+            <>
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant={nodeFilter === "all" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setNodeFilter("all")}
+                >
+                  All Nodes
+                </Button>
+                {nodeNames.map((name) => (
+                  <Button
+                    key={name}
+                    variant={nodeFilter === name ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setNodeFilter(name)}
+                  >
+                    {name}
+                  </Button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Refresh controls */}

@@ -6,6 +6,10 @@
  * Server actions for creating containers, fetching wizard initialization data,
  * and managing container lifecycle (start/stop/shutdown/restart/delete).
  * Uses authActionClient for authenticated access and next-safe-action patterns.
+ *
+ * All Proxmox client creation uses session ticket auth via createSessionClient().
+ * The session ticket is obtained at login; host/port come from the DB node record.
+ * No env-var references (PVE_HOST, PVE_PORT, PVE_ROOT_PASSWORD, PVE_NODE).
  */
 
 import { revalidatePath } from "next/cache";
@@ -13,14 +17,14 @@ import { z } from "zod";
 
 import { authActionClient, ActionError } from "@/lib/safe-action";
 import { DatabaseService, EventType, prisma } from "@/lib/db";
-import { encrypt } from "@/lib/encryption";
+import { decrypt } from "@/lib/encryption";
 import { getContainerCreationQueue } from "@/lib/queue/container-creation";
 import {
-  getProxmoxClient,
   storage,
   nodes as proxmoxNodes,
   templates as proxmoxTemplates,
 } from "@/lib/proxmox";
+import { createSessionClient } from "@/lib/containers/helpers";
 import { ProxmoxApiError } from "@/lib/proxmox/errors";
 import {
   startContainer,
@@ -33,7 +37,11 @@ import { waitForTask } from "@/lib/proxmox/tasks";
 import { acquireLock, releaseLock } from "@/lib/utils/redis-lock";
 import { extractIpFromNet0 } from "@/lib/proxmox/utils";
 import {
-  DEFAULT_PVE_PORT,
+  invalidateVmidCache,
+  isVmidTaken,
+  refreshVmidCache,
+} from "@/lib/vmid-cache";
+import {
   DEFAULT_NEXT_VMID,
   CONTAINER_LOCK_PREFIX,
   CONTAINER_LOCK_TTL,
@@ -45,6 +53,37 @@ import {
   DELETE_TIMEOUT_MS,
 } from "@/lib/constants/timeouts";
 import { createContainerInputSchema } from "./schemas";
+
+// ============================================================================
+// VMID Cache Actions
+// ============================================================================
+
+/**
+ * Check if a VMID is taken on a given node (reads from Redis cache).
+ * Used by the wizard's VmidField component for inline validation.
+ */
+export const checkVmidAction = authActionClient
+  .schema(
+    z.object({ nodeId: z.string(), vmid: z.coerce.number().int().min(100) }),
+  )
+  .action(async ({ parsedInput: { nodeId, vmid } }) => {
+    const taken = await isVmidTaken(nodeId, vmid);
+    return { taken };
+  });
+
+/**
+ * Refresh the VMID cache for a node by querying Proxmox.
+ * Called on wizard page load to ensure fresh data.
+ */
+export const refreshVmidCacheAction = authActionClient
+  .schema(z.object({ nodeId: z.string() }))
+  .action(async ({ parsedInput: { nodeId } }) => {
+    const node = await DatabaseService.getNodeById(nodeId);
+    if (!node) throw new ActionError("Node not found");
+    const client = await createSessionClient(node);
+    const vmids = await refreshVmidCache(nodeId, node.name, client);
+    return { count: vmids.length };
+  });
 
 // ============================================================================
 // Types for wizard data
@@ -112,78 +151,16 @@ export interface WizardData {
 }
 
 // ============================================================================
-// Proxmox Node Helpers
-// ============================================================================
-
-/**
- * Get or create a ProxmoxNode DB record for the given target node.
- * Auto-creates a DB record using PVE_HOST/PVE_PORT from env vars if one
- * doesn't exist yet. Uses env-based auth (no session needed).
- *
- * TODO(03.5-04): Remove this helper entirely — nodes will be created via
- * the Settings page and resolved from the user's session.
- */
-async function getOrCreateNode(
-  targetNode?: string,
-): Promise<{ nodeId: string; nodeName: string }> {
-  // Temporary userId for env-var based auth path
-  // TODO(03.5-04): Get from session context
-  const userId = "root@pam";
-
-  // If a target node is specified, look for it in DB first
-  if (targetNode) {
-    const existing = await DatabaseService.getNodeByName(userId, targetNode);
-    if (existing) {
-      return { nodeId: existing.id, nodeName: existing.name };
-    }
-  }
-
-  // Check if any nodes exist in DB for this user
-  const existingNodes = await DatabaseService.listNodesForUser(userId);
-  if (!targetNode && existingNodes.length > 0) {
-    return { nodeId: existingNodes[0].id, nodeName: existingNodes[0].name };
-  }
-
-  // Need to create a DB record for the target node
-  const host = process.env.PVE_HOST;
-  if (!host) {
-    throw new Error("PVE_HOST env var is not set.");
-  }
-  const port = process.env.PVE_PORT
-    ? parseInt(process.env.PVE_PORT, 10)
-    : DEFAULT_PVE_PORT;
-
-  // Use target node name, or discover from API
-  let nodeName = targetNode;
-  if (!nodeName) {
-    const client = await getProxmoxClient();
-    const clusterNodes = await proxmoxNodes.listNodes(client);
-    nodeName = clusterNodes[0]?.node || "pve";
-  }
-
-  // Create a DB record with placeholder token fields (env auth used)
-  const placeholderToken = encrypt("env-auth-no-token");
-  const node = await DatabaseService.createNode({
-    name: nodeName,
-    host,
-    port,
-    tokenId: "root@pam!env",
-    tokenSecret: placeholderToken,
-    userId,
-  });
-
-  return { nodeId: node.id, nodeName: node.name };
-}
-
-// ============================================================================
 // Fetch wizard initialization data
 // ============================================================================
 
 /**
  * Fetches all data needed to initialize the container creation wizard.
- * Uses env-based auth via getProxmoxClient() — no user session needed.
+ * Resolves Proxmox node from DB via userId (session-based auth).
+ *
+ * @param userId - The authenticated user's ID (from session)
  */
-export async function getWizardData(): Promise<WizardData> {
+export async function getWizardData(userId: string): Promise<WizardData> {
   // Fetch templates from database
   const templates = await prisma.template.findMany({
     include: {
@@ -203,13 +180,14 @@ export async function getWizardData(): Promise<WizardData> {
     clusterNodes: [],
   };
 
-  // Check env vars are configured
-  if (!process.env.PVE_HOST || !process.env.PVE_ROOT_PASSWORD) {
+  // Get the user's default node from DB
+  const defaultNode = await DatabaseService.getDefaultNodeForUser(userId);
+  if (!defaultNode) {
     return emptyResult;
   }
 
   try {
-    const client = await getProxmoxClient();
+    const client = await createSessionClient(defaultNode);
 
     // Fetch cluster nodes and next VMID
     const [clusterNodeList, nextVmidResponse] = await Promise.all([
@@ -219,13 +197,11 @@ export async function getWizardData(): Promise<WizardData> {
 
     const onlineNodes = clusterNodeList.filter((n) => n.status === "online");
 
-    // If PVE_NODE is set, only fetch data for that node — avoids slow
-    // cross-node proxy calls in clusters where some nodes are unreachable
-    // from the API host (e.g. the API host proxying back to itself).
-    const pveNode = process.env.PVE_NODE?.trim();
-    const targetNodes = pveNode
-      ? onlineNodes.filter((n) => n.node === pveNode)
-      : onlineNodes;
+    // Only fetch data for nodes the user has configured in DB.
+    // This replaces the old PVE_NODE env-var filtering.
+    const userNodes = await DatabaseService.listNodesForUser(userId);
+    const userNodeNames = new Set(userNodes.map((n) => n.name));
+    const targetNodes = onlineNodes.filter((n) => userNodeNames.has(n.node));
 
     // Fetch per-node data (storage, bridges, OS templates) for each node.
     // Each node is fetched independently — if one node is unreachable via
@@ -415,22 +391,32 @@ function mapTemplate(t: {
  * Create a new container record and enqueue a BullMQ job for provisioning.
  *
  * 1. Validates input via Zod
- * 2. Finds first Proxmox node
- * 3. Encrypts root password for DB storage
- * 4. Creates Container record
- * 5. Resolves OS template path
- * 6. Enqueues BullMQ job with plaintext password (Proxmox API needs it)
+ * 2. Resolves Proxmox node from ctx.userId + data.targetNode
+ * 3. Creates Container record
+ * 4. Resolves OS template path
+ * 5. Enqueues BullMQ job
+ * 6. Invalidates VMID cache for the node
  * 7. Returns container ID for redirect
  */
 export const createContainerAction = authActionClient
   .schema(createContainerInputSchema)
-  .action(async ({ parsedInput: data }) => {
-    // Get or create a Proxmox node DB record for the target node
-    const { nodeId, nodeName } = await getOrCreateNode(data.targetNode);
+  .action(async ({ parsedInput: data, ctx }) => {
+    // Resolve the target Proxmox node from DB
+    let node;
+    if (data.targetNode) {
+      node = await DatabaseService.getNodeByName(ctx.userId, data.targetNode);
+    }
+    if (!node) {
+      node = await DatabaseService.getDefaultNodeForUser(ctx.userId);
+    }
+    if (!node) {
+      throw new ActionError("No Proxmox node configured. Add one in Settings.");
+    }
+
+    const nodeId = node.id;
+    const nodeName = node.name;
 
     // Create container record — handle VMID conflicts from stale records
-    // Note: rootPassword is no longer stored in DB (clean break per 03.5-01)
-    // The password is still passed to the worker for Proxmox API use only
     let container;
     try {
       container = await DatabaseService.createContainer({
@@ -456,13 +442,12 @@ export const createContainerAction = authActionClient
         if (existing) {
           // DB has a record for this VMID — check if the container actually
           // still exists on Proxmox before deciding what to do.
-          const client = await getProxmoxClient();
+          const client = await createSessionClient(node);
           let existsOnProxmox = false;
           try {
             // Try to fetch the container status from the target node
-            const targetNode = data.targetNode || nodeName;
             await client.get(
-              `/nodes/${targetNode}/lxc/${data.vmid}/status/current`,
+              `/nodes/${nodeName}/lxc/${data.vmid}/status/current`,
               z.object({}).passthrough(),
             );
             existsOnProxmox = true;
@@ -507,7 +492,7 @@ export const createContainerAction = authActionClient
       );
     }
 
-    // Enqueue creation job — worker self-authenticates via env vars
+    // Enqueue creation job — worker resolves auth from nodeId via DB
     const queue = getContainerCreationQueue();
     await queue.add("create-container", {
       containerId: container.id,
@@ -525,7 +510,6 @@ export const createContainerAction = authActionClient
         bridge: data.bridge,
         ipConfig: data.ipConfig,
         nameserver: data.nameserver,
-        rootPassword: data.rootPassword, // Plaintext — Proxmox API needs it
         sshPublicKey: data.sshPublicKey,
         unprivileged: data.unprivileged,
         nesting: data.nesting,
@@ -536,6 +520,9 @@ export const createContainerAction = authActionClient
       additionalPackages: data.additionalPackages,
       scripts: data.scripts,
     });
+
+    // Invalidate VMID cache for this node (new container being created)
+    await invalidateVmidCache(nodeId);
 
     revalidatePath("/containers");
 
@@ -578,20 +565,55 @@ async function releaseContainerLock(
 
 /**
  * Get Proxmox client and node name for a given container.
- * Returns the client, node name, and container VMID.
+ *
+ * Supports two ID formats:
+ * - DB cuid — resolves from container's node record in DB
+ * - "pve-{vmid}" — searches all user nodes via Proxmox API (untracked containers)
+ *
+ * Returns the client, node name, VMID, and container DB record (null if untracked).
  */
-async function getContainerContext(containerId: string) {
+async function getContainerContext(containerId: string, userId?: string) {
+  // Proxmox-only container (not in DB)
+  if (containerId.startsWith("pve-") && userId) {
+    const vmid = parseInt(containerId.replace("pve-", ""), 10);
+    if (isNaN(vmid)) throw new ActionError("Invalid container ID");
+
+    const userNodes = await DatabaseService.listNodesForUser(userId);
+    for (const dbNode of userNodes) {
+      try {
+        const client = await createSessionClient(dbNode);
+        // Verify container exists on this node
+        await getContainer(client, dbNode.name, vmid);
+        return {
+          client,
+          nodeName: dbNode.name,
+          vmid,
+          container: null as Awaited<
+            ReturnType<typeof DatabaseService.getContainerById>
+          >,
+          nodeId: dbNode.id,
+        };
+      } catch {
+        // Not on this node — try next
+        continue;
+      }
+    }
+    throw new ActionError("Container not found on any configured node");
+  }
+
+  // DB-tracked container
   const container = await DatabaseService.getContainerById(containerId);
   if (!container) {
     throw new ActionError("Container not found");
   }
 
-  const client = await getProxmoxClient();
+  const client = await createSessionClient(container.node);
   return {
     client,
     nodeName: container.node.name,
     vmid: container.vmid,
     container,
+    nodeId: container.node.id,
   };
 }
 
@@ -601,7 +623,7 @@ async function getContainerContext(containerId: string) {
  */
 export const startContainerAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
     const token = await acquireContainerLock(containerId);
     if (!token) {
       throw new ActionError(
@@ -610,7 +632,10 @@ export const startContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid } = await getContainerContext(containerId);
+      const { client, nodeName, vmid, container } = await getContainerContext(
+        containerId,
+        ctx.userId,
+      );
 
       // Validate current state
       const status = await getContainer(client, nodeName, vmid);
@@ -622,12 +647,14 @@ export const startContainerAction = authActionClient
       const upid = await startContainer(client, nodeName, vmid);
       await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
-      // Create audit event
-      await DatabaseService.createContainerEvent({
-        containerId,
-        type: EventType.started,
-        message: `Container started (VMID ${vmid})`,
-      });
+      // Create audit event (only for DB-tracked containers)
+      if (container) {
+        await DatabaseService.createContainerEvent({
+          containerId: container.id,
+          type: EventType.started,
+          message: `Container started (VMID ${vmid})`,
+        });
+      }
 
       revalidatePath("/");
       revalidatePath(`/containers/${containerId}`);
@@ -644,7 +671,7 @@ export const startContainerAction = authActionClient
  */
 export const stopContainerAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
     const token = await acquireContainerLock(containerId);
     if (!token) {
       throw new ActionError(
@@ -653,7 +680,10 @@ export const stopContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid } = await getContainerContext(containerId);
+      const { client, nodeName, vmid, container } = await getContainerContext(
+        containerId,
+        ctx.userId,
+      );
 
       // Validate current state
       const status = await getContainer(client, nodeName, vmid);
@@ -665,12 +695,14 @@ export const stopContainerAction = authActionClient
       const upid = await stopContainer(client, nodeName, vmid);
       await waitForTask(client, nodeName, upid, { timeout: TASK_TIMEOUT_MS });
 
-      // Create audit event
-      await DatabaseService.createContainerEvent({
-        containerId,
-        type: EventType.stopped,
-        message: `Container stopped (VMID ${vmid})`,
-      });
+      // Create audit event (only for DB-tracked containers)
+      if (container) {
+        await DatabaseService.createContainerEvent({
+          containerId: container.id,
+          type: EventType.stopped,
+          message: `Container stopped (VMID ${vmid})`,
+        });
+      }
 
       revalidatePath("/");
       revalidatePath(`/containers/${containerId}`);
@@ -688,7 +720,7 @@ export const stopContainerAction = authActionClient
  */
 export const shutdownContainerAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
     const token = await acquireContainerLock(containerId);
     if (!token) {
       throw new ActionError(
@@ -697,7 +729,10 @@ export const shutdownContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid } = await getContainerContext(containerId);
+      const { client, nodeName, vmid, container } = await getContainerContext(
+        containerId,
+        ctx.userId,
+      );
 
       // Validate current state
       const status = await getContainer(client, nodeName, vmid);
@@ -727,12 +762,14 @@ export const shutdownContainerAction = authActionClient
         });
       }
 
-      // Create audit event
-      await DatabaseService.createContainerEvent({
-        containerId,
-        type: EventType.stopped,
-        message: `Container shutdown (${method}) (VMID ${vmid})`,
-      });
+      // Create audit event (only for DB-tracked containers)
+      if (container) {
+        await DatabaseService.createContainerEvent({
+          containerId: container.id,
+          type: EventType.stopped,
+          message: `Container shutdown (${method}) (VMID ${vmid})`,
+        });
+      }
 
       revalidatePath("/");
       revalidatePath(`/containers/${containerId}`);
@@ -749,7 +786,7 @@ export const shutdownContainerAction = authActionClient
  */
 export const restartContainerAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
     const token = await acquireContainerLock(containerId);
     if (!token) {
       throw new ActionError(
@@ -758,7 +795,10 @@ export const restartContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid } = await getContainerContext(containerId);
+      const { client, nodeName, vmid, container } = await getContainerContext(
+        containerId,
+        ctx.userId,
+      );
 
       // Check current state
       const status = await getContainer(client, nodeName, vmid);
@@ -777,12 +817,14 @@ export const restartContainerAction = authActionClient
         timeout: TASK_TIMEOUT_MS,
       });
 
-      // Create audit event
-      await DatabaseService.createContainerEvent({
-        containerId,
-        type: EventType.started,
-        message: `Container restarted (VMID ${vmid})`,
-      });
+      // Create audit event (only for DB-tracked containers)
+      if (container) {
+        await DatabaseService.createContainerEvent({
+          containerId: container.id,
+          type: EventType.started,
+          message: `Container restarted (VMID ${vmid})`,
+        });
+      }
 
       revalidatePath("/");
       revalidatePath(`/containers/${containerId}`);
@@ -799,7 +841,7 @@ export const restartContainerAction = authActionClient
  */
 export const deleteContainerAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
     const token = await acquireContainerLock(containerId);
     if (!token) {
       throw new ActionError(
@@ -808,7 +850,8 @@ export const deleteContainerAction = authActionClient
     }
 
     try {
-      const { client, nodeName, vmid } = await getContainerContext(containerId);
+      const { client, nodeName, vmid, container, nodeId } =
+        await getContainerContext(containerId, ctx.userId);
 
       try {
         // Stop the container first if it's running
@@ -836,20 +879,25 @@ export const deleteContainerAction = authActionClient
         if (!isGone) throw err;
       }
 
-      // Clean up Redis service cache
-      const { getRedis } = await import("@/lib/redis");
-      const { clearCachedServices } =
-        await import("@/lib/containers/discovery");
-      const { getLogBufferKey } =
-        await import("@/lib/constants/infrastructure");
-      const redis = getRedis();
-      await Promise.all([
-        clearCachedServices(redis, containerId),
-        redis.del(getLogBufferKey(containerId)),
-      ]);
+      // Invalidate VMID cache for this node (container deleted)
+      await invalidateVmidCache(nodeId);
 
-      // Delete from database (cascade handles events)
-      await DatabaseService.deleteContainerById(containerId);
+      // Clean up DB and Redis only for DB-tracked containers
+      if (container) {
+        const { getRedis } = await import("@/lib/redis");
+        const { clearCachedServices } =
+          await import("@/lib/containers/discovery");
+        const { getLogBufferKey } =
+          await import("@/lib/constants/infrastructure");
+        const redis = getRedis();
+        await Promise.all([
+          clearCachedServices(redis, container.id),
+          redis.del(getLogBufferKey(container.id)),
+        ]);
+
+        // Delete from database (cascade handles events)
+        await DatabaseService.deleteContainerById(container.id);
+      }
 
       revalidatePath("/");
       revalidatePath("/containers");
@@ -867,26 +915,26 @@ export const deleteContainerAction = authActionClient
 /**
  * Re-discover container services by SSHing into the PVE host and running
  * discovery via `pct exec`. Results are cached in Redis (not DB).
+ *
+ * SSH credentials come from the container's node record in the DB
+ * (node.host + node.sshPassword), not from env vars.
  */
 export const refreshContainerServicesAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
-    const container = await DatabaseService.getContainerById(containerId);
-    if (!container) {
-      throw new ActionError("Container not found");
-    }
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
+    // Resolve container context (works for both DB-tracked and pve-{vmid})
+    const { client, nodeName, vmid, nodeId } = await getContainerContext(
+      containerId,
+      ctx.userId,
+    );
 
-    if (container.lifecycle !== "ready") {
-      throw new ActionError(
-        "Container is not ready. Services can only be refreshed on ready containers.",
-      );
+    // Find the node record for SSH credentials
+    const node = await DatabaseService.getNodeById(nodeId);
+    if (!node) {
+      throw new ActionError("Node not found");
     }
 
     // Check container is running on Proxmox
-    const client = await getProxmoxClient();
-    const nodeName = container.node.name;
-    const vmid = container.vmid;
-
     let status;
     try {
       status = await getContainer(client, nodeName, vmid);
@@ -900,19 +948,17 @@ export const refreshContainerServicesAction = authActionClient
       throw new ActionError("Container must be running to refresh services.");
     }
 
-    // Connect to PVE host via SSH, then pct exec into container.
-    // Uses the same PVE_HOST + PVE_ROOT_PASSWORD env vars as the worker.
-    const pveHost = process.env.PVE_HOST;
-    const pveRootPassword = process.env.PVE_ROOT_PASSWORD;
-    if (!pveHost || !pveRootPassword) {
+    // Connect to PVE host via SSH using DB-stored credentials
+    if (!node.sshPassword) {
       throw new ActionError(
-        "PVE_HOST and PVE_ROOT_PASSWORD environment variables are required for service discovery.",
+        "SSH password not configured for this node. Update node settings to enable service discovery.",
       );
     }
+    const pveRootPassword = decrypt(node.sshPassword);
 
     const { connectWithRetry, PctExecSession } = await import("@/lib/ssh");
     const sshHost = await connectWithRetry({
-      host: pveHost,
+      host: node.host,
       username: "root",
       password: pveRootPassword,
     });

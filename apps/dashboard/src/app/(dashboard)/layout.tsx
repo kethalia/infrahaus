@@ -5,15 +5,17 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import { getSessionData } from "@/lib/session";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Auth is env-var based — display "root@pam" as the user identity.
-  // Will be replaced with real user lookup when multi-user auth is added.
-  const username = "root@pam";
+  // Read session for sidebar username display. Middleware ensures auth,
+  // but session may be null during edge cases — degrade gracefully.
+  const session = await getSessionData();
+  const username = session?.username;
 
   return (
     <SidebarProvider>

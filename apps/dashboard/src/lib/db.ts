@@ -230,8 +230,8 @@ export class DatabaseService {
     name: string;
     host: string;
     port?: number;
-    tokenId: string;
-    tokenSecret: string;
+    tokenId?: string;
+    tokenSecret?: string;
     sshPassword?: string;
     fingerprint?: string;
     isDefault?: boolean;

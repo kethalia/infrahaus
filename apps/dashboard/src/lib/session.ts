@@ -37,6 +37,10 @@ export interface RedisSessionData {
   username: string;
   realm: string;
   expiresAt: string; // ISO date string
+  /** Proxmox host used at login — for auto-provisioning node record */
+  host: string;
+  /** Proxmox port used at login */
+  port: number;
 }
 
 // ============================================================================
@@ -133,6 +137,8 @@ export async function createSession(data: {
   username: string;
   realm: string;
   expiresAt: string;
+  host: string;
+  port: number;
 }): Promise<void> {
   const sessionId = crypto.randomUUID();
   const redis = getRedis();
@@ -144,6 +150,8 @@ export async function createSession(data: {
     username: data.username,
     realm: data.realm,
     expiresAt: data.expiresAt,
+    host: data.host,
+    port: data.port,
   };
 
   await redis.setex(

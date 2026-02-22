@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getContainerDetailData } from "@/lib/containers/data";
+import { getSessionData } from "@/lib/session";
 import { ContainerDetail } from "./container-detail";
 
 interface ContainerDetailPageProps {
@@ -11,7 +12,10 @@ export default async function ContainerDetailPage({
 }: ContainerDetailPageProps) {
   const { id } = await params;
 
-  const data = await getContainerDetailData(id);
+  const session = await getSessionData();
+  if (!session) redirect("/login");
+
+  const data = await getContainerDetailData(id, session.username);
 
   if (!data) {
     // Container was deleted or never existed — redirect home rather than 404.

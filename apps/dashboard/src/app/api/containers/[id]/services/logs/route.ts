@@ -3,14 +3,17 @@
  *
  * GET /api/containers/[id]/services/logs?service=<name>&lines=50
  *
- * Connects to the PVE host via SSH and runs `pct exec <vmid> -- journalctl`
- * to fetch recent log lines. Results are NOT cached — always fresh.
+ * Connects to the Proxmox host via SSH (using DB-stored node credentials)
+ * and runs `pct exec <vmid> -- journalctl` to fetch recent log lines.
+ * Results are NOT cached — always fresh.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { DatabaseService } from "@/lib/db";
 import { connectWithRetry, PctExecSession } from "@/lib/ssh";
 import { isSafeShellArg } from "@/lib/utils/validation";
+import { decrypt } from "@/lib/encryption";
+import { getSessionData } from "@/lib/session";
 
 const MAX_LOG_LINES = 200;
 const DEFAULT_LOG_LINES = 50;
@@ -19,6 +22,15 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // Auth check — require valid session
+  const session = await getSessionData();
+  if (!session) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 },
+    );
+  }
+
   const { id: containerId } = await params;
   const { searchParams } = request.nextUrl;
 
@@ -53,13 +65,13 @@ export async function GET(
     return NextResponse.json({ error: "Container not found" }, { status: 404 });
   }
 
-  // SSH to PVE host → pct exec into container → journalctl
-  const pveHost = process.env.PVE_HOST;
-  const pveRootPassword = process.env.PVE_ROOT_PASSWORD;
-
-  if (!pveHost || !pveRootPassword) {
+  // Resolve SSH credentials from the container's node record
+  const { node } = container;
+  if (!node.sshPassword) {
     return NextResponse.json(
-      { error: "PVE_HOST and PVE_ROOT_PASSWORD are required" },
+      {
+        error: `SSH not configured for node "${node.name}". Update node settings to add an SSH password.`,
+      },
       { status: 500 },
     );
   }
@@ -67,9 +79,9 @@ export async function GET(
   let sshHost;
   try {
     sshHost = await connectWithRetry({
-      host: pveHost,
+      host: node.host,
       username: "root",
-      password: pveRootPassword,
+      password: decrypt(node.sshPassword),
     });
   } catch {
     return NextResponse.json(
