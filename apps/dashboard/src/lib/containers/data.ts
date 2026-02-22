@@ -200,7 +200,7 @@ export async function getContainersWithStatus(
   const dbContainers = await DatabaseService.listContainersWithRelations();
   const dbByVmid = new Map(dbContainers.map((db) => [db.vmid, db]));
 
-  // Fetch cached services from Redis for DB-tracked containers
+  // Fetch cached services from Redis for all containers (DB-tracked and Proxmox-only)
   const redis = getRedis();
   const serviceCacheMap = new Map<
     string,
@@ -213,7 +213,8 @@ export async function getContainersWithStatus(
     }>
   >();
   try {
-    const cachePromises = dbContainers.map(async (db) => {
+    // DB-tracked containers use their cuid as cache key
+    const dbCachePromises = dbContainers.map(async (db) => {
       const cache = await getCachedServices(redis, db.id);
       if (cache) {
         serviceCacheMap.set(
@@ -228,7 +229,29 @@ export async function getContainersWithStatus(
         );
       }
     });
-    await Promise.all(cachePromises);
+
+    // Proxmox-only containers use "pve-{vmid}" as cache key
+    const pveOnlyVmids = pveContainers
+      .filter((pve) => !dbByVmid.has(pve.vmid))
+      .map((pve) => pve.vmid);
+    const pveCachePromises = pveOnlyVmids.map(async (vmid) => {
+      const syntheticId = `pve-${vmid}`;
+      const cache = await getCachedServices(redis, syntheticId);
+      if (cache) {
+        serviceCacheMap.set(
+          syntheticId,
+          cache.services.map((s) => ({
+            name: s.name,
+            type: s.type,
+            port: s.port,
+            status: s.status,
+            isSystem: s.isSystem,
+          })),
+        );
+      }
+    });
+
+    await Promise.all([...dbCachePromises, ...pveCachePromises]);
   } catch {
     // Redis failure is non-fatal
   }
@@ -264,7 +287,9 @@ export async function getContainersWithStatus(
       template: db?.template
         ? { id: db.template.id, name: db.template.name }
         : null,
-      services: db ? (serviceCacheMap.get(db.id) ?? []) : [],
+      services: db
+        ? (serviceCacheMap.get(db.id) ?? [])
+        : (serviceCacheMap.get(`pve-${pve.vmid}`) ?? []),
       events: db
         ? ("events" in db ? db.events : []).slice(0, 3).map((e) => ({
             id: e.id,
@@ -480,6 +505,29 @@ async function getProxmoxOnlyContainerDetail(
         resolvedStatus = "unknown";
       }
 
+      // Read cached services from Redis (written by refreshContainerServicesAction)
+      const redis = getRedis();
+      const serviceCache = await getCachedServices(redis, containerId);
+      const cachedServices = serviceCache
+        ? serviceCache.services.map((s) => ({
+            name: s.name,
+            type: s.type,
+            port: s.port,
+            status: s.status,
+            isSystem: s.isSystem,
+          }))
+        : [];
+
+      // Use cached containerIp if Proxmox resolution failed
+      if (!containerIp && serviceCache?.containerIp) {
+        containerIp = serviceCache.containerIp;
+      }
+
+      // Decrypt service credentials for detail view
+      const decrypted = serviceCache
+        ? decryptServiceCredentials(serviceCache)
+        : { services: [], containerIp: null };
+
       const container: ContainerDetailData["container"] = {
         id: containerId,
         vmid,
@@ -495,7 +543,7 @@ async function getProxmoxOnlyContainerDetail(
           port: dbNode.port,
         },
         template: null,
-        services: [],
+        services: cachedServices,
         events: [],
         resources: {
           cpu: Math.round((status.cpu ?? 0) * 100),
@@ -508,7 +556,7 @@ async function getProxmoxOnlyContainerDetail(
         allEvents: [],
         config,
         containerIp,
-        servicesWithCredentials: [],
+        servicesWithCredentials: decrypted.services,
       };
 
       return { container, proxmoxReachable: true };
