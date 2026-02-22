@@ -3,11 +3,10 @@
  * Used by the progress page on completion to display services and credentials.
  *
  * Reads from Redis cache (populated by worker or refresh action).
- * Returns { services: [...], containerIp: string | null }
+ * No DB dependency — if cache exists, return it; otherwise empty array.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { DatabaseService } from "@/lib/db";
 import { getRedis } from "@/lib/redis";
 import {
   getCachedServices,
@@ -20,13 +19,17 @@ export async function GET(
 ) {
   const { id: containerId } = await params;
 
-  const container = await DatabaseService.getContainerById(containerId);
-  if (!container) {
-    return NextResponse.json({ error: "Container not found" }, { status: 404 });
+  // Parse vmid from URL param
+  const vmid = parseInt(containerId, 10);
+  if (isNaN(vmid)) {
+    return NextResponse.json(
+      { error: "Invalid container ID" },
+      { status: 400 },
+    );
   }
 
   const redis = getRedis();
-  const cache = await getCachedServices(redis, containerId);
+  const cache = await getCachedServices(redis, String(vmid));
 
   if (!cache) {
     return NextResponse.json({ services: [], containerIp: null });

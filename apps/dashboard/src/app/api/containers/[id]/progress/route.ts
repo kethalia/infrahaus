@@ -2,11 +2,13 @@
  * SSE endpoint for real-time container creation progress.
  *
  * On connect:
- * 1. Verify container exists
- * 2. Replay persisted ContainerEvent rows (for late subscribers)
+ * 1. Check Redis creation state for the VMID
+ * 2. Replay log buffer entries from Redis ring buffer
  * 3. If terminal state (ready/error), close after replay
  * 4. Otherwise subscribe to Redis Pub/Sub for live events
  * 5. Send heartbeat every 15s, clean up on client disconnect
+ *
+ * No DB dependency — uses Redis creation state + log buffer exclusively.
  */
 
 export const dynamic = "force-dynamic";
@@ -17,7 +19,8 @@ import {
   SSE_HEARTBEAT_INTERVAL_MS,
   getLogBufferKey,
 } from "@/lib/constants/infrastructure";
-import { DatabaseService } from "@/lib/db";
+import { getRedis } from "@/lib/redis";
+import { getCreationJob } from "@/lib/containers/redis-state";
 import {
   getProgressChannel,
   type ContainerProgressEvent,
@@ -29,17 +32,20 @@ export async function GET(
 ) {
   const { id: containerId } = await params;
 
-  // Verify container exists
-  const container = await DatabaseService.getContainerById(containerId);
-  if (!container) {
-    return NextResponse.json({ error: "Container not found" }, { status: 404 });
+  // Parse vmid from URL param
+  const vmid = parseInt(containerId, 10);
+  if (isNaN(vmid)) {
+    return NextResponse.json(
+      { error: "Invalid container ID" },
+      { status: 400 },
+    );
   }
 
-  // Fetch persisted step/error events for snapshot state reconstruction
-  const existingEvents = await DatabaseService.getContainerEvents(containerId);
+  // Check Redis creation state
+  const redis = getRedis();
+  const creationJob = await getCreationJob(redis, vmid);
 
-  // Fetch the log ring buffer for replay (may be empty if TTL expired or job
-  // predates this feature)
+  // Fetch the log ring buffer for replay
   const redisUrl = process.env.REDIS_URL;
   let bufferedLogs: string[] = [];
   if (redisUrl) {
@@ -55,8 +61,16 @@ export async function GET(
     }
   }
 
+  // If no creation job and no log buffer, nothing to stream
+  if (!creationJob && bufferedLogs.length === 0) {
+    return NextResponse.json(
+      { error: "No active creation found" },
+      { status: 404 },
+    );
+  }
+
   const isTerminal =
-    container.lifecycle === "ready" || container.lifecycle === "error";
+    creationJob?.lifecycle === "ready" || creationJob?.lifecycle === "error";
 
   const encoder = new TextEncoder();
 
@@ -97,76 +111,57 @@ export async function GET(
         }
       }
 
-      // Build snapshot from persisted events: derive current state instead of
-      // replaying individual events (which arrive in a burst and break the UI).
-      const lastStepEvent = [...existingEvents].reverse().find(
-        (e) =>
-          e.type !== "error" &&
-          e.metadata &&
-          (() => {
-            try {
-              return JSON.parse(e.metadata).step;
-            } catch {
-              return false;
-            }
-          })(),
-      );
-      const lastPercent = lastStepEvent?.metadata
-        ? (() => {
-            try {
-              return JSON.parse(lastStepEvent.metadata!).percent ?? 0;
-            } catch {
-              return 0;
-            }
-          })()
-        : 0;
-      const lastStep = lastStepEvent?.metadata
-        ? (() => {
-            try {
-              return JSON.parse(lastStepEvent.metadata!).step ?? null;
-            } catch {
-              return null;
-            }
-          })()
-        : null;
-
-      // Compute which steps have been seen and extract script info from
-      // persisted events for snapshot hydration.
+      // Build snapshot from log buffer: parse ContainerProgressEvent objects
+      // directly from the ring buffer to derive current progress state.
+      let lastStep: string | null = null;
+      let lastPercent = 0;
       const seenSteps: string[] = [];
       let snapshotScriptNames: string[] | undefined;
       let snapshotScriptTotal: number | undefined;
       const snapshotCompletedScripts: string[] = [];
       let snapshotActiveScript: string | null = null;
+      let hasError = false;
+      let errorMessage: string | null = null;
 
-      for (const event of existingEvents) {
-        if (event.metadata) {
-          try {
-            const meta = JSON.parse(event.metadata);
-            if (meta.step && !seenSteps.includes(meta.step)) {
-              seenSteps.push(meta.step);
-            }
-            // Extract script tracking info
-            if (meta.scriptNames) {
-              snapshotScriptNames = meta.scriptNames;
-            }
-            if (meta.scriptTotal != null) {
-              snapshotScriptTotal = meta.scriptTotal;
-            }
-            // Script completion events have scriptName on syncing steps
-            if (meta.scriptName && meta.step === "syncing") {
-              if (!snapshotCompletedScripts.includes(meta.scriptName)) {
-                snapshotCompletedScripts.push(meta.scriptName);
-              }
-            }
-          } catch {
-            // ignore
+      for (const raw of bufferedLogs) {
+        try {
+          const event = JSON.parse(raw) as ContainerProgressEvent;
+
+          if (event.step && !seenSteps.includes(event.step)) {
+            seenSteps.push(event.step);
           }
+
+          if (event.step) {
+            lastStep = event.step;
+          }
+          if (event.percent !== undefined) {
+            lastPercent = event.percent;
+          }
+
+          // Extract script tracking info
+          if (event.scriptNames) {
+            snapshotScriptNames = event.scriptNames;
+          }
+          if (event.scriptTotal != null) {
+            snapshotScriptTotal = event.scriptTotal;
+          }
+          // Script completion: events with scriptName on syncing steps
+          if (event.scriptName && event.step === "syncing") {
+            if (!snapshotCompletedScripts.includes(event.scriptName)) {
+              snapshotCompletedScripts.push(event.scriptName);
+            }
+          }
+
+          if (event.type === "error") {
+            hasError = true;
+            errorMessage = event.message;
+          }
+        } catch {
+          // Skip unparseable entries
         }
       }
 
-      // Determine active script: if we have script names and the step is
-      // syncing (not terminal), the active script is the first one not
-      // completed yet.
+      // Determine active script
       if (snapshotScriptNames && !isTerminal && lastStep === "syncing") {
         snapshotActiveScript =
           snapshotScriptNames.find(
@@ -174,26 +169,25 @@ export async function GET(
           ) ?? null;
       }
 
-      // Check terminal state — use container lifecycle as source of truth,
-      // NOT DB event types (which can collide between step events and completion).
-      const hasError = existingEvents.some((e) => e.type === "error");
-      const errorEvent = existingEvents.find((e) => e.type === "error");
+      // Check terminal state from Redis creation job lifecycle
+      const isComplete = isTerminal && creationJob?.lifecycle === "ready";
+      const isError =
+        hasError || (isTerminal && creationJob?.lifecycle === "error");
 
       // Send a single snapshot event with the current state
       send(
         "snapshot",
         JSON.stringify({
           step: lastStep,
-          percent: isTerminal && !hasError ? 100 : lastPercent,
+          percent: isComplete ? 100 : lastPercent,
           seenSteps,
-          isComplete: isTerminal && container.lifecycle === "ready",
-          isError: hasError || (isTerminal && container.lifecycle === "error"),
+          isComplete,
+          isError,
           errorMessage:
-            errorEvent?.message ||
-            (isTerminal && container.lifecycle === "error"
-              ? "Container creation failed"
+            errorMessage ||
+            (isError
+              ? (creationJob?.errorMessage ?? "Container creation failed")
               : null),
-          // Script tracking
           scriptNames: snapshotScriptNames,
           scriptTotal: snapshotScriptTotal,
           completedScripts:
@@ -204,8 +198,7 @@ export async function GET(
         }),
       );
 
-      // Replay buffered log/step events from the Redis ring buffer so the
-      // client sees the full history on refresh without needing live Pub/Sub.
+      // Replay buffered log/step events from the Redis ring buffer
       for (const raw of bufferedLogs) {
         send("progress", raw);
       }
