@@ -29,18 +29,22 @@ import {
   decryptServiceCredentials,
 } from "@/lib/containers/discovery";
 import {
-  listActiveCreations,
   getCreationJob,
   toContainerId,
   parseContainerId,
 } from "@/lib/containers/redis-state";
 import { getLogBufferKey } from "@/lib/constants/infrastructure";
+import { PROXMOX_NODE_TIMEOUT_MS } from "@/lib/constants/timeouts";
 
 // ============================================================================
 // Types
 // ============================================================================
 
-/** Resolved container status combining Proxmox live status + Redis creation state */
+/**
+ * Resolved container status.
+ * Dashboard only shows: running | stopped | error | unknown (from Proxmox).
+ * Detail page may also return "creating" (from Redis creation state, redirects to progress page).
+ */
 export type ContainerStatus =
   | "running"
   | "stopped"
@@ -92,10 +96,11 @@ export interface ContainersPageData {
     total: number;
     running: number;
     stopped: number;
-    creating: number;
     error: number;
   };
   proxmoxReachable: boolean;
+  /** Names of nodes that failed to respond within timeout */
+  failedNodes: string[];
 }
 
 /** Container detail page data */
@@ -120,14 +125,16 @@ export interface ContainerDetailData {
 // ============================================================================
 
 /**
- * Fetch all containers with merged Proxmox live status + Redis creation state.
+ * Fetch all containers from Proxmox API with cached services from Redis.
  * Used by the dashboard page.
  *
  * Strategy:
- * 1. Fetch containers from Proxmox API (all user nodes in parallel)
+ * 1. Fetch containers from Proxmox API (all user nodes in parallel, ~5s timeout per node)
  * 2. Merge cached services from Redis
- * 3. Merge in-progress creations from Redis that aren't yet visible in Proxmox
- * 4. Compute counts from the merged list
+ * 3. Compute counts from the container list
+ * 4. Track failed nodes for error banner display
+ *
+ * No in-progress creations — progress page is the single place to watch creation.
  *
  * @param userId - The authenticated user's ID, used to resolve Proxmox nodes from DB
  */
@@ -135,6 +142,7 @@ export async function getContainersWithStatus(
   userId: string,
 ): Promise<ContainersPageData> {
   let proxmoxReachable = true;
+  const failedNodes: string[] = [];
 
   // Collect Proxmox containers with their node info
   type PveContainerWithNode = {
@@ -160,12 +168,21 @@ export async function getContainersWithStatus(
     if (userNodes.length === 0) {
       proxmoxReachable = false;
     } else {
-      // Fetch container list from each node in parallel
+      // Fetch container list from each node in parallel with per-node timeout
       const perNode = await Promise.all(
         userNodes.map(async (dbNode) => {
           try {
             const client = await createSessionClient(dbNode);
-            const containers = await listContainers(client, dbNode.name);
+            // Race against timeout — skip unresponsive nodes
+            const containers = await Promise.race([
+              listContainers(client, dbNode.name),
+              new Promise<never>((_, reject) =>
+                setTimeout(
+                  () => reject(new Error(`Node ${dbNode.name} timed out`)),
+                  PROXMOX_NODE_TIMEOUT_MS,
+                ),
+              ),
+            ]);
             return containers.map((c) => ({
               vmid: c.vmid,
               status: c.status as "running" | "stopped" | "mounted" | "paused",
@@ -186,6 +203,7 @@ export async function getContainersWithStatus(
             }));
           } catch (error) {
             console.error(`Node ${dbNode.name} container list failed:`, error);
+            failedNodes.push(dbNode.name);
             return [];
           }
         }),
@@ -193,6 +211,11 @@ export async function getContainersWithStatus(
 
       for (const nodeContainers of perNode) {
         pveContainers.push(...nodeContainers);
+      }
+
+      // All nodes failed = Proxmox unreachable
+      if (failedNodes.length === userNodes.length) {
+        proxmoxReachable = false;
       }
     }
   } catch (error) {
@@ -229,14 +252,6 @@ export async function getContainersWithStatus(
       }
     });
     await Promise.all(cachePromises);
-  } catch {
-    // Redis failure is non-fatal
-  }
-
-  // Fetch Redis creation state for in-progress containers
-  let activeCreations: Awaited<ReturnType<typeof listActiveCreations>> = [];
-  try {
-    activeCreations = await listActiveCreations(redis);
   } catch {
     // Redis failure is non-fatal
   }
@@ -281,32 +296,14 @@ export async function getContainersWithStatus(
     };
   });
 
-  // Add Redis creation state containers not yet visible in Proxmox
-  const pveKeys = new Set(
-    pveContainers.map((p) => toContainerId(p.node.name, p.vmid)),
-  );
-  for (const creation of activeCreations) {
-    if (!pveKeys.has(toContainerId(creation.nodeName, creation.vmid))) {
-      containers.push({
-        vmid: creation.vmid,
-        hostname: creation.hostname,
-        node: { name: creation.nodeName, id: creation.nodeId },
-        template: null,
-        status: creation.lifecycle as ContainerStatus, // "creating" or "error"
-        resources: null,
-      });
-    }
-  }
-
   // Sort by VMID for stable ordering
   containers.sort((a, b) => a.vmid - b.vmid);
 
-  // Compute counts from the merged list
+  // Compute counts from Proxmox container list
   const counts = {
     total: containers.length,
     running: containers.filter((c) => c.status === "running").length,
     stopped: containers.filter((c) => c.status === "stopped").length,
-    creating: containers.filter((c) => c.status === "creating").length,
     error: containers.filter((c) => c.status === "error").length,
   };
 
@@ -314,6 +311,7 @@ export async function getContainersWithStatus(
     containers,
     counts,
     proxmoxReachable,
+    failedNodes,
   };
 }
 

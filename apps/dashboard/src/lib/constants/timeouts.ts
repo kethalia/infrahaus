@@ -72,3 +72,10 @@ export const CONTAINER_FILESYSTEM_CHECK_DELAY_MS = 1000;
 
 /** Redis retry delay multiplier (ms per attempt) */
 export const REDIS_RETRY_DELAY_MULTIPLIER_MS = 50;
+
+// ============================================================================
+// Proxmox Node Fetch
+// ============================================================================
+
+/** Per-node timeout for Proxmox container list fetches (ms) */
+export const PROXMOX_NODE_TIMEOUT_MS = 5_000;
