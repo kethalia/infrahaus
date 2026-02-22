@@ -3,8 +3,8 @@ import { prisma } from "./setup";
 import { encrypt } from "../src/lib/encryption";
 
 describe("Database Schema Relations", () => {
-  describe("ProxmoxNode → Container relation", () => {
-    it("should create a ProxmoxNode with containers", async () => {
+  describe("ProxmoxNode", () => {
+    it("should create a ProxmoxNode with required fields", async () => {
       const node = await prisma.proxmoxNode.create({
         data: {
           name: "pve-node-1",
@@ -13,29 +13,46 @@ describe("Database Schema Relations", () => {
           tokenId: "test@pam!token",
           tokenSecret: encrypt("test-secret"),
           fingerprint: "AA:BB:CC:DD:EE:FF",
-          containers: {
-            create: [
-              {
-                vmid: 100,
-                lifecycle: "ready",
-                rootPassword: encrypt("password123"),
-              },
-              {
-                vmid: 101,
-                lifecycle: "ready",
-                rootPassword: encrypt("password456"),
-              },
-            ],
-          },
-        },
-        include: {
-          containers: true,
+          userId: "root@pam",
         },
       });
 
-      expect(node.containers).toHaveLength(2);
-      expect(node.containers[0].vmid).toBe(100);
-      expect(node.containers[1].vmid).toBe(101);
+      expect(node.name).toBe("pve-node-1");
+      expect(node.host).toBe("192.168.1.100");
+      expect(node.port).toBe(8006);
+      expect(node.userId).toBe("root@pam");
+      expect(node.isDefault).toBe(false);
+    });
+
+    it("should enforce compound unique constraint (userId, name)", async () => {
+      await prisma.proxmoxNode.create({
+        data: {
+          name: "unique-node",
+          host: "192.168.1.60",
+          userId: "root@pam",
+        },
+      });
+
+      // Same userId + name should fail
+      await expect(
+        prisma.proxmoxNode.create({
+          data: {
+            name: "unique-node",
+            host: "192.168.1.61",
+            userId: "root@pam",
+          },
+        }),
+      ).rejects.toThrow();
+
+      // Different userId + same name should succeed
+      const node2 = await prisma.proxmoxNode.create({
+        data: {
+          name: "unique-node",
+          host: "192.168.1.62",
+          userId: "admin@pve",
+        },
+      });
+      expect(node2.name).toBe("unique-node");
     });
   });
 
@@ -136,7 +153,6 @@ describe("Database Schema Relations", () => {
         },
       });
 
-      // Verify they exist
       const scriptsBefore = await prisma.templateScript.count({
         where: { templateId: template.id },
       });
@@ -151,12 +167,10 @@ describe("Database Schema Relations", () => {
       expect(filesBefore).toBe(1);
       expect(packagesBefore).toBe(1);
 
-      // Delete template
       await prisma.template.delete({
         where: { id: template.id },
       });
 
-      // Verify cascading delete
       const scriptsAfter = await prisma.templateScript.count({
         where: { templateId: template.id },
       });
@@ -225,285 +239,7 @@ describe("Database Schema Relations", () => {
     });
   });
 
-  describe("Container → Services & Events relations", () => {
-    it("should create container with services and events", async () => {
-      const node = await prisma.proxmoxNode.create({
-        data: {
-          name: "test-node",
-          host: "192.168.1.10",
-          tokenId: "token",
-          tokenSecret: encrypt("secret"),
-        },
-      });
-
-      const container = await prisma.container.create({
-        data: {
-          vmid: 200,
-          lifecycle: "ready",
-          rootPassword: encrypt("root123"),
-          nodeId: node.id,
-          services: {
-            create: [
-              {
-                name: "nginx",
-                type: "systemd",
-                port: 80,
-                status: "running",
-                webUrl: "http://192.168.1.200",
-              },
-              {
-                name: "postgres",
-                type: "docker",
-                port: 5432,
-                status: "running",
-                credentials: JSON.stringify({
-                  user: "admin",
-                  password: "secret",
-                }),
-              },
-            ],
-          },
-          events: {
-            create: [
-              {
-                type: "created",
-                message: "Container created successfully",
-              },
-              {
-                type: "started",
-                message: "Container started",
-              },
-              {
-                type: "service_ready",
-                message: "Nginx service is ready",
-                metadata: JSON.stringify({ service: "nginx", port: 80 }),
-              },
-            ],
-          },
-        },
-        include: {
-          services: true,
-          events: true,
-        },
-      });
-
-      expect(container.services).toHaveLength(2);
-      expect(container.events).toHaveLength(3);
-      expect(container.services[0].type).toBe("systemd");
-      expect(container.events[0].type).toBe("created");
-    });
-
-    it("should cascade delete services and events when container is deleted", async () => {
-      const node = await prisma.proxmoxNode.create({
-        data: {
-          name: "delete-test-node",
-          host: "192.168.1.20",
-          tokenId: "token",
-          tokenSecret: encrypt("secret"),
-        },
-      });
-
-      const container = await prisma.container.create({
-        data: {
-          vmid: 300,
-          lifecycle: "creating",
-          rootPassword: encrypt("pass"),
-          nodeId: node.id,
-          services: {
-            create: [
-              {
-                name: "service1",
-                type: "systemd",
-                status: "installing",
-              },
-            ],
-          },
-          events: {
-            create: [
-              {
-                type: "created",
-                message: "Container creation started",
-              },
-            ],
-          },
-        },
-      });
-
-      const servicesBefore = await prisma.containerService.count({
-        where: { containerId: container.id },
-      });
-      const eventsBefore = await prisma.containerEvent.count({
-        where: { containerId: container.id },
-      });
-
-      expect(servicesBefore).toBe(1);
-      expect(eventsBefore).toBe(1);
-
-      // Delete container
-      await prisma.container.delete({
-        where: { id: container.id },
-      });
-
-      const servicesAfter = await prisma.containerService.count({
-        where: { containerId: container.id },
-      });
-      const eventsAfter = await prisma.containerEvent.count({
-        where: { containerId: container.id },
-      });
-
-      expect(servicesAfter).toBe(0);
-      expect(eventsAfter).toBe(0);
-    });
-  });
-
-  describe("Indexes", () => {
-    it("should efficiently query by vmid (indexed)", async () => {
-      const node = await prisma.proxmoxNode.create({
-        data: {
-          name: "index-test-node",
-          host: "192.168.1.30",
-          tokenId: "token",
-          tokenSecret: encrypt("secret"),
-        },
-      });
-
-      await prisma.container.createMany({
-        data: Array.from({ length: 10 }, (_, i) => ({
-          vmid: 1000 + i,
-          lifecycle: "ready",
-          rootPassword: encrypt("pass"),
-          nodeId: node.id,
-        })),
-      });
-
-      // Query by vmid (should use index)
-      const container = await prisma.container.findUnique({
-        where: { vmid: 1005 },
-      });
-
-      expect(container).toBeTruthy();
-      expect(container?.vmid).toBe(1005);
-    });
-
-    it("should efficiently query by lifecycle (indexed)", async () => {
-      const node = await prisma.proxmoxNode.create({
-        data: {
-          name: "lifecycle-test-node",
-          host: "192.168.1.40",
-          tokenId: "token",
-          tokenSecret: encrypt("secret"),
-        },
-      });
-
-      await prisma.container.createMany({
-        data: [
-          {
-            vmid: 2000,
-            lifecycle: "ready",
-            rootPassword: encrypt("pass"),
-            nodeId: node.id,
-          },
-          {
-            vmid: 2001,
-            lifecycle: "ready",
-            rootPassword: encrypt("pass"),
-            nodeId: node.id,
-          },
-          {
-            vmid: 2002,
-            lifecycle: "creating",
-            rootPassword: encrypt("pass"),
-            nodeId: node.id,
-          },
-        ],
-      });
-
-      // Query by lifecycle (should use index)
-      const readyContainers = await prisma.container.findMany({
-        where: { lifecycle: "ready" },
-      });
-
-      expect(readyContainers).toHaveLength(2);
-    });
-
-    it("should efficiently query container events by containerId and createdAt (compound index)", async () => {
-      const node = await prisma.proxmoxNode.create({
-        data: {
-          name: "event-test-node",
-          host: "192.168.1.50",
-          tokenId: "token",
-          tokenSecret: encrypt("secret"),
-        },
-      });
-
-      const container = await prisma.container.create({
-        data: {
-          vmid: 3000,
-          lifecycle: "ready",
-          rootPassword: encrypt("pass"),
-          nodeId: node.id,
-        },
-      });
-
-      // Create events with different timestamps
-      await prisma.containerEvent.createMany({
-        data: [
-          {
-            containerId: container.id,
-            type: "created",
-            message: "Event 1",
-            createdAt: new Date("2026-01-01T10:00:00Z"),
-          },
-          {
-            containerId: container.id,
-            type: "started",
-            message: "Event 2",
-            createdAt: new Date("2026-01-01T11:00:00Z"),
-          },
-          {
-            containerId: container.id,
-            type: "service_ready",
-            message: "Event 3",
-            createdAt: new Date("2026-01-01T12:00:00Z"),
-          },
-        ],
-      });
-
-      // Query events ordered by createdAt (should use compound index)
-      const events = await prisma.containerEvent.findMany({
-        where: { containerId: container.id },
-        orderBy: { createdAt: "desc" },
-      });
-
-      expect(events).toHaveLength(3);
-      expect(events[0].message).toBe("Event 3"); // Most recent
-      expect(events[2].message).toBe("Event 1"); // Oldest
-    });
-  });
-
   describe("Unique constraints", () => {
-    it("should enforce unique ProxmoxNode name", async () => {
-      await prisma.proxmoxNode.create({
-        data: {
-          name: "unique-node",
-          host: "192.168.1.60",
-          tokenId: "token",
-          tokenSecret: encrypt("secret"),
-        },
-      });
-
-      await expect(
-        prisma.proxmoxNode.create({
-          data: {
-            name: "unique-node", // Duplicate name
-            host: "192.168.1.61",
-            tokenId: "token2",
-            tokenSecret: encrypt("secret2"),
-          },
-        }),
-      ).rejects.toThrow();
-    });
-
     it("should enforce unique Template name", async () => {
       await prisma.template.create({
         data: {
@@ -515,39 +251,8 @@ describe("Database Schema Relations", () => {
       await expect(
         prisma.template.create({
           data: {
-            name: "unique-template", // Duplicate name
+            name: "unique-template",
             description: "Second template",
-          },
-        }),
-      ).rejects.toThrow();
-    });
-
-    it("should enforce unique Container vmid", async () => {
-      const node = await prisma.proxmoxNode.create({
-        data: {
-          name: "vmid-test-node",
-          host: "192.168.1.70",
-          tokenId: "token",
-          tokenSecret: encrypt("secret"),
-        },
-      });
-
-      await prisma.container.create({
-        data: {
-          vmid: 4000,
-          lifecycle: "ready",
-          rootPassword: encrypt("pass"),
-          nodeId: node.id,
-        },
-      });
-
-      await expect(
-        prisma.container.create({
-          data: {
-            vmid: 4000, // Duplicate vmid
-            lifecycle: "ready",
-            rootPassword: encrypt("pass"),
-            nodeId: node.id,
           },
         }),
       ).rejects.toThrow();
