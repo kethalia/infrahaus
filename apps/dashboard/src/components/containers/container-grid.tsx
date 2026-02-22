@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ContainerCard } from "./container-card";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import { toContainerId } from "@/lib/containers/redis-state";
 import type {
   ContainerWithStatus,
   ContainerStatus,
@@ -155,14 +156,17 @@ export function ContainerGrid({
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((container) => (
-            <ContainerCard
-              key={container.id}
-              container={container}
-              isActionPending={pendingContainers.has(container.id)}
-              onPendingChange={handlePendingChange}
-            />
-          ))}
+          {filtered.map((container) => {
+            const cid = toContainerId(container.node.name, container.vmid);
+            return (
+              <ContainerCard
+                key={cid}
+                container={container}
+                isActionPending={pendingContainers.has(cid)}
+                onPendingChange={handlePendingChange}
+              />
+            );
+          })}
         </div>
       )}
     </div>

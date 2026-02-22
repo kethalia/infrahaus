@@ -3,28 +3,31 @@
  * Used by the progress page on completion to display services and credentials.
  *
  * Reads from Redis cache (populated by worker or refresh action).
- * Returns { services: [...], containerIp: string | null }
+ * No DB dependency — if cache exists, return it; otherwise empty array.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { DatabaseService } from "@/lib/db";
 import { getRedis } from "@/lib/redis";
 import {
   getCachedServices,
   decryptServiceCredentials,
 } from "@/lib/containers/discovery";
+import { toContainerId } from "@/lib/containers/redis-state";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ node: string; vmid: string }> },
 ) {
-  const { id: containerId } = await params;
-
-  const container = await DatabaseService.getContainerById(containerId);
-  if (!container) {
-    return NextResponse.json({ error: "Container not found" }, { status: 404 });
+  const { node: nodeName, vmid: vmidStr } = await params;
+  const vmid = parseInt(vmidStr, 10);
+  if (!nodeName || isNaN(vmid)) {
+    return NextResponse.json(
+      { error: "Invalid container ID" },
+      { status: 400 },
+    );
   }
 
+  const containerId = toContainerId(nodeName, vmid);
   const redis = getRedis();
   const cache = await getCachedServices(redis, containerId);
 

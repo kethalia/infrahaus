@@ -44,6 +44,8 @@ import { serviceStatusConfig } from "@/lib/constants/display";
 
 interface ServicesTabProps {
   containerId: string;
+  nodeName: string;
+  vmid: number;
   services: ServiceWithCredentials[];
   status: ContainerStatus;
   containerIp?: string | null;
@@ -55,6 +57,8 @@ interface ServicesTabProps {
 
 export function ServicesTab({
   containerId,
+  nodeName,
+  vmid,
   services,
   status,
   containerIp,
@@ -130,7 +134,8 @@ export function ServicesTab({
                 {appServices.map((service) => (
                   <ServiceCard
                     key={service.name}
-                    containerId={containerId}
+                    nodeName={nodeName}
+                    vmid={vmid}
                     service={service}
                     containerIp={containerIp}
                   />
@@ -159,7 +164,8 @@ export function ServicesTab({
                     {systemServices.map((service) => (
                       <ServiceCard
                         key={service.name}
-                        containerId={containerId}
+                        nodeName={nodeName}
+                        vmid={vmid}
                         service={service}
                         containerIp={containerIp}
                       />
@@ -180,11 +186,13 @@ export function ServicesTab({
 // ============================================================================
 
 function ServiceCard({
-  containerId,
+  nodeName,
+  vmid,
   service,
   containerIp,
 }: {
-  containerId: string;
+  nodeName: string;
+  vmid: number;
   service: ServiceWithCredentials;
   containerIp?: string | null;
 }) {
@@ -223,7 +231,7 @@ function ServiceCard({
     setLogsError(null);
     try {
       const res = await fetch(
-        `/api/containers/${containerId}/services/logs?service=${encodeURIComponent(service.name)}&lines=50`,
+        `/api/containers/${nodeName}/${vmid}/services/logs?service=${encodeURIComponent(service.name)}&lines=50`,
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -236,7 +244,7 @@ function ServiceCard({
     } finally {
       setLogsLoading(false);
     }
-  }, [containerId, service.name]);
+  }, [nodeName, vmid, service.name]);
 
   function handleToggleLogs() {
     if (!showLogs) {

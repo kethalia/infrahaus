@@ -9,15 +9,18 @@ import { ContainerHeader } from "@/components/containers/detail/container-header
 import { OverviewTab } from "@/components/containers/detail/overview-tab";
 import { ServicesTab } from "@/components/containers/detail/services-tab";
 import { EventsTab } from "@/components/containers/detail/events-tab";
+import { toContainerId } from "@/lib/containers/redis-state";
 import type { ContainerDetailData } from "@/lib/containers/data";
 
 interface ContainerDetailProps {
   container: ContainerDetailData["container"];
+  events: ContainerDetailData["events"];
   proxmoxReachable: boolean;
 }
 
 export function ContainerDetail({
   container,
+  events,
   proxmoxReachable,
 }: ContainerDetailProps) {
   const { countdown, isPaused, refreshNow, isRefreshing } = useAutoRefresh({
@@ -28,7 +31,7 @@ export function ContainerDetail({
     <div className="space-y-6">
       {/* Header with lifecycle actions */}
       <ContainerHeader
-        containerId={container.id}
+        containerId={toContainerId(container.node.name, container.vmid)}
         hostname={container.hostname}
         vmid={container.vmid}
         status={container.status}
@@ -73,17 +76,17 @@ export function ContainerDetail({
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="services">
             Services
-            {container.services.length > 0 && (
+            {(container.services?.length ?? 0) > 0 && (
               <span className="bg-muted ml-1.5 rounded-full px-1.5 py-0.5 text-xs">
-                {container.services.length}
+                {container.services?.length ?? 0}
               </span>
             )}
           </TabsTrigger>
           <TabsTrigger value="events">
             Events
-            {container.allEvents.length > 0 && (
+            {events.length > 0 && (
               <span className="bg-muted ml-1.5 rounded-full px-1.5 py-0.5 text-xs">
-                {container.allEvents.length}
+                {events.length}
               </span>
             )}
           </TabsTrigger>
@@ -95,7 +98,9 @@ export function ContainerDetail({
 
         <TabsContent value="services">
           <ServicesTab
-            containerId={container.id}
+            containerId={toContainerId(container.node.name, container.vmid)}
+            nodeName={container.node.name}
+            vmid={container.vmid}
             services={container.servicesWithCredentials}
             status={container.status}
             containerIp={container.containerIp}
@@ -103,7 +108,7 @@ export function ContainerDetail({
         </TabsContent>
 
         <TabsContent value="events">
-          <EventsTab events={container.allEvents} />
+          <EventsTab events={events} />
         </TabsContent>
       </Tabs>
     </div>

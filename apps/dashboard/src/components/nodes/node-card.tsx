@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2, Star } from "lucide-react";
+import { Pencil, Trash2, Star, Loader2, WifiOff } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { toast } from "sonner";
 
@@ -29,10 +29,18 @@ import {
 import { NodeFormDialog } from "./node-form-dialog";
 
 interface NodeCardProps {
-  node: ProxmoxNode & { _count: { containers: number } };
+  node: ProxmoxNode;
+  /** Live container count from Proxmox. undefined = not loaded yet, -1 = error */
+  containerCount?: number;
+  /** Whether container count is still loading */
+  containerCountLoading?: boolean;
 }
 
-export function NodeCard({ node }: NodeCardProps) {
+export function NodeCard({
+  node,
+  containerCount,
+  containerCountLoading,
+}: NodeCardProps) {
   const { execute: executeDelete, isPending: isDeleting } = useAction(
     deleteNodeAction,
     {
@@ -73,8 +81,21 @@ export function NodeCard({ node }: NodeCardProps) {
             </p>
           </div>
           <Badge variant="outline">
-            {node._count.containers} container
-            {node._count.containers !== 1 ? "s" : ""}
+            {containerCountLoading ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : containerCount === undefined ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : containerCount === -1 ? (
+              <span className="flex items-center gap-1">
+                <WifiOff className="size-3" />
+                Unreachable
+              </span>
+            ) : (
+              <>
+                {containerCount} container
+                {containerCount !== 1 ? "s" : ""}
+              </>
+            )}
           </Badge>
         </div>
       </CardHeader>
@@ -130,15 +151,15 @@ export function NodeCard({ node }: NodeCardProps) {
               <AlertDialogTitle>Delete node</AlertDialogTitle>
               <AlertDialogDescription>
                 Delete node &ldquo;{node.name}&rdquo; ({node.host}:{node.port})?
-                {node._count.containers > 0 && (
+                {containerCount !== undefined && containerCount > 0 && (
                   <>
                     {" "}
-                    This node has {node._count.containers} container
-                    {node._count.containers !== 1 ? "s" : ""}. Remove them
-                    first.
+                    This node has {containerCount} container
+                    {containerCount !== 1 ? "s" : ""}. Remove them first.
                   </>
                 )}
-                {node._count.containers === 0 && " This cannot be undone."}
+                {(containerCount === undefined || containerCount <= 0) &&
+                  " This cannot be undone."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -24,13 +24,9 @@ export default async function DashboardPage() {
     ? await getContainersWithStatus(session.username)
     : {
         containers: [],
-        counts: { total: 0, creating: 0, ready: 0, error: 0 },
+        counts: { total: 0, running: 0, stopped: 0, creating: 0, error: 0 },
         proxmoxReachable: false,
       };
-
-  // Compute live running/stopped counts from merged Proxmox data
-  const running = containers.filter((c) => c.status === "running").length;
-  const stopped = containers.filter((c) => c.status === "stopped").length;
 
   // Extract unique node names for filtering
   const nodeNames = [...new Set(containers.map((c) => c.node.name))];
@@ -56,7 +52,11 @@ export default async function DashboardPage() {
 
       {hasNodes && (
         <>
-          <SummaryBar counts={counts} running={running} stopped={stopped} />
+          <SummaryBar
+            counts={counts}
+            running={counts.running}
+            stopped={counts.stopped}
+          />
 
           <ContainerGrid
             containers={containers}

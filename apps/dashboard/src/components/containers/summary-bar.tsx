@@ -1,6 +1,5 @@
 import { Box, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import type { ContainerCounts } from "@/lib/db";
 
 const stats = [
   {
@@ -33,17 +32,14 @@ const stats = [
   },
 ];
 
-/**
- * Compute running/stopped counts from total + creating + error.
- * The DB stores lifecycle (creating/ready/error) — "running" and "stopped"
- * are Proxmox runtime states within "ready" containers. We compute:
- *  stopped = total - creating - ready - error  (approximate; mostly ready - running)
- *  running = ready - stopped
- * But since we don't have live counts here, we show the DB counts
- * and let the caller pass actual running/stopped counts from Proxmox data.
- */
 interface SummaryBarWithProxmoxProps {
-  counts: ContainerCounts;
+  counts: {
+    total: number;
+    running: number;
+    stopped: number;
+    creating: number;
+    error: number;
+  };
   /** Live running count from Proxmox status merge */
   running: number;
   /** Live stopped count from Proxmox status merge */

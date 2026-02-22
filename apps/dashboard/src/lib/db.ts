@@ -190,18 +190,6 @@ export class DatabaseService {
   }
 
   /**
-   * List all nodes for a user with container counts.
-   * Used by the settings page to show how many containers each node has.
-   */
-  static async getUserNodesWithContainerCount(userId: string) {
-    return this.prisma.proxmoxNode.findMany({
-      where: { userId },
-      include: { _count: { select: { containers: true } } },
-      orderBy: { createdAt: "asc" },
-    });
-  }
-
-  /**
    * Set a node as the default for a user.
    * Uses a transaction to unset all other defaults first.
    */

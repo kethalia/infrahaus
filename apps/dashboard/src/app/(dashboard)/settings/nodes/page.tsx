@@ -4,7 +4,7 @@ import { Server } from "lucide-react";
 import { getSessionData } from "@/lib/session";
 import { DatabaseService } from "@/lib/db";
 import { Button } from "@/components/ui/button";
-import { NodeCard } from "@/components/nodes/node-card";
+import { NodeCardList } from "@/components/nodes/node-card-list";
 import { NodeFormDialog } from "@/components/nodes/node-form-dialog";
 import { NoNodesBanner } from "@/components/nodes/no-nodes-banner";
 
@@ -14,9 +14,7 @@ export default async function NodesSettingsPage() {
   const session = await getSessionData();
   if (!session) redirect("/login");
 
-  const nodes = await DatabaseService.getUserNodesWithContainerCount(
-    session.username,
-  );
+  const nodes = await DatabaseService.listNodesForUser(session.username);
 
   return (
     <div className="flex flex-1 flex-col gap-6">
@@ -56,11 +54,7 @@ export default async function NodesSettingsPage() {
           />
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {nodes.map((node) => (
-            <NodeCard key={node.id} node={node} />
-          ))}
-        </div>
+        <NodeCardList nodes={nodes} />
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 /**
  * API route to fetch on-demand journalctl logs for a specific service.
  *
- * GET /api/containers/[id]/services/logs?service=<name>&lines=50
+ * GET /api/containers/[node]/[vmid]/services/logs?service=<name>&lines=50
  *
  * Connects to the Proxmox host via SSH (using DB-stored node credentials)
  * and runs `pct exec <vmid> -- journalctl` to fetch recent log lines.
@@ -20,7 +20,7 @@ const DEFAULT_LOG_LINES = 50;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ node: string; vmid: string }> },
 ) {
   // Auth check — require valid session
   const session = await getSessionData();
@@ -31,7 +31,15 @@ export async function GET(
     );
   }
 
-  const { id: containerId } = await params;
+  const { node: nodeName, vmid: vmidStr } = await params;
+  const vmid = parseInt(vmidStr, 10);
+  if (!nodeName || isNaN(vmid)) {
+    return NextResponse.json(
+      { error: "Invalid container ID" },
+      { status: 400 },
+    );
+  }
+
   const { searchParams } = request.nextUrl;
 
   const serviceName = searchParams.get("service");
@@ -60,17 +68,18 @@ export async function GET(
     );
   }
 
-  const container = await DatabaseService.getContainerById(containerId);
-  if (!container) {
-    return NextResponse.json({ error: "Container not found" }, { status: 404 });
+  // Resolve node from DB by name + userId
+  const userNodes = await DatabaseService.listNodesForUser(session.username);
+  const dbNode = userNodes.find((n) => n.name === nodeName);
+  if (!dbNode) {
+    return NextResponse.json({ error: "Node not found" }, { status: 404 });
   }
 
-  // Resolve SSH credentials from the container's node record
-  const { node } = container;
-  if (!node.sshPassword) {
+  // Resolve SSH credentials from the node record
+  if (!dbNode.sshPassword) {
     return NextResponse.json(
       {
-        error: `SSH not configured for node "${node.name}". Update node settings to add an SSH password.`,
+        error: `SSH not configured for node "${dbNode.name}". Update node settings to add an SSH password.`,
       },
       { status: 500 },
     );
@@ -79,9 +88,9 @@ export async function GET(
   let sshHost;
   try {
     sshHost = await connectWithRetry({
-      host: node.host,
+      host: dbNode.host,
       username: "root",
-      password: decrypt(node.sshPassword),
+      password: decrypt(dbNode.sshPassword),
     });
   } catch {
     return NextResponse.json(
@@ -91,7 +100,7 @@ export async function GET(
   }
 
   try {
-    const pct = new PctExecSession(sshHost, container.vmid);
+    const pct = new PctExecSession(sshHost, vmid);
 
     // Append .service if not already present for systemd unit matching
     const unit = serviceName.endsWith(".service")
@@ -105,7 +114,7 @@ export async function GET(
     const logLines = result.stdout
       .trim()
       .split("\n")
-      .filter((line) => line.trim());
+      .filter((line: string) => line.trim());
 
     return NextResponse.json({ logs: logLines, service: serviceName });
   } catch {

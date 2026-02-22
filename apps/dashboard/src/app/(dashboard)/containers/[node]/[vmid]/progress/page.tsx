@@ -50,9 +50,9 @@ interface ContainerServiceInfo {
 // ============================================================================
 
 export default function ContainerProgressPage() {
-  const params = useParams<{ id: string }>();
+  const params = useParams<{ node: string; vmid: string }>();
   const router = useRouter();
-  const containerId = params.id;
+  const vmid = parseInt(params.vmid, 10);
 
   const {
     status,
@@ -63,7 +63,7 @@ export default function ContainerProgressPage() {
     steps,
     logs,
     scripts,
-  } = useContainerProgress(containerId);
+  } = useContainerProgress(params.node, vmid);
 
   const [services, setServices] = useState<ContainerServiceInfo[]>([]);
   const [containerIp, setContainerIp] = useState<string | null>(null);
@@ -76,7 +76,9 @@ export default function ContainerProgressPage() {
   const fetchServices = useCallback(async () => {
     setLoadingServices(true);
     try {
-      const res = await fetch(`/api/containers/${containerId}/services`);
+      const res = await fetch(
+        `/api/containers/${params.node}/${params.vmid}/services`,
+      );
       if (res.ok) {
         const data = (await res.json()) as {
           services: ContainerServiceInfo[];
@@ -90,7 +92,7 @@ export default function ContainerProgressPage() {
     } finally {
       setLoadingServices(false);
     }
-  }, [containerId]);
+  }, [params.node, params.vmid]);
 
   useEffect(() => {
     if (isComplete) {
@@ -197,7 +199,11 @@ export default function ContainerProgressPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3 pt-2">
-              <Button onClick={() => router.push(`/containers/${containerId}`)}>
+              <Button
+                onClick={() =>
+                  router.push(`/containers/${params.node}/${params.vmid}`)
+                }
+              >
                 View Container
               </Button>
               <Button

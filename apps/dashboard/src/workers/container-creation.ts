@@ -20,12 +20,11 @@ import {
   type ContainerProgressEvent,
   getProgressChannel,
 } from "../lib/queue/container-creation";
+import { DatabaseService, prisma } from "../lib/db";
 import {
-  DatabaseService,
-  ContainerLifecycle,
-  EventType,
-  prisma,
-} from "../lib/db";
+  updateCreationLifecycle,
+  toContainerId,
+} from "../lib/containers/redis-state";
 import { createProxmoxClientFromNode } from "../lib/proxmox";
 import { type ProxmoxClient } from "../lib/proxmox/client";
 import { createContainer, startContainer } from "../lib/proxmox/containers";
@@ -67,12 +66,11 @@ const publisher = new Redis(process.env.REDIS_URL!);
 // ============================================================================
 
 /**
- * Publish a progress event to Redis Pub/Sub and persist to DB.
- * Log events are buffered in a Redis ring buffer (replay on page refresh).
- * Step, complete, and error events are also persisted to DB for audit.
+ * Publish a progress event to Redis Pub/Sub and buffer in Redis ring buffer.
+ * No DB writes — all event persistence uses Redis only.
  */
 async function publishProgress(
-  containerId: string,
+  containerKey: string,
   event: Omit<ContainerProgressEvent, "timestamp">,
 ): Promise<void> {
   const fullEvent: ContainerProgressEvent = {
@@ -82,51 +80,17 @@ async function publishProgress(
   const serialized = JSON.stringify(fullEvent);
 
   // Publish to Redis Pub/Sub for real-time SSE subscribers
-  await publisher.publish(getProgressChannel(containerId), serialized);
+  await publisher.publish(getProgressChannel(containerKey), serialized);
 
   // Push ALL events (including logs) to the ring buffer so they can be
   // replayed when the progress page is refreshed.
-  const logKey = getLogBufferKey(containerId);
+  const logKey = getLogBufferKey(containerKey);
   await publisher
     .pipeline()
     .rpush(logKey, serialized)
     .ltrim(logKey, -CONTAINER_LOG_BUFFER_MAX, -1) // keep last N entries
     .expire(logKey, CONTAINER_LOG_BUFFER_TTL_S)
     .exec();
-
-  // Only persist step, complete, and error events to DB (skip log events)
-  if (event.type !== "log") {
-    // Map progress event type + step to the appropriate DB EventType
-    const stepToEventType: Record<string, EventType> = {
-      creating: EventType.created,
-      starting: EventType.started,
-      deploying: EventType.service_ready,
-      syncing: EventType.script_completed,
-      finalizing: EventType.service_ready,
-    };
-
-    const dbEventType =
-      event.type === "complete"
-        ? EventType.created
-        : event.type === "error"
-          ? EventType.error
-          : (event.step && stepToEventType[event.step]) ||
-            EventType.script_completed;
-
-    await DatabaseService.createContainerEvent({
-      containerId,
-      type: dbEventType,
-      message: event.message,
-      metadata: JSON.stringify({
-        step: event.step,
-        percent: event.percent,
-        ...(event.scriptName && { scriptName: event.scriptName }),
-        ...(event.scriptIndex != null && { scriptIndex: event.scriptIndex }),
-        ...(event.scriptTotal != null && { scriptTotal: event.scriptTotal }),
-        ...(event.scriptNames && { scriptNames: event.scriptNames }),
-      }),
-    });
-  }
 }
 
 // ============================================================================
@@ -214,7 +178,6 @@ async function processContainerCreation(
   job: Job<ContainerJobData, ContainerJobResult>,
 ): Promise<ContainerJobResult> {
   const {
-    containerId,
     nodeName,
     templateId,
     config,
@@ -222,6 +185,7 @@ async function processContainerCreation(
     additionalPackages,
     scripts: scriptSelections,
   } = job.data;
+  const containerKey = toContainerId(nodeName, config.vmid); // Compound key for Redis channels, log buffer, services
   let ssh: SSHSession | PctExecSession | null = null;
 
   try {
@@ -240,7 +204,7 @@ async function processContainerCreation(
     // Generate a random password for the Proxmox API (not stored anywhere)
     const containerPassword = crypto.randomBytes(16).toString("hex");
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "step",
       step: "creating",
       percent: 5,
@@ -275,7 +239,7 @@ async function processContainerCreation(
       timeout: TASK_TIMEOUT_LONG_MS,
     });
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "step",
       step: "creating",
       percent: 20,
@@ -286,7 +250,7 @@ async function processContainerCreation(
     // Phase 2: Start Container (20-35%)
     // ========================================================================
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "step",
       step: "starting",
       percent: 25,
@@ -300,7 +264,7 @@ async function processContainerCreation(
       timeout: TASK_TIMEOUT_MS,
     });
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "step",
       step: "starting",
       percent: 35,
@@ -314,7 +278,7 @@ async function processContainerCreation(
     // Container IP — resolved later after SSH is connected (needs running container for DHCP).
     let containerIp: string | null = null;
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "step",
       step: "deploying",
       percent: 40,
@@ -336,14 +300,14 @@ async function processContainerCreation(
     });
     ssh = new PctExecSession(hostSsh, config.vmid);
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "log",
       message: `Connected to ${node.host}, using pct exec for CT ${config.vmid}`,
     });
 
     // Wait for container to be fully ready (systemd initialized)
     // pct push fails if /etc/systemd/system/ doesn't exist yet
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "log",
       message: "Waiting for container filesystem to be ready...",
     });
@@ -367,7 +331,7 @@ async function processContainerCreation(
       );
     }
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "log",
       message: "Container filesystem ready",
     });
@@ -381,12 +345,12 @@ async function processContainerCreation(
       config.vmid,
     );
     if (containerIp) {
-      await publishProgress(containerId, {
+      await publishProgress(containerKey, {
         type: "log",
         message: `Container IP: ${containerIp}`,
       });
     } else {
-      await publishProgress(containerId, {
+      await publishProgress(containerKey, {
         type: "log",
         message:
           "Warning: could not determine container IP — service URLs will be unavailable",
@@ -423,14 +387,14 @@ async function processContainerCreation(
           0o644,
         );
 
-        await publishProgress(containerId, {
+        await publishProgress(containerKey, {
           type: "log",
           message: `Deployed file: ${file.targetPath}/${file.name}`,
         });
       }
     }
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "step",
       step: "deploying",
       percent: 60,
@@ -453,7 +417,7 @@ async function processContainerCreation(
         : template.scripts
       : [];
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "step",
       step: "syncing",
       percent: 65,
@@ -471,7 +435,7 @@ async function processContainerCreation(
 
     // Install user-selected packages (from wizard enabledBuckets + additionalPackages)
     if ((enabledBuckets && enabledBuckets.length > 0) || additionalPackages) {
-      await publishProgress(containerId, {
+      await publishProgress(containerKey, {
         type: "log",
         message: "Installing user-selected packages...",
       });
@@ -499,13 +463,13 @@ async function processContainerCreation(
       if (aptPackages.length > 0) {
         const installCmd = `DEBIAN_FRONTEND=noninteractive apt-get update -qq && apt-get install -y -qq ${aptPackages.join(" ")}`;
         const installExit = await ssh.execStreaming(installCmd, (line) => {
-          publishProgress(containerId, {
+          publishProgress(containerKey, {
             type: "log",
             message: line,
           });
         });
         if (installExit !== 0) {
-          await publishProgress(containerId, {
+          await publishProgress(containerKey, {
             type: "log",
             message: `Package installation exited with code ${installExit} (non-fatal)`,
           });
@@ -520,10 +484,10 @@ async function processContainerCreation(
       if (pipPackages.length > 0) {
         const pipCmd = `pip install --quiet ${pipPackages.join(" ")}`;
         const pipExit = await ssh.execStreaming(pipCmd, (line) => {
-          publishProgress(containerId, { type: "log", message: line });
+          publishProgress(containerKey, { type: "log", message: line });
         });
         if (pipExit !== 0) {
-          await publishProgress(containerId, {
+          await publishProgress(containerKey, {
             type: "log",
             message: `pip install exited with code ${pipExit} (non-fatal)`,
           });
@@ -658,7 +622,7 @@ save_credential() {
         const script = enabledScripts[i];
         const scriptPercent = Math.round(65 + (i + 1) * percentPerScript);
 
-        await publishProgress(containerId, {
+        await publishProgress(containerKey, {
           type: "log",
           message: `Running script: ${script.name} (${i + 1}/${scriptCount})`,
           scriptName: script.name,
@@ -675,7 +639,7 @@ save_credential() {
         const exitCode = await ssh.execStreaming(
           `bash -c "source /tmp/script-helpers.sh; source '${scriptPath}'"`,
           (line) => {
-            publishProgress(containerId, {
+            publishProgress(containerKey, {
               type: "log",
               message: line,
               scriptName: script.name,
@@ -692,7 +656,7 @@ save_credential() {
         // Clean up script
         await ssh.exec(`rm -f "${scriptPath}"`);
 
-        await publishProgress(containerId, {
+        await publishProgress(containerKey, {
           type: "step",
           step: "syncing",
           percent: scriptPercent,
@@ -707,7 +671,7 @@ save_credential() {
       await ssh.exec("rm -f /tmp/script-helpers.sh");
     }
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "step",
       step: "syncing",
       percent: 90,
@@ -718,7 +682,7 @@ save_credential() {
     // Phase 5: Service discovery and finalize (90-100%)
     // ========================================================================
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "step",
       step: "finalizing",
       percent: 92,
@@ -728,56 +692,56 @@ save_credential() {
     // Phase 5a: Discover services + cache in Redis
     const cache = await discoverAndCacheServices(
       publisher,
-      containerId,
+      containerKey,
       ssh as PctExecSession,
       containerIp,
     );
 
     for (const svc of cache.services) {
-      await publishProgress(containerId, {
+      await publishProgress(containerKey, {
         type: "log",
         message: `Discovered service: ${svc.name}${svc.port ? ` (port ${svc.port})` : ""}${svc.credentials ? " [credentials]" : ""}`,
       });
     }
 
     // Phase 5b: Finalize
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "step",
       step: "finalizing",
       percent: 98,
       message: "Finalizing container...",
     });
 
-    // Update container lifecycle to ready
-    await DatabaseService.updateContainerLifecycle(
-      containerId,
-      ContainerLifecycle.ready,
-    );
+    // Update container lifecycle to ready in Redis
+    await updateCreationLifecycle(publisher, nodeName, config.vmid, "ready");
 
     // Close SSH session
     ssh.close();
     ssh = null;
 
-    await publishProgress(containerId, {
+    await publishProgress(containerKey, {
       type: "complete",
       percent: 100,
       message: "Container ready!",
     });
 
-    return { success: true, containerId, vmid: config.vmid };
+    return { success: true, vmid: config.vmid };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
     console.error(
-      `Container creation failed for ${containerId}:`,
+      `Container creation failed for ${containerKey}:`,
       errorMessage,
     );
 
-    // Update lifecycle to error
+    // Update lifecycle to error in Redis
     try {
-      await DatabaseService.updateContainerLifecycle(
-        containerId,
-        ContainerLifecycle.error,
+      await updateCreationLifecycle(
+        publisher,
+        nodeName,
+        config.vmid,
+        "error",
+        errorMessage,
       );
     } catch {
       console.error("Failed to update container lifecycle to error");
@@ -785,7 +749,7 @@ save_credential() {
 
     // Publish error event
     try {
-      await publishProgress(containerId, {
+      await publishProgress(containerKey, {
         type: "error",
         message: errorMessage,
       });
@@ -795,7 +759,6 @@ save_credential() {
 
     return {
       success: false,
-      containerId,
       vmid: config.vmid,
       error: errorMessage,
     };

@@ -210,7 +210,7 @@ export function ContainerActions({
             <AlertDialogDescription>
               This will permanently delete{" "}
               <span className="font-semibold">{displayName}</span> (VMID {vmid})
-              from both Proxmox and the database. This action cannot be undone.
+              from Proxmox. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
