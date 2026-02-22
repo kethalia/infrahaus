@@ -32,10 +32,15 @@ export async function GET(
   const cache = await getCachedServices(redis, containerId);
 
   if (!cache) {
-    return NextResponse.json({ services: [], containerIp: null });
+    return NextResponse.json({
+      services: [],
+      containerIp: null,
+      discoveredAt: null,
+    });
   }
 
-  const { services, containerIp } = decryptServiceCredentials(cache);
+  const { services, containerIp, discoveredAt } =
+    decryptServiceCredentials(cache);
 
-  return NextResponse.json({ services, containerIp });
+  return NextResponse.json({ services, containerIp, discoveredAt });
 }

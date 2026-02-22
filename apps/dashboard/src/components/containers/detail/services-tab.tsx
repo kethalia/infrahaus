@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   RefreshCw,
   Globe,
@@ -39,6 +40,21 @@ import { refreshContainerServicesAction } from "@/lib/containers/actions";
 import { serviceStatusConfig } from "@/lib/constants/display";
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/** Format a relative timestamp for "last checked" display */
+function formatLastChecked(isoDate: string): string {
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -49,6 +65,8 @@ interface ServicesTabProps {
   services: ServiceWithCredentials[];
   status: ContainerStatus;
   containerIp?: string | null;
+  /** ISO timestamp of last service discovery, null if no cache exists */
+  discoveredAt: string | null;
 }
 
 // ============================================================================
@@ -62,12 +80,17 @@ export function ServicesTab({
   services,
   status,
   containerIp,
+  discoveredAt,
 }: ServicesTabProps) {
+  const router = useRouter();
+  const [autoFetched, setAutoFetched] = useState(false);
+
   const { execute: executeRefresh, isPending } = useAction(
     refreshContainerServicesAction,
     {
       onSuccess: () => {
         toast.success("Services refreshed");
+        router.refresh(); // Immediately re-fetch server component data
       },
       onError: ({ error }) => {
         toast.error("Failed to refresh services", {
@@ -82,6 +105,14 @@ export function ServicesTab({
   }
 
   const isRunning = status === "running";
+
+  // Auto-fetch on first visit when no cache exists
+  useEffect(() => {
+    if (!discoveredAt && !autoFetched && isRunning && !isPending) {
+      setAutoFetched(true);
+      executeRefresh({ containerId });
+    }
+  }, [discoveredAt, autoFetched, isRunning, isPending, executeRefresh, containerId]);
 
   // Split into application vs system services
   const appServices = services.filter((s) => !s.isSystem);
@@ -101,6 +132,11 @@ export function ServicesTab({
                 ? `${services.length} service${services.length !== 1 ? "s" : ""} discovered`
                 : "No services discovered yet"}
             </CardDescription>
+            {discoveredAt && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Last checked {formatLastChecked(discoveredAt)}
+              </p>
+            )}
           </div>
           <Button
             variant="outline"
@@ -111,7 +147,7 @@ export function ServicesTab({
             <RefreshCw
               className={`size-3.5 ${isPending ? "animate-spin" : ""}`}
             />
-            {isPending ? "Refreshing..." : "Refresh"}
+            {isPending ? "Refreshing..." : "Refresh Services"}
           </Button>
         </div>
       </CardHeader>
@@ -119,12 +155,21 @@ export function ServicesTab({
         {services.length === 0 ? (
           <div className="text-muted-foreground flex flex-col items-center justify-center py-12 text-center">
             <ServerCog className="mb-3 size-8 opacity-30" />
-            <p className="text-sm">No services found</p>
-            <p className="mt-1 text-xs">
-              {isRunning
-                ? 'Click "Refresh" to scan for services.'
-                : "Start the container, then refresh to discover services."}
-            </p>
+            {isPending ? (
+              <>
+                <Loader2 className="mb-2 size-5 animate-spin" />
+                <p className="text-sm">Discovering services...</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm">No services found</p>
+                <p className="mt-1 text-xs">
+                  {isRunning
+                    ? 'Click "Refresh Services" to scan for services.'
+                    : "Start the container, then refresh to discover services."}
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-6">
