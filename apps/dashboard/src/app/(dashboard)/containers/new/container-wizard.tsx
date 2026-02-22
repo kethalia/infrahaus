@@ -157,9 +157,9 @@ export function ContainerWizard({
         })),
       });
 
-      if (result?.data?.containerId) {
+      if (result?.data?.vmid) {
         toast.success("Container creation started!");
-        router.push(`/containers/${result.data.containerId}/progress`);
+        router.push(`/containers/${result.data.vmid}/progress`);
       } else {
         const errorMessage =
           result?.serverError ??

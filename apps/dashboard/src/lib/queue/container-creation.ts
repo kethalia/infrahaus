@@ -14,7 +14,6 @@ import {
 
 /** Data passed to the container creation job */
 export interface ContainerJobData {
-  containerId: string; // Prisma Container ID (cuid)
   nodeId: string; // Prisma ProxmoxNode ID
   nodeName: string; // Proxmox node name (e.g., "pve") for API paths
   templateId: string | null; // Prisma Template ID (null = "From Scratch" mode)
@@ -68,7 +67,6 @@ export interface ContainerProgressEvent {
 /** Result returned by the worker on job completion */
 export interface ContainerJobResult {
   success: boolean;
-  containerId: string;
   vmid: number;
   error?: string;
 }
