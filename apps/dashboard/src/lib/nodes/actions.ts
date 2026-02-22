@@ -201,14 +201,25 @@ export const deleteNodeAction = authActionClient
     // 1. Verify ownership
     const node = await verifyOwnership(data.id, userId);
 
-    // 2. Check for existing containers
-    const nodesWithCounts =
-      await DatabaseService.getUserNodesWithContainerCount(userId);
-    const nodeWithCount = nodesWithCounts.find((n) => n.id === data.id);
+    // 2. Check for existing containers via Proxmox API
+    try {
+      const { createSessionClient } = await import("@/lib/containers/helpers");
+      const { listContainers } = await import("@/lib/proxmox/containers");
+      const client = await createSessionClient(node);
+      const containers = await listContainers(client, node.name);
 
-    if (nodeWithCount && nodeWithCount._count.containers > 0) {
-      throw new ActionError(
-        "Cannot delete node with existing containers. Remove containers first.",
+      if (containers.length > 0) {
+        throw new ActionError(
+          `Cannot delete node with ${containers.length} container${containers.length !== 1 ? "s" : ""}. Remove containers first.`,
+        );
+      }
+    } catch (err) {
+      // Re-throw ActionErrors (our own validation)
+      if (err instanceof ActionError) throw err;
+      // Proxmox unreachable — allow deletion (node is likely misconfigured)
+      console.warn(
+        `Could not reach Proxmox for node ${node.name} during delete check:`,
+        err,
       );
     }
 
@@ -246,6 +257,41 @@ export const setDefaultNodeAction = authActionClient
 
     revalidatePath("/settings/nodes");
     return { success: true };
+  });
+
+/**
+ * Fetch live container counts per node from Proxmox API.
+ *
+ * Returns a Record<nodeId, number> map. Nodes that fail to connect
+ * are returned with count -1 (error sentinel).
+ */
+export const getNodeContainerCountsAction = authActionClient
+  .schema(z.object({}))
+  .action(async ({ ctx }) => {
+    const userId = ctx.userId;
+    const userNodes = await DatabaseService.listNodesForUser(userId);
+
+    // Dynamic import to avoid bundling server-only in action module scope
+    const { createSessionClient } = await import("@/lib/containers/helpers");
+    const { listContainers } = await import("@/lib/proxmox/containers");
+
+    const results = await Promise.all(
+      userNodes.map(async (node) => {
+        try {
+          const client = await createSessionClient(node);
+          const containers = await listContainers(client, node.name);
+          return { nodeId: node.id, count: containers.length };
+        } catch {
+          return { nodeId: node.id, count: -1 }; // -1 = error
+        }
+      }),
+    );
+
+    const counts: Record<string, number> = {};
+    for (const r of results) {
+      counts[r.nodeId] = r.count;
+    }
+    return { counts };
   });
 
 /**
