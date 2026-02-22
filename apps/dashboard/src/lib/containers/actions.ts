@@ -921,23 +921,20 @@ export const deleteContainerAction = authActionClient
  */
 export const refreshContainerServicesAction = authActionClient
   .schema(containerIdSchema)
-  .action(async ({ parsedInput: { containerId } }) => {
-    const container = await DatabaseService.getContainerById(containerId);
-    if (!container) {
-      throw new ActionError("Container not found");
-    }
+  .action(async ({ parsedInput: { containerId }, ctx }) => {
+    // Resolve container context (works for both DB-tracked and pve-{vmid})
+    const { client, nodeName, vmid, nodeId } = await getContainerContext(
+      containerId,
+      ctx.userId,
+    );
 
-    if (container.lifecycle !== "ready") {
-      throw new ActionError(
-        "Container is not ready. Services can only be refreshed on ready containers.",
-      );
+    // Find the node record for SSH credentials
+    const node = await DatabaseService.getNodeById(nodeId);
+    if (!node) {
+      throw new ActionError("Node not found");
     }
 
     // Check container is running on Proxmox
-    const client = await createSessionClient(container.node);
-    const nodeName = container.node.name;
-    const vmid = container.vmid;
-
     let status;
     try {
       status = await getContainer(client, nodeName, vmid);
@@ -952,17 +949,16 @@ export const refreshContainerServicesAction = authActionClient
     }
 
     // Connect to PVE host via SSH using DB-stored credentials
-    const pveHost = container.node.host;
-    if (!container.node.sshPassword) {
+    if (!node.sshPassword) {
       throw new ActionError(
         "SSH password not configured for this node. Update node settings to enable service discovery.",
       );
     }
-    const pveRootPassword = decrypt(container.node.sshPassword);
+    const pveRootPassword = decrypt(node.sshPassword);
 
     const { connectWithRetry, PctExecSession } = await import("@/lib/ssh");
     const sshHost = await connectWithRetry({
-      host: pveHost,
+      host: node.host,
       username: "root",
       password: pveRootPassword,
     });
