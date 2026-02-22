@@ -79,6 +79,16 @@ export const CONTAINER_LOG_BUFFER_MAX = 2000;
 export const CONTAINER_LOG_BUFFER_TTL_S = 172_800;
 
 // ============================================================================
+// VMID Cache (Redis SET per Proxmox node)
+// ============================================================================
+
+/** Redis key prefix for per-node VMID cache sets */
+export const VMID_CACHE_PREFIX = "vmid-cache:";
+
+/** VMID cache TTL in seconds (5 minutes — stale data caught at create time) */
+export const VMID_CACHE_TTL_S = 300;
+
+// ============================================================================
 // SSE / Progress
 // ============================================================================
 

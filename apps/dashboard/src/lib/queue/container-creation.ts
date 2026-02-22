@@ -29,7 +29,6 @@ export interface ContainerJobData {
     bridge: string; // e.g., "vmbr0"
     ipConfig: string; // e.g., "ip=dhcp" or "ip=10.0.0.50/24,gw=10.0.0.1"
     nameserver?: string;
-    rootPassword: string; // Plaintext for Proxmox API (encrypted in DB, decrypted before enqueue)
     sshPublicKey?: string;
     unprivileged: boolean;
     nesting: boolean;

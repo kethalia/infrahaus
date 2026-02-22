@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Copy, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,11 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -38,13 +32,14 @@ import {
   type ContainerConfig,
   type ContainerConfigFormValues,
 } from "@/lib/containers/schemas";
-import { generatePassword } from "@/lib/utils/crypto";
+import { VmidField } from "@/components/containers/vmid-field";
 import type {
   WizardStorage,
   WizardBridge,
   WizardOsTemplate,
   WizardNode,
 } from "@/lib/containers/actions";
+import type { UserNode } from "../container-wizard";
 
 interface ConfigureStepProps {
   data: ContainerConfig | null;
@@ -67,6 +62,9 @@ interface ConfigureStepProps {
   clusterNodes: WizardNode[];
   onNext: (data: ContainerConfig) => void;
   onBack: () => void;
+  nodeId: string;
+  userNodes: UserNode[];
+  onNodeChange: (nodeId: string) => void;
 }
 
 export function ConfigureStep({
@@ -79,6 +77,9 @@ export function ConfigureStep({
   clusterNodes,
   onNext,
   onBack,
+  nodeId,
+  userNodes,
+  onNodeChange,
 }: ConfigureStepProps) {
   // Sort all dropdown data alphabetically
   const sortedNodes = useMemo(
@@ -86,14 +87,16 @@ export function ConfigureStep({
     [clusterNodes],
   );
 
+  // Resolve current Proxmox node name from userNodes + nodeId
+  const currentUserNode = userNodes.find((n) => n.id === nodeId);
+  const defaultNodeName = currentUserNode?.name ?? sortedNodes[0]?.node ?? "";
+
   const form = useForm<ContainerConfigFormValues>({
     resolver: zodResolver(containerConfigBaseSchema),
     defaultValues: {
-      targetNode: data?.targetNode ?? sortedNodes[0]?.node ?? "",
+      targetNode: data?.targetNode ?? defaultNodeName,
       hostname: data?.hostname ?? "",
       vmid: data?.vmid ?? nextVmid,
-      rootPassword: data?.rootPassword ?? "",
-      confirmPassword: data?.confirmPassword ?? "",
       cores: data?.cores ?? defaultsFromTemplate?.cores ?? 1,
       memory: data?.memory ?? defaultsFromTemplate?.memory ?? 512,
       swap: data?.swap ?? defaultsFromTemplate?.swap ?? 512,
@@ -149,6 +152,7 @@ export function ConfigureStep({
   );
 
   // When target node changes, reset storage/bridge/ostemplate to first available for that node
+  // Also sync the parent's nodeId for VmidField validation
   useEffect(() => {
     if (!selectedNode) return;
     const nodeStorages = storages.filter((s) => s.node === selectedNode);
@@ -168,7 +172,22 @@ export function ConfigureStep({
     if (!nodeOsTemplates.some((t) => t.volid === currentOstemplate)) {
       form.setValue("ostemplate", nodeOsTemplates[0]?.volid ?? "");
     }
-  }, [selectedNode, storages, bridges, osTemplates, form]);
+
+    // Sync nodeId to parent for VmidField validation
+    const matchingUserNode = userNodes.find((n) => n.name === selectedNode);
+    if (matchingUserNode && matchingUserNode.id !== nodeId) {
+      onNodeChange(matchingUserNode.id);
+    }
+  }, [
+    selectedNode,
+    storages,
+    bridges,
+    osTemplates,
+    form,
+    userNodes,
+    nodeId,
+    onNodeChange,
+  ]);
 
   // When template defaults change (e.g., user went back and selected a different template),
   // we DON'T reset if user already has data (they manually edited)
@@ -200,28 +219,7 @@ export function ConfigureStep({
     }
   }, [defaultsFromTemplate, data, form]);
 
-  const handleGenerate = useCallback(() => {
-    const pwd = generatePassword();
-    form.setValue("rootPassword", pwd, { shouldValidate: true });
-    form.setValue("confirmPassword", pwd, { shouldValidate: true });
-  }, [form]);
-
-  const handleCopy = useCallback(async () => {
-    const pwd = form.getValues("rootPassword");
-    if (pwd) {
-      await navigator.clipboard.writeText(pwd);
-    }
-  }, [form]);
-
   function onSubmit(values: ContainerConfigFormValues) {
-    // Manual password confirmation check (refine doesn't work well with zodResolver types)
-    if (values.rootPassword !== values.confirmPassword) {
-      form.setError("confirmPassword", {
-        type: "manual",
-        message: "Passwords do not match",
-      });
-      return;
-    }
     onNext(values as ContainerConfig);
   }
 
@@ -256,14 +254,20 @@ export function ConfigureStep({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {sortedNodes.map((n) => (
-                          <SelectItem key={n.node} value={n.node}>
-                            {n.node}
-                            {n.maxcpu != null && n.maxmem != null
-                              ? ` (${n.maxcpu} CPU, ${Math.round((n.maxmem ?? 0) / 1024 / 1024 / 1024)} GB RAM)`
-                              : ""}
-                          </SelectItem>
-                        ))}
+                        {sortedNodes.map((n) => {
+                          const isDefault = userNodes.find(
+                            (un) => un.name === n.node,
+                          )?.isDefault;
+                          return (
+                            <SelectItem key={n.node} value={n.node}>
+                              {n.node}
+                              {isDefault ? " (default)" : ""}
+                              {n.maxcpu != null && n.maxmem != null
+                                ? ` — ${n.maxcpu} CPU, ${Math.round((n.maxmem ?? 0) / 1024 / 1024 / 1024)} GB RAM`
+                                : ""}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   ) : (
@@ -347,96 +351,17 @@ export function ConfigureStep({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="vmid"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>VMID</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(e.target.valueAsNumber || 0)
-                        }
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Next available: {nextVmid}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <VmidField control={form.control} name="vmid" nodeId={nodeId} />
             </div>
           </div>
 
           <Separator />
 
-          {/* Access Section */}
+          {/* Access Section — SSH key only (password removed) */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
               Access
             </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="rootPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Root Password</FormLabel>
-                    <div className="flex gap-2">
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={handleGenerate}
-                          >
-                            <RefreshCw className="size-4" />
-                            <span className="sr-only">Generate password</span>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Generate password</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={handleCopy}
-                          >
-                            <Copy className="size-4" />
-                            <span className="sr-only">Copy password</span>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Copy password</TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
             <FormField
               control={form.control}
               name="sshPublicKey"
@@ -451,6 +376,10 @@ export function ConfigureStep({
                       {...field}
                     />
                   </FormControl>
+                  <FormDescription>
+                    A random root password will be generated automatically by
+                    the worker. Access containers via SSH key or pct exec.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

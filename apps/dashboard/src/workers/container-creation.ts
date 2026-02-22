@@ -26,11 +26,13 @@ import {
   EventType,
   prisma,
 } from "../lib/db";
-import { getProxmoxClient } from "../lib/proxmox";
+import { createProxmoxClientFromNode } from "../lib/proxmox";
 import { type ProxmoxClient } from "../lib/proxmox/client";
 import { createContainer, startContainer } from "../lib/proxmox/containers";
 import { waitForTask } from "../lib/proxmox/tasks";
 import { connectWithRetry, PctExecSession, type SSHSession } from "../lib/ssh";
+import { decrypt } from "../lib/encryption";
+import crypto from "crypto";
 import {
   CONTAINER_CREATION_QUEUE,
   WORKER_CONCURRENCY,
@@ -227,9 +229,16 @@ async function processContainerCreation(
     // Phase 1: Create Container (0-20%)
     // ========================================================================
 
-    // Authenticate via env vars (PVE_HOST + PVE_ROOT_PASSWORD)
-    const client = await getProxmoxClient();
+    // Resolve Proxmox node credentials from DB (no env vars)
+    const node = await DatabaseService.getNodeById(job.data.nodeId);
+    if (!node) {
+      throw new Error(`Node not found: ${job.data.nodeId}`);
+    }
+    const client = createProxmoxClientFromNode(node);
     const pveNodeName = nodeName;
+
+    // Generate a random password for the Proxmox API (not stored anywhere)
+    const containerPassword = crypto.randomBytes(16).toString("hex");
 
     await publishProgress(containerId, {
       type: "step",
@@ -253,7 +262,7 @@ async function processContainerCreation(
       rootfs: `${config.storage}:${config.diskSize}`,
       net0: `name=eth0,bridge=${config.bridge},${config.ipConfig.startsWith("ip=") ? config.ipConfig : `ip=${config.ipConfig}`}`,
       nameserver: config.nameserver,
-      password: config.rootPassword,
+      password: containerPassword,
       "ssh-public-keys": config.sshPublicKey,
       unprivileged: config.unprivileged,
       features: featuresStr,
@@ -312,32 +321,24 @@ async function processContainerCreation(
       message: "Connecting to Proxmox host...",
     });
 
-    // Connect to the Proxmox host node and use pct exec/push to configure
-    // the container. This avoids needing SSH inside the container.
-    const pveHost = process.env.PVE_HOST;
-    const pveRootPassword = process.env.PVE_ROOT_PASSWORD;
-
-    if (!pveHost) {
-      throw new Error("PVE_HOST env var is required for container setup.");
-    }
-
-    if (!pveRootPassword) {
+    // Connect to the Proxmox host node via SSH using DB-stored credentials.
+    // This avoids needing SSH inside the container — uses pct exec instead.
+    if (!node.sshPassword) {
       throw new Error(
-        "PVE_ROOT_PASSWORD env var is required for container setup via pct exec. " +
-          "Set it to the root password of your Proxmox host.",
+        `SSH password not configured for node "${node.name}". Update node settings to add an SSH password.`,
       );
     }
 
     const hostSsh = await connectWithRetry({
-      host: pveHost,
+      host: node.host,
       username: "root",
-      password: pveRootPassword,
+      password: decrypt(node.sshPassword),
     });
     ssh = new PctExecSession(hostSsh, config.vmid);
 
     await publishProgress(containerId, {
       type: "log",
-      message: `Connected to ${pveHost}, using pct exec for CT ${config.vmid}`,
+      message: `Connected to ${node.host}, using pct exec for CT ${config.vmid}`,
     });
 
     // Wait for container to be fully ready (systemd initialized)

@@ -28,6 +28,12 @@ import type {
   ScriptConfig,
 } from "@/lib/containers/schemas";
 
+export interface UserNode {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+
 interface ContainerWizardProps {
   templates: WizardTemplate[];
   storages: WizardStorage[];
@@ -36,6 +42,8 @@ interface ContainerWizardProps {
   noNodeConfigured: boolean;
   osTemplates: WizardOsTemplate[];
   clusterNodes: WizardNode[];
+  defaultNodeId: string;
+  userNodes: UserNode[];
 }
 
 export function ContainerWizard({
@@ -46,6 +54,8 @@ export function ContainerWizard({
   noNodeConfigured,
   osTemplates,
   clusterNodes,
+  defaultNodeId,
+  userNodes,
 }: ContainerWizardProps) {
   const [step, setStep] = useState(1);
   const [templateData, setTemplateData] = useState<TemplateSelection | null>(
@@ -56,6 +66,7 @@ export function ContainerWizard({
     null,
   );
   const [scriptsData, setScriptsData] = useState<ScriptConfig | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState(defaultNodeId);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -123,7 +134,6 @@ export function ContainerWizard({
         targetNode: configData.targetNode,
         hostname: configData.hostname,
         vmid: configData.vmid,
-        rootPassword: configData.rootPassword,
         cores: configData.cores,
         memory: configData.memory,
         swap: configData.swap,
@@ -192,6 +202,9 @@ export function ContainerWizard({
           clusterNodes={clusterNodes}
           onNext={handleConfigNext}
           onBack={handleBack}
+          nodeId={selectedNodeId}
+          userNodes={userNodes}
+          onNodeChange={setSelectedNodeId}
         />
       )}
 

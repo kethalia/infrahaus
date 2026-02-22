@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 03.5-infrastructure-refactor — In progress
-**Plan:** 2 of 8 in current phase
-**Status:** In progress — session-based auth flow complete
-**Last activity:** 2026-02-20 — Completed 03.5-02-PLAN.md (Session-based auth flow)
+**Plan:** 7 of 8 in current phase
+**Status:** In progress — Wizard updated with VMID validation, node selector, no password fields
+**Last activity:** 2026-02-20 — Completed 03.5-07-PLAN.md
 
-Progress: ██████████░░░░░░░ 62% (24/39 plans)
+Progress: ███████████░░░░░░ 67% (29/43 plans)
 
 ## Completed Work
 
@@ -92,6 +92,42 @@ Progress: ██████████░░░░░░░ 62% (24/39 plans)
 - Middleware redirects unauthenticated users to /login (cookie check)
 - Login page with host, port, username, password, realm fields
 
+**03.5-03 — VMID cache module + node CRUD server actions** ✓
+
+- Redis VMID cache: refreshVmidCache, isVmidTaken, invalidateVmidCache, getCachedVmids (SET with 5m TTL)
+- Node CRUD: createNodeAction, updateNodeAction, deleteNodeAction, setDefaultNodeAction, testNodeConnectionAction
+- Connection testing on create/update (hit /version endpoint before persisting)
+- Auto-default first node, delete protection for nodes with containers
+
+**03.5-04 — Container actions & data layer migration to DB-based auth** ✓
+
+- Deleted getProxmoxClient() entirely from proxmox/index.ts; added getProxmoxClientForNode() convenience function
+- All 8 container call sites (actions.ts + data.ts) use createProxmoxClientFromNode()
+- rootPassword removed from container schemas (base, config, input)
+- getContainersWithStatus() accepts userId, iterates user's DB nodes in parallel
+- getContainerDetailData() resolves Proxmox client from container.node relation
+- SSH in refreshContainerServicesAction uses node.sshPassword from DB
+- Dashboard and wizard pages pass session userId to data layer
+- VMID cache invalidation wired into container create and delete
+
+**03.5-05 — Worker + service logs route migration to DB-based auth** ✓
+
+- Worker resolves Proxmox client from DB via createProxmoxClientFromNode(node) instead of env-var getProxmoxClient()
+- Worker SSH uses node.host + decrypt(node.sshPassword) from DB
+- Worker generates random password for Proxmox API container creation (not stored)
+- Service logs route uses container.node relation for SSH credentials with session auth check
+- rootPassword removed from ContainerJobData, container schemas, and enqueue call
+- Zero PVE_HOST/PVE_ROOT_PASSWORD references in workers/ or app/api/
+
+**03.5-07 — Wizard updates (password removal, VMID validation, node selector)** ✓
+
+- Removed rootPassword/confirmPassword from wizard UI and form submission
+- Created VmidField component with debounced inline validation (green check / red X / spinner)
+- Added checkVmidAction and refreshVmidCacheAction server actions
+- Node selector shows default node with "(default)" label, allows changing
+- Wizard page shows NoNodesBanner when no nodes configured
+- VMID cache refreshed server-side on wizard page load
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -145,10 +181,24 @@ Progress: ██████████░░░░░░░ 62% (24/39 plans)
 - authActionClient reads session via getSessionData() and provides userId (Proxmox username) in ctx
 - loginAction uses actionClient (not authActionClient) since user isn't authenticated yet
 - Middleware checks SESSION_COOKIE_NAME constant for cookie presence (Edge-safe, no Redis/Node)
+- VMID cache uses Redis SET (SADD/SISMEMBER/SMEMBERS) with 5-minute TTL per node
+- Connection test via /version endpoint before persisting node credentials
+- sshPassword update: provided=encrypt, empty string=clear to null, undefined=keep existing
+- vmid-cache.ts has no "server-only" — worker needs it for cache invalidation
+- Worker generates random 32-char hex password for Proxmox API container creation — not stored, containers accessed via pct exec
+- rootPassword removed from ContainerJobData and container schemas in plan 05 (not deferred to 07)
+- Service logs API route requires session auth via getSessionData()
+- getContainersWithStatus iterates user's DB nodes in parallel (not cluster listNodes API) with per-node error isolation
+- getContainerDetailData resolves client from container.node relation (no userId needed)
+- Dashboard page.tsx follows same session-check pattern as wizard page (getSessionData + redirect)
+
+- VmidField uses debounced useAction (500ms) for server-side validation rather than client-side cache
+- VMID cache refreshed server-side on wizard page load for freshest data
+- Node selector shows Proxmox node names with '(default)' badge, syncs DB nodeId for VMID validation
 
 ## Pending Work
 
-- Phase 3.5: Plans 03-08 remaining (Proxmox client factory, VMID cache, worker migration, settings UI, wizard updates, dashboard updates)
+- Phase 3.5: Plan 08 remaining (dashboard updates: node badge, filtering, no-nodes banner)
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -165,6 +215,6 @@ Progress: ██████████░░░░░░░ 62% (24/39 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-20T19:45:19Z
-Stopped at: Completed 03.5-02-PLAN.md (Session-based auth flow)
+Last session: 2026-02-20
+Stopped at: Completed 03.5-07-PLAN.md (wizard updates: password removal, VMID validation, node selector)
 Resume file: None
