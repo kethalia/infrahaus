@@ -101,23 +101,37 @@ export function getCreationKey(nodeName: string, vmid: number): string {
 /**
  * Store a new creation job in Redis.
  *
- * Uses a pipeline for atomicity:
- *   1. SET the job JSON with 24h TTL
- *   2. SADD the VMID to the active creations tracking set
+ * Uses SET NX to prevent overwriting an existing creation job (race-condition
+ * guard — two concurrent requests for the same VMID won't both succeed).
+ * If the key was set, adds the member to the active creations tracking set.
  *
  * @param redis - ioredis client instance
  * @param job - Creation job data to store
+ * @returns true if stored, false if a job already exists for this VMID
  */
 export async function storeCreationJob(
   redis: Redis,
   job: CreationJob,
-): Promise<void> {
+): Promise<boolean> {
   const key = getCreationKey(job.nodeName, job.vmid);
   const member = toContainerId(job.nodeName, job.vmid);
-  const pipeline = redis.pipeline();
-  pipeline.set(key, JSON.stringify(job), "EX", CREATION_TTL_ACTIVE_S);
-  pipeline.sadd(ACTIVE_CREATIONS_SET, member);
-  await pipeline.exec();
+
+  // SET NX EX — only succeeds if key doesn't already exist
+  const result = await redis.set(
+    key,
+    JSON.stringify(job),
+    "EX",
+    CREATION_TTL_ACTIVE_S,
+    "NX",
+  );
+
+  if (result !== "OK") {
+    return false; // Key already exists — concurrent creation or stale job
+  }
+
+  // Key was set — add to active creations tracking set
+  await redis.sadd(ACTIVE_CREATIONS_SET, member);
+  return true;
 }
 
 /**
@@ -174,11 +188,10 @@ export async function updateCreationLifecycle(
     return; // Corrupted data — let it expire
   }
 
-  // Update fields
+  // Update fields — always overwrite errorMessage to clear stale errors on
+  // non-error transitions (e.g. if a job were ever retried).
   job.lifecycle = lifecycle;
-  if (errorMessage !== undefined) {
-    job.errorMessage = errorMessage;
-  }
+  job.errorMessage = errorMessage;
 
   // Determine TTL based on new lifecycle
   const ttl =

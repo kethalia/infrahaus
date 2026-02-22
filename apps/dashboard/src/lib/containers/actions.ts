@@ -22,7 +22,6 @@ import { getRedis } from "@/lib/redis";
 import { getContainerCreationQueue } from "@/lib/queue/container-creation";
 import {
   storeCreationJob,
-  getCreationJob,
   deleteCreationJob,
   toContainerId,
   parseContainerId,
@@ -424,16 +423,8 @@ export const createContainerAction = authActionClient
     const nodeId = node.id;
     const nodeName = node.name;
 
-    // Check Redis creation state — reject if VMID has an active creation on this node
-    const redis = getRedis();
-    const existingJob = await getCreationJob(redis, nodeName, data.vmid);
-    if (existingJob && existingJob.lifecycle === "creating") {
-      throw new ActionError(
-        "VMID has an active creation in progress. Please wait for it to complete.",
-      );
-    }
-
     // Server-side VMID guard (wizard already checks, but ensure consistency)
+    const redis = getRedis();
     const vmidTaken = await isVmidTaken(nodeId, data.vmid);
     if (vmidTaken) {
       throw new ActionError(
@@ -449,8 +440,9 @@ export const createContainerAction = authActionClient
       );
     }
 
-    // Store creation state in Redis
-    await storeCreationJob(redis, {
+    // Store creation state in Redis (NX — atomic guard against concurrent
+    // creation of the same VMID on the same node)
+    const stored = await storeCreationJob(redis, {
       vmid: data.vmid,
       nodeId,
       nodeName,
@@ -459,6 +451,11 @@ export const createContainerAction = authActionClient
       lifecycle: "creating",
       createdAt: new Date().toISOString(),
     });
+    if (!stored) {
+      throw new ActionError(
+        "VMID has an active creation in progress. Please wait for it to complete.",
+      );
+    }
 
     // Enqueue creation job — worker resolves auth from nodeId via DB
     const queue = getContainerCreationQueue();
@@ -799,7 +796,8 @@ export const deleteContainerAction = authActionClient
         });
       } catch (err) {
         // Proxmox is the source of truth: if it reports the container doesn't
-        // exist, it's already gone. Skip Proxmox cleanup and just clean up Redis.
+        // exist, it's already gone. Skip further Proxmox operations and only
+        // perform local cleanup (Redis creation jobs, cached services, log buffer).
         const isGone =
           err instanceof ProxmoxApiError &&
           (err.message.toLowerCase().includes("does not exist") ||
