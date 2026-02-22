@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 03.6-remove-container-db — In progress
-**Plan:** 1 of 6 in current phase
-**Status:** In progress — Redis creation state module complete
-**Last activity:** 2026-02-22 — Completed 03.6-01-PLAN.md
+**Plan:** 3 of 6 in current phase
+**Status:** In progress — Plans 01-03 complete + compound key migration
+**Last activity:** 2026-02-22 — Committed compound {nodeName}/{vmid} key migration
 
-Progress: ██████████░░░░░░░ 61% (30/49 plans)
+Progress: ███████████░░░░░░ 67% (33/49 plans)
 
 ## Completed Work
 
@@ -138,6 +138,30 @@ Progress: ██████████░░░░░░░ 61% (30/49 plans)
 - Pipeline-atomic operations (SET+SADD, DEL+SREM)
 - No server-only guard — worker-compatible
 
+**03.6-02 — Creation flow refactor (actions + worker)** ✓
+
+- createContainerAction stores Redis creation state instead of DB Container row
+- Worker updates Redis lifecycle on completion/error
+- Worker publishes progress to compound-keyed Pub/Sub channels
+
+**03.6-03 — Data layer + API routes + UI components** ✓
+
+- getContainersWithStatus: Proxmox-first with Redis creation state merge
+- getContainerDetailData: parses compound ID, targets specific node directly
+- SSE progress route: Redis-only (no DB ContainerEvent queries)
+- Services route: Redis cache with compound key validation
+- All UI components use compound {nodeName}/{vmid} identifiers
+
+**Compound key migration** ✓ (cross-cutting, applied to plans 01-03)
+
+- Discovered: VMIDs only unique within a Proxmox cluster, not across standalone nodes
+- Solution: compound key {nodeName}/{vmid} (e.g. "pve-04/100")
+- toContainerId() / parseContainerId() canonical helpers in redis-state.ts
+- All Redis keys, Pub/Sub channels, URLs, locks, Maps use compound format
+- URLs use encodeURIComponent(); API routes use decodeURIComponent()
+- revalidatePath calls encode compound IDs for URL safety
+- 13 files updated, TypeScript passes with zero errors
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -209,11 +233,16 @@ Progress: ██████████░░░░░░░ 61% (30/49 plans)
 - ACTIVE_CREATIONS_SET uses Redis SET to avoid O(N) KEYS scan for listing active creations
 - Both ready and error creation jobs get 1h TTL (CREATION_TTL_COMPLETE_S)
 - listActiveCreations fire-and-forgets stale member SREM cleanup
+- **CRITICAL: Compound container IDs** — All container identifiers use {nodeName}/{vmid} format (e.g. "pve-04/100") because VMIDs are only unique per Proxmox cluster, not across standalone nodes. Node names are unique per user (@@unique([userId, name])). toContainerId()/parseContainerId() in redis-state.ts are the canonical helpers.
+- URLs encode compound IDs via encodeURIComponent(); API routes decode via decodeURIComponent()
+- revalidatePath() calls must encode compound IDs: `revalidatePath(\`/containers/\${encodeURIComponent(containerId)}\`)`
+- getContainerDetailData now targets a specific node directly (no scanning) — performance improvement from compound keys
+- getContainerContext has fallback path for bare VMID strings (legacy compat) but primary path uses compound IDs
 
 ## Pending Work
 
 - Phase 3.5: Plan 08 remaining (dashboard updates: node badge, filtering, no-nodes banner)
-- Phase 3.6: Plans 02-06 remaining (creation flow refactor, data layer, schema removal, dashboard UX, service cache)
+- Phase 3.6: Plans 04-06 remaining (schema removal, dashboard UX, service cache)
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -231,5 +260,6 @@ Progress: ██████████░░░░░░░ 61% (30/49 plans)
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 03.6-01-PLAN.md (Redis creation state module)
+Stopped at: Committed compound key migration (70f11ae) — Plans 01-03 + cross-cutting compound key fix
 Resume file: None
+Next step: Phase 3.6 Plan 04 (schema removal) or force-push branch + update PR
