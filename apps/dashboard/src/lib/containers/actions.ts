@@ -489,6 +489,7 @@ export const createContainerAction = authActionClient
       ticket: session?.ticket,
       csrfToken: session?.csrfToken,
       username: session?.username,
+      ticketExpiresAt: session?.expiresAt,
       config: {
         hostname: data.hostname,
         vmid: data.vmid,

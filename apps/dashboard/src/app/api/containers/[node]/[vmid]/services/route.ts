@@ -49,6 +49,12 @@ export async function GET(
     );
   }
 
+  // Auth check first — prevent unauthenticated access to any service data
+  const session = await getSessionData();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const containerId = toContainerId(nodeName, vmid);
   const redis = getRedis();
   const cache = await getCachedServices(redis, containerId);
@@ -74,11 +80,7 @@ export async function GET(
     });
   }
 
-  // Auto-discovery: requires auth + running container + SSH access
-  const session = await getSessionData();
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // Auto-discovery: requires running container + SSH access
 
   try {
     const { DatabaseService } = await import("@/lib/db");

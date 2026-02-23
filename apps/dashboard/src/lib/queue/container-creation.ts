@@ -22,6 +22,7 @@ export interface ContainerJobData {
   ticket?: string;
   csrfToken?: string;
   username?: string; // e.g. "root@pam"
+  ticketExpiresAt?: string; // ISO string — real expiry from session
   config: {
     hostname: string;
     vmid: number;

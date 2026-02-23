@@ -213,7 +213,9 @@ async function processContainerCreation(
           ticket: job.data.ticket,
           csrfToken: job.data.csrfToken,
           username: job.data.username,
-          expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
+          expiresAt: job.data.ticketExpiresAt
+            ? new Date(job.data.ticketExpiresAt)
+            : new Date(Date.now() + 2 * 60 * 60 * 1000),
         },
         verifySsl: false,
       });

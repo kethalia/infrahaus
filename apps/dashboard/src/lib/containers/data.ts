@@ -386,7 +386,7 @@ export async function getContainerDetailData(
       // Distinguish "container not found" (404) from "node unreachable" (network error)
       const is404 =
         err instanceof Error &&
-        (err.message.includes("500") ||
+        (err.message.includes("404") ||
           err.message.includes("does not exist") ||
           err.message.includes("not found"));
 
