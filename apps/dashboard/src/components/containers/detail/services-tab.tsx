@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   RefreshCw,
@@ -83,7 +83,7 @@ export function ServicesTab({
   discoveredAt,
 }: ServicesTabProps) {
   const router = useRouter();
-  const [autoFetched, setAutoFetched] = useState(false);
+  const autoFetchedRef = useRef(false);
 
   const { execute: executeRefresh, isPending } = useAction(
     refreshContainerServicesAction,
@@ -108,11 +108,11 @@ export function ServicesTab({
 
   // Auto-fetch on first visit when no cache exists
   useEffect(() => {
-    if (!discoveredAt && !autoFetched && isRunning && !isPending) {
-      setAutoFetched(true);
+    if (!discoveredAt && !autoFetchedRef.current && isRunning && !isPending) {
+      autoFetchedRef.current = true;
       executeRefresh({ containerId });
     }
-  }, [discoveredAt, autoFetched, isRunning, isPending, executeRefresh, containerId]);
+  }, [discoveredAt, isRunning, isPending, executeRefresh, containerId]);
 
   // Split into application vs system services
   const appServices = services.filter((s) => !s.isSystem);

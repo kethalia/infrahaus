@@ -69,16 +69,22 @@ export function useResourcePolling({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Stable ref for fetch params — avoids interval churn on re-renders
+  const paramsRef = useRef({ vmid, nodeName });
+  paramsRef.current = { vmid, nodeName };
+
   const fetchMetrics = useCallback(async () => {
     // Abort any in-flight request to prevent overlap
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
+    const { vmid: v, nodeName: n } = paramsRef.current;
+
     try {
       setIsLoading(true);
       const res = await fetch(
-        `/api/containers/${encodeURIComponent(nodeName)}/${vmid}/status`,
+        `/api/containers/${encodeURIComponent(n)}/${v}/status`,
         { signal: controller.signal },
       );
 
@@ -95,7 +101,7 @@ export function useResourcePolling({
     } finally {
       setIsLoading(false);
     }
-  }, [vmid, nodeName]);
+  }, []); // Stable — reads from paramsRef
 
   useEffect(() => {
     if (!enabled) return;

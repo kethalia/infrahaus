@@ -174,15 +174,16 @@ export async function getContainersWithStatus(
           try {
             const client = await createSessionClient(dbNode);
             // Race against timeout — skip unresponsive nodes
+            let timeoutId: ReturnType<typeof setTimeout>;
             const containers = await Promise.race([
               listContainers(client, dbNode.name),
-              new Promise<never>((_, reject) =>
-                setTimeout(
+              new Promise<never>((_, reject) => {
+                timeoutId = setTimeout(
                   () => reject(new Error(`Node ${dbNode.name} timed out`)),
                   PROXMOX_NODE_TIMEOUT_MS,
-                ),
-              ),
-            ]);
+                );
+              }),
+            ]).finally(() => clearTimeout(timeoutId));
             return containers.map((c) => ({
               vmid: c.vmid,
               status: c.status as "running" | "stopped" | "mounted" | "paused",

@@ -41,7 +41,6 @@ export function VmidField<T extends FieldValues>({
   nodeId,
 }: VmidFieldProps<T>) {
   const [status, setStatus] = useState<VmidStatus>("idle");
-  const [lastChecked, setLastChecked] = useState<number | null>(null);
   const [prevNodeId, setPrevNodeId] = useState(nodeId);
 
   const { execute: checkVmid } = useAction(checkVmidAction, {
@@ -73,7 +72,6 @@ export function VmidField<T extends FieldValues>({
         return;
       }
 
-      setLastChecked(vmid);
       setStatus("checking");
       checkVmid({ nodeId, vmid });
     },
@@ -84,7 +82,6 @@ export function VmidField<T extends FieldValues>({
   if (prevNodeId !== nodeId) {
     setPrevNodeId(nodeId);
     setStatus("idle");
-    setLastChecked(null);
   }
 
   // Derive whether current input is empty/invalid
@@ -94,15 +91,12 @@ export function VmidField<T extends FieldValues>({
   // Reset status during render when input becomes empty/invalid
   if (inputEmpty && status !== "idle") {
     setStatus("idle");
-    setLastChecked(null);
   }
 
   // Debounce validation when VMID value changes
   useEffect(() => {
     if (inputEmpty) return;
 
-    // Skip duplicate checks — compare against lastChecked state
-    // (read via callback to avoid stale closure)
     const timer = setTimeout(() => {
       validateVmid(vmidNum);
     }, 500);
