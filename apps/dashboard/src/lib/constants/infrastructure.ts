@@ -32,8 +32,22 @@ export const CONTAINER_LOCK_TTL = 300;
 /** Redis key prefix for user sessions */
 export const SESSION_PREFIX = "session:";
 
-/** Session TTL in seconds (2 hours) */
+/** Session TTL in seconds (2 hours) — legacy fixed TTL, kept for reference */
 export const SESSION_TTL = 7200;
+
+/**
+ * Server-enforced maximum session TTL in seconds (24 hours).
+ * Regardless of what the SIWE message's expirationTime requests,
+ * the Redis session will never exceed this duration.
+ */
+export const MAX_SESSION_TTL_S = 86_400;
+
+/**
+ * Default session TTL in seconds (2 hours).
+ * Used as fallback if the SIWE message has no expirationTime
+ * or if the computed TTL is invalid (≤ 0).
+ */
+export const DEFAULT_SESSION_TTL_S = 7_200;
 
 /** Session cookie name */
 export const SESSION_COOKIE_NAME = "lxc-session";

@@ -8,11 +8,11 @@ import {
 import { cookies } from "next/headers";
 import crypto from "crypto";
 import { getRedis } from "@/lib/redis";
-import type { ProxmoxTicketCredentials } from "@/lib/proxmox/types";
 import {
   SESSION_PREFIX,
-  SESSION_TTL,
   SESSION_COOKIE_NAME,
+  MAX_SESSION_TTL_S,
+  DEFAULT_SESSION_TTL_S,
 } from "@/lib/constants/infrastructure";
 
 // ============================================================================
@@ -21,26 +21,30 @@ import {
 
 /**
  * Data stored in the iron-session cookie.
- * Only contains a session ID — actual session data lives in Redis.
+ * Contains a session ID pointing to Redis data, and optionally a temporary
+ * nonce used during the SIWE authentication flow.
  */
 export interface SessionData {
   sessionId?: string;
+  /** Temporary SIWE nonce — set during /api/auth/nonce, consumed by /api/auth/verify */
+  nonce?: string;
 }
 
 /**
  * Full session data stored in Redis.
- * Contains the Proxmox ticket, CSRF token, and user info.
+ * Contains the SIWE authentication proof for the connected Universal Profile.
  */
 export interface RedisSessionData {
-  ticket: string;
-  csrfToken: string;
-  username: string;
-  realm: string;
-  expiresAt: string; // ISO date string
-  /** Proxmox host used at login — for auto-provisioning node record */
-  host: string;
-  /** Proxmox port used at login */
-  port: number;
+  /** Universal Profile address (0x...) */
+  address: string;
+  /** SIWE signature from the Universal Profile */
+  signature: string;
+  /** Raw SIWE message string that was signed */
+  message: string;
+  /** keccak256 hash of the SIWE message */
+  messageHash: string;
+  /** ISO date string — derived from SIWE expirationTime */
+  expiresAt: string;
 }
 
 // ============================================================================
@@ -127,36 +131,42 @@ export async function getSessionData(): Promise<RedisSessionData | null> {
 }
 
 /**
- * Create a new session.
- * Generates a random session ID, stores session data in Redis with TTL,
+ * Create a new session with SIWE authentication data.
+ * Generates a random session ID, stores session data in Redis with a
+ * dynamic TTL derived from the SIWE expirationTime (capped at MAX_SESSION_TTL_S),
  * and sets the session ID in the iron-session cookie.
  */
 export async function createSession(data: {
-  ticket: string;
-  csrfToken: string;
-  username: string;
-  realm: string;
+  address: string;
+  signature: string;
+  message: string;
+  messageHash: string;
   expiresAt: string;
-  host: string;
-  port: number;
 }): Promise<void> {
   const sessionId = crypto.randomUUID();
   const redis = getRedis();
 
-  // Store session data in Redis with TTL
+  // Store session data in Redis
   const sessionData: RedisSessionData = {
-    ticket: data.ticket,
-    csrfToken: data.csrfToken,
-    username: data.username,
-    realm: data.realm,
+    address: data.address,
+    signature: data.signature,
+    message: data.message,
+    messageHash: data.messageHash,
     expiresAt: data.expiresAt,
-    host: data.host,
-    port: data.port,
   };
+
+  // Compute dynamic TTL from SIWE expirationTime, capped at MAX_SESSION_TTL_S
+  const computedTtl = Math.floor(
+    (new Date(data.expiresAt).getTime() - Date.now()) / 1000,
+  );
+  const ttl =
+    computedTtl > 0
+      ? Math.min(computedTtl, MAX_SESSION_TTL_S)
+      : DEFAULT_SESSION_TTL_S;
 
   await redis.setex(
     `${SESSION_PREFIX}${sessionId}`,
-    SESSION_TTL,
+    ttl,
     JSON.stringify(sessionData),
   );
 
@@ -179,26 +189,4 @@ export async function destroySession(): Promise<void> {
   }
 
   session.destroy();
-}
-
-/**
- * Get Proxmox credentials from the current session.
- * Convenience helper for API calls that need the ticket and CSRF token.
- *
- * @returns ProxmoxTicketCredentials if session is valid, null otherwise.
- */
-export async function getProxmoxCredentials(): Promise<ProxmoxTicketCredentials | null> {
-  const sessionData = await getSessionData();
-
-  if (!sessionData) {
-    return null;
-  }
-
-  return {
-    type: "ticket",
-    ticket: sessionData.ticket,
-    csrfToken: sessionData.csrfToken,
-    username: sessionData.username,
-    expiresAt: new Date(sessionData.expiresAt),
-  };
 }
