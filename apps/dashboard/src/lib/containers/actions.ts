@@ -32,6 +32,7 @@ import {
   templates as proxmoxTemplates,
 } from "@/lib/proxmox";
 import { createSessionClient } from "@/lib/containers/helpers";
+import { getSessionData } from "@/lib/session";
 import { ProxmoxApiError } from "@/lib/proxmox/errors";
 import {
   startContainer,
@@ -457,12 +458,18 @@ export const createContainerAction = authActionClient
       );
     }
 
-    // Enqueue creation job — worker resolves auth from nodeId via DB
+    // Pass session ticket so worker can authenticate without API tokens
+    const session = await getSessionData();
+
+    // Enqueue creation job
     const queue = getContainerCreationQueue();
     await queue.add("create-container", {
       nodeId,
       nodeName,
       templateId: data.templateId || null,
+      ticket: session?.ticket,
+      csrfToken: session?.csrfToken,
+      username: session?.username,
       config: {
         hostname: data.hostname,
         vmid: data.vmid,
