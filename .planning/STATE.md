@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 03.6-remove-container-db — Complete ✓
-**Plan:** 6 of 6 in current phase (all complete)
-**Status:** Phase complete — All 6 plans executed
-**Last activity:** 2026-02-22 — Completed 03.6-04-PLAN.md (schema removal, final plan)
+**Phase:** 03.5-infrastructure-refactor — Complete ✓
+**Plan:** 8 of 8 in current phase (all complete)
+**Status:** Phase complete — All 8 plans executed
+**Last activity:** 2026-02-23 — Completed 03.5-08-PLAN.md (dashboard multi-node support)
 
-Progress: █████████████████ 78% (38/49 plans)
+Progress: █████████████████ 80% (39/49 plans)
 
 ## Completed Work
 
@@ -127,6 +127,13 @@ Progress: █████████████████ 78% (38/49 plans)
 - Node selector shows default node with "(default)" label, allows changing
 - Wizard page shows NoNodesBanner when no nodes configured
 - VMID cache refreshed server-side on wizard page load
+
+**03.5-08 — Dashboard multi-node support** ✓
+
+- Node badge (shadcn Badge outline) on container cards showing which node each container belongs to
+- Create Container button disabled when no nodes configured
+- Node filtering in container grid (multi-node only, "All Nodes" default)
+- NoNodesBanner on dashboard with link to settings
 
 ### Phase 3.6: Remove Container from Database ✓
 
@@ -280,10 +287,12 @@ Progress: █████████████████ 78% (38/49 plans)
 - Services API route supports `?discover=true` — cache-first pattern with SSH auto-discovery fallback when cache is empty
 - container-card.tsx converted to client component ("use client") for useContainerServices hook. Shows Skeleton loading state while services load.
 - services-tab.tsx uses useQueryClient for cache invalidation on manual refresh instead of hand-rolled useEffect
+- **NEXT PRIORITY: Decouple auth from Proxmox** — Login should be independent (local accounts or separate provider). Proxmox nodes added post-login as configuration. Makes no-nodes the real first-login experience.
 
 ## Pending Work
 
-- Phase 3.5: Plan 08 remaining (dashboard updates: node badge, filtering, no-nodes banner)
+- **NEXT: Decouple authentication from Proxmox** — auth should be independent so users can log in without a Proxmox node, then add nodes as configuration step
+- Phase 3.5: Complete ✓ — All 8 plans executed
 - Phase 3.6: Complete ✓ — All 6 plans executed
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
@@ -302,6 +311,6 @@ Progress: █████████████████ 78% (38/49 plans)
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Phase 03.6 TanStack Query service auto-loading committed + pushed to PR #124
+Stopped at: Completed 03.5-08-PLAN.md (Phase 3.5 complete)
 Resume file: None
-Next step: Phase 3.5 Plan 08 (dashboard updates) or Phase 5 (Web UI & Monitoring)
+Next step: Decouple authentication from Proxmox, then Phase 5 (Web UI & Monitoring)

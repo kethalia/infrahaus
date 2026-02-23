@@ -61,7 +61,8 @@ Issues: #80, #81, #82
 ### Phase 03.5: Infrastructure Refactor
 
 **Goal:** Remove stored container passwords, cache VMIDs from Proxmox via Redis, and replace env-var auth with multi-user DB-stored credentials
-**Status:** In progress (7/8 plans complete)
+**Status:** Complete
+**Completed:** 2026-02-23
 **Depends on:** Phase 03
 **Plans:** 8 plans
 
@@ -86,7 +87,7 @@ Plans:
 - [x] 03.5-05-PLAN.md — Worker + service logs route migration to DB-based auth
 - [x] 03.5-06-PLAN.md — Settings page UI (/settings/nodes)
 - [x] 03.5-07-PLAN.md — Wizard updates (password removal, VMID validation, node selector)
-- [ ] 03.5-08-PLAN.md — Dashboard updates (node badge, filtering, no-nodes banner)
+- [x] 03.5-08-PLAN.md — Dashboard updates (node badge, filtering, no-nodes banner)
 
 ---
 
