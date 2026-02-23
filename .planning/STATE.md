@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 03.5-infrastructure-refactor — Complete ✓
-**Plan:** 8 of 8 in current phase (all complete)
-**Status:** Phase complete — All 8 plans executed
-**Last activity:** 2026-02-23 — Completed 03.5-08-PLAN.md (dashboard multi-node support)
+**Phase:** 04.5-auth-decoupling (6 of 10 phases)
+**Plan:** 1 of 4 in current phase
+**Status:** In progress
+**Last activity:** 2026-02-23 — Completed 04.5-01-PLAN.md (Web3 deps + session rewrite)
 
-Progress: █████████████████ 80% (39/49 plans)
+Progress: █████████████████░░░ 82% (40/49 plans)
 
 ## Completed Work
 
@@ -288,10 +288,16 @@ Progress: █████████████████ 80% (39/49 plans)
 - container-card.tsx converted to client component ("use client") for useContainerServices hook. Shows Skeleton loading state while services load.
 - services-tab.tsx uses useQueryClient for cache invalidation on manual refresh instead of hand-rolled useEffect
 - **NEXT PRIORITY: Decouple auth from Proxmox** — Login should be independent (local accounts or separate provider). Proxmox nodes added post-login as configuration. Makes no-nodes the real first-login experience.
+- **wagmi v2 required** — RainbowKit 2.2.10 does NOT support wagmi v3; pinned to ^2.9.0
+- **viem explicit dep** — pnpm strict hoisting requires viem as direct dependency (not just peer)
+- **Dynamic session TTL** — createSession computes TTL from SIWE expirationTime, capped at MAX_SESSION_TTL_S (24h), fallback DEFAULT_SESSION_TTL_S (2h)
+- **Nonce in iron-session cookie** — stored temporarily during SIWE flow, consumed by verify endpoint
 
 ## Pending Work
 
-- **NEXT: Phase 04.5 — Auth Decoupling** — RainbowKit + Universal Profiles (SIWE), replace Proxmox login, nodes stored per UP address
+- **NEXT: 04.5-02** — SIWE auth API routes (nonce, verify, logout, me) + auth actions cleanup
+- 04.5-03 — Proxmox client refactor + identity migration (session.username → session.address)
+- 04.5-04 — Login UI (RainbowKit ConnectButton) + Web3Provider + build verification
 - Phase 3.5: Complete ✓ — All 8 plans executed
 - Phase 3.6: Complete ✓ — All 6 plans executed
 - Phase 5: Web UI & Monitoring (#87-88)
@@ -310,7 +316,7 @@ Progress: █████████████████ 80% (39/49 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Phase 04.5 inserted into roadmap, CONTEXT.md created
+Last session: 2026-02-23T20:11:35Z
+Stopped at: Completed 04.5-01-PLAN.md
 Resume file: None
-Next step: /gsd-plan-phase 04.5 — plan the auth decoupling
+Next step: Execute 04.5-02-PLAN.md — SIWE auth API routes
