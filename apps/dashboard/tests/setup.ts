@@ -41,9 +41,6 @@ beforeAll(async () => {
 beforeEach(async () => {
   // Clean up all tables before each test
   // Order matters due to foreign key constraints
-  await prisma.containerEvent.deleteMany();
-  await prisma.containerService.deleteMany();
-  await prisma.container.deleteMany();
   await prisma.package.deleteMany();
   await prisma.packageBucket.deleteMany();
   await prisma.templateScript.deleteMany();

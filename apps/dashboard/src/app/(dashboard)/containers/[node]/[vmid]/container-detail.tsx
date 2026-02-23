@@ -10,6 +10,7 @@ import { OverviewTab } from "@/components/containers/detail/overview-tab";
 import { ServicesTab } from "@/components/containers/detail/services-tab";
 import { EventsTab } from "@/components/containers/detail/events-tab";
 import { toContainerId } from "@/lib/containers/redis-state";
+import { useResourcePolling } from "@/hooks/use-resource-polling";
 import type { ContainerDetailData } from "@/lib/containers/data";
 
 interface ContainerDetailProps {
@@ -25,6 +26,13 @@ export function ContainerDetail({
 }: ContainerDetailProps) {
   const { countdown, isPaused, refreshNow, isRefreshing } = useAutoRefresh({
     intervalSeconds: 30,
+  });
+
+  // Resource polling for live metrics (2s interval, running containers only)
+  const { metrics: liveMetrics } = useResourcePolling({
+    vmid: container.vmid,
+    nodeName: container.node.name,
+    enabled: container.status === "running",
   });
 
   return (
@@ -93,7 +101,7 @@ export function ContainerDetail({
         </TabsList>
 
         <TabsContent value="overview">
-          <OverviewTab container={container} />
+          <OverviewTab container={container} liveMetrics={liveMetrics} />
         </TabsContent>
 
         <TabsContent value="services">

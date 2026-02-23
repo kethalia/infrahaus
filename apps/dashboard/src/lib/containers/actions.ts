@@ -22,6 +22,7 @@ import { getRedis } from "@/lib/redis";
 import { getContainerCreationQueue } from "@/lib/queue/container-creation";
 import {
   storeCreationJob,
+  getCreationJob,
   deleteCreationJob,
   toContainerId,
   parseContainerId,
@@ -32,6 +33,7 @@ import {
   templates as proxmoxTemplates,
 } from "@/lib/proxmox";
 import { createSessionClient } from "@/lib/containers/helpers";
+import { getSessionData } from "@/lib/session";
 import { ProxmoxApiError } from "@/lib/proxmox/errors";
 import {
   startContainer,
@@ -43,6 +45,7 @@ import {
 import { waitForTask } from "@/lib/proxmox/tasks";
 import { acquireLock, releaseLock } from "@/lib/utils/redis-lock";
 import { extractIpFromNet0 } from "@/lib/proxmox/utils";
+import { getLogBufferKey } from "@/lib/constants/infrastructure";
 import {
   invalidateVmidCache,
   isVmidTaken,
@@ -442,7 +445,7 @@ export const createContainerAction = authActionClient
 
     // Store creation state in Redis (NX — atomic guard against concurrent
     // creation of the same VMID on the same node)
-    const stored = await storeCreationJob(redis, {
+    const creationJob: Parameters<typeof storeCreationJob>[1] = {
       vmid: data.vmid,
       nodeId,
       nodeName,
@@ -450,19 +453,43 @@ export const createContainerAction = authActionClient
       hostname: data.hostname,
       lifecycle: "creating",
       createdAt: new Date().toISOString(),
-    });
+    };
+    let stored = await storeCreationJob(redis, creationJob);
     if (!stored) {
-      throw new ActionError(
-        "VMID has an active creation in progress. Please wait for it to complete.",
-      );
+      // Key exists — check if it's a stale/terminal job we can replace
+      const existing = await getCreationJob(redis, nodeName, data.vmid);
+      if (
+        existing &&
+        (existing.lifecycle === "error" || existing.lifecycle === "ready")
+      ) {
+        // Previous attempt finished — clean up job + old log buffer, then retry
+        const containerId = toContainerId(nodeName, data.vmid);
+        await Promise.all([
+          deleteCreationJob(redis, nodeName, data.vmid),
+          redis.del(getLogBufferKey(containerId)),
+        ]);
+        stored = await storeCreationJob(redis, creationJob);
+      }
+      if (!stored) {
+        throw new ActionError(
+          "VMID has an active creation in progress. Please wait for it to complete.",
+        );
+      }
     }
 
-    // Enqueue creation job — worker resolves auth from nodeId via DB
+    // Pass session ticket so worker can authenticate without API tokens
+    const session = await getSessionData();
+
+    // Enqueue creation job
     const queue = getContainerCreationQueue();
     await queue.add("create-container", {
       nodeId,
       nodeName,
       templateId: data.templateId || null,
+      ticket: session?.ticket,
+      csrfToken: session?.csrfToken,
+      username: session?.username,
+      ticketExpiresAt: session?.expiresAt,
       config: {
         hostname: data.hostname,
         vmid: data.vmid,
@@ -817,8 +844,6 @@ export const deleteContainerAction = authActionClient
       const redis = getRedis();
       const { clearCachedServices } =
         await import("@/lib/containers/discovery");
-      const { getLogBufferKey } =
-        await import("@/lib/constants/infrastructure");
       // Use the compound containerId (already nodeName/vmid format if parsed correctly)
       await Promise.all([
         deleteCreationJob(redis, nodeName, vmid),

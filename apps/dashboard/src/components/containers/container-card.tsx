@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { Server, Loader2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "./status-badge";
 import { ContainerActions } from "./container-actions";
 import type { ContainerWithStatus } from "@/lib/containers/data";
@@ -9,6 +12,7 @@ import type { ServiceStatus } from "@/lib/containers/discovery";
 import { toContainerId } from "@/lib/containers/redis-state";
 import { formatBytes } from "@/lib/utils/format";
 import { MAX_PREVIEW_ITEMS } from "@/lib/constants/display";
+import { useContainerServices } from "@/hooks/use-container-services";
 
 /** Color dot for service status */
 function ServiceDot({ status }: { status: ServiceStatus }) {
@@ -38,14 +42,22 @@ export function ContainerCard({
   isActionPending = false,
   onPendingChange,
 }: ContainerCardProps) {
-  const { vmid, hostname, status, services, resources, template, node } =
-    container;
+  const { vmid, hostname, status, resources, template, node } = container;
 
   const displayName = hostname ?? `CT ${vmid}`;
   const containerId = toContainerId(node.name, vmid);
 
+  // Fetch services from cache (auto-discovers if cache empty + container running)
+  const { data: serviceData, isLoading: servicesLoading } =
+    useContainerServices({
+      nodeName: node.name,
+      vmid,
+      status,
+    });
+
   // Show first N app services with colored dots (skip system services on dashboard)
-  const appServices = (services ?? []).filter((s) => !s.isSystem);
+  const services = serviceData?.services ?? [];
+  const appServices = services.filter((s) => !s.isSystem);
   const visibleServices = appServices.slice(0, MAX_PREVIEW_ITEMS);
   const remainingCount = Math.max(0, appServices.length - MAX_PREVIEW_ITEMS);
 
@@ -99,7 +111,12 @@ export function ContainerCard({
 
       <CardContent className="flex flex-col gap-2 py-0">
         {/* Services with colored dots */}
-        {appServices.length > 0 && (
+        {servicesLoading && status === "running" ? (
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+        ) : appServices.length > 0 ? (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {visibleServices.map((service) => (
               <div
@@ -119,7 +136,7 @@ export function ContainerCard({
               </Link>
             )}
           </div>
-        )}
+        ) : null}
 
         {/* Resource summary line */}
         {resourceText && (

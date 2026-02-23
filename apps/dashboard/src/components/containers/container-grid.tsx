@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
-import { RefreshCw, Plus, WifiOff, Pause } from "lucide-react";
+import { RefreshCw, Plus, WifiOff, Pause, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -28,18 +28,22 @@ interface ContainerGridProps {
   proxmoxReachable: boolean;
   /** Unique node names for multi-node filtering. Omit or empty to hide filter. */
   nodeNames?: string[];
+  /** Names of nodes that failed to respond within timeout */
+  failedNodes?: string[];
 }
 
 export function ContainerGrid({
   containers,
   proxmoxReachable,
   nodeNames = [],
+  failedNodes = [],
 }: ContainerGridProps) {
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [nodeFilter, setNodeFilter] = useState<string>("all");
   const [pendingContainers, setPendingContainers] = useState<Set<string>>(
     new Set(),
   );
+  const [dismissedBanner, setDismissedBanner] = useState(false);
   const { countdown, isPaused, refreshNow, isRefreshing } = useAutoRefresh({
     intervalSeconds: 30,
   });
@@ -69,14 +73,38 @@ export function ContainerGrid({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Proxmox unreachable warning */}
+      {/* All nodes unreachable — error banner with settings link */}
       {!proxmoxReachable && (
         <Alert variant="destructive">
           <WifiOff className="size-4" />
-          <AlertDescription>
-            Unable to reach Proxmox API. Container statuses may not be current.
-            Check your Proxmox server connection.
+          <AlertDescription className="flex items-center justify-between">
+            <span>
+              Unable to reach any Proxmox nodes. Container data is unavailable.
+            </span>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/settings/nodes">Check Settings</Link>
+            </Button>
           </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Partial node failure — dismissible error banner naming failed nodes */}
+      {failedNodes.length > 0 && proxmoxReachable && !dismissedBanner && (
+        <Alert variant="destructive" className="relative">
+          <WifiOff className="size-4" />
+          <AlertDescription>
+            Unable to reach {failedNodes.join(", ")} — some containers may not
+            be shown.
+          </AlertDescription>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-2 top-2 h-6 w-6 p-0"
+            onClick={() => setDismissedBanner(true)}
+          >
+            <X className="size-3.5" />
+            <span className="sr-only">Dismiss</span>
+          </Button>
         </Alert>
       )}
 
@@ -201,7 +229,7 @@ function EmptyState({
         <Plus className="size-8 text-muted-foreground" />
       </div>
       <div>
-        <h3 className="text-lg font-semibold">No containers yet</h3>
+        <h3 className="text-lg font-semibold">No containers found</h3>
         <p className="text-sm text-muted-foreground">
           Create your first container to get started.
         </p>

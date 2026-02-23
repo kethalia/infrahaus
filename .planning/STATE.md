@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 03.6-remove-container-db — In progress
-**Plan:** 3 of 6 in current phase
-**Status:** In progress — Plans 01-03 complete + compound key migration
-**Last activity:** 2026-02-22 — Committed compound {nodeName}/{vmid} key migration
+**Phase:** 03.6-remove-container-db — Complete ✓
+**Plan:** 6 of 6 in current phase (all complete)
+**Status:** Phase complete — All 6 plans executed
+**Last activity:** 2026-02-22 — Completed 03.6-04-PLAN.md (schema removal, final plan)
 
-Progress: ███████████░░░░░░ 67% (33/49 plans)
+Progress: █████████████████ 78% (38/49 plans)
 
 ## Completed Work
 
@@ -76,7 +76,7 @@ Progress: ███████████░░░░░░ 67% (33/49 plans)
   - Four of five lifecycle operations now require user confirmation (Start, Shutdown, Stop, Delete; Restart executes immediately)
   - Consistent UX with educational messaging and color-coded action buttons
 
-### Phase 3.5: Infrastructure Refactor (In Progress)
+### Phase 3.5: Infrastructure Refactor ✓
 
 **03.5-01 — Schema migration + DB service refactor** ✓
 
@@ -128,7 +128,7 @@ Progress: ███████████░░░░░░ 67% (33/49 plans)
 - Wizard page shows NoNodesBanner when no nodes configured
 - VMID cache refreshed server-side on wizard page load
 
-### Phase 3.6: Remove Container from Database (In Progress)
+### Phase 3.6: Remove Container from Database ✓
 
 **03.6-01 — Redis creation state module** ✓
 
@@ -161,6 +161,29 @@ Progress: ███████████░░░░░░ 67% (33/49 plans)
 - URLs use encodeURIComponent(); API routes use decodeURIComponent()
 - revalidatePath calls encode compound IDs for URL safety
 - 13 files updated, TypeScript passes with zero errors
+
+**03.6-04 — Schema removal (Container/ContainerEvent)** ✓
+
+- Removed Container, ContainerEvent models from Prisma schema
+- Removed ContainerLifecycle, EventType enums
+- Removed containers relation from ProxmoxNode and Template
+- Created migration to drop tables and enums
+- Removed all container-related methods from DatabaseService
+
+**03.6-05 — Dashboard UX (loading, errors, empty states)** ✓
+
+- Removed listActiveCreations merge from dashboard (CONTEXT: progress page only)
+- Added PROXMOX_NODE_TIMEOUT_MS (5s) with Promise.race per-node timeout
+- Created loading.tsx skeleton with card-shaped Skeleton placeholders
+- Added failedNodes tracking + dismissible partial failure banner
+- Added all-unreachable banner with settings link
+- Updated empty state: "No containers found" + Create CTA
+- Detail page: WifiOff error page when node unreachable
+
+**03.6-06 — Service cache TTL** ✓
+
+- Added SERVICE_CACHE_TTL_S = 86_400 to infrastructure.ts
+- Updated discoverAndCacheServices() with Redis EX option for auto-expiry
 
 ## Decisions Made
 
@@ -238,11 +261,30 @@ Progress: ███████████░░░░░░ 67% (33/49 plans)
 - revalidatePath() calls must encode compound IDs: `revalidatePath(\`/containers/\${encodeURIComponent(containerId)}\`)`
 - getContainerDetailData now targets a specific node directly (no scanning) — performance improvement from compound keys
 - getContainerContext has fallback path for bare VMID strings (legacy compat) but primary path uses compound IDs
+- **CONTEXT enforced: No in-progress creations on dashboard** — progress page is the single place to watch creation. listActiveCreations merge removed from getContainersWithStatus.
+- PROXMOX_NODE_TIMEOUT_MS = 5_000 with Promise.race pattern (listContainers doesn't accept AbortSignal)
+- failedNodes tracking: accumulate names on error, pass to UI for dismissible banner display
+- SummaryBar uses inline counts type — no db.ts dependency, no creating count
+- loading.tsx uses Next.js App Router convention for instant skeleton rendering while page.tsx suspends
+- Partial node failure: dismissible client-side banner; all-unreachable: persistent banner with settings link
+- Detail page unreachable: WifiOff error page triggers on !proxmoxReachable && status === "unknown"
+- SERVICE_CACHE_TTL_S = 86_400 (24h) — cache auto-expires, next view triggers fresh discovery
+- discoveredAt fetched client-side from services API to avoid modifying data.ts during parallel execution
+- RESOURCE_POLL_INTERVAL_MS = 2_000 — 2s polling for detail page resource metrics
+- Status API route at [node]/[vmid]/status for lightweight polling (no config/services/events)
+- OverviewTab prefers liveMetrics from polling over server-rendered resources
+- 30s auto-refresh kept for full page; 2s polling only for lightweight resource metrics
+- Migration created with `--create-only` for container table removal — PostgreSQL unreachable in CI workspace
+- Redis `.set()` param widened to `...args: any[]` for ioredis overload compatibility (discovery.ts)
+- **TanStack Query for service fetching** — @tanstack/react-query installed with QueryProvider wrapping dashboard layout. Services fetched client-side per card via useContainerServices hook (5min staleTime, auto-discovery for running containers). Dashboard no longer merges services server-side in getContainersWithStatus.
+- Services API route supports `?discover=true` — cache-first pattern with SSH auto-discovery fallback when cache is empty
+- container-card.tsx converted to client component ("use client") for useContainerServices hook. Shows Skeleton loading state while services load.
+- services-tab.tsx uses useQueryClient for cache invalidation on manual refresh instead of hand-rolled useEffect
 
 ## Pending Work
 
 - Phase 3.5: Plan 08 remaining (dashboard updates: node badge, filtering, no-nodes banner)
-- Phase 3.6: Plans 04-06 remaining (schema removal, dashboard UX, service cache)
+- Phase 3.6: Complete ✓ — All 6 plans executed
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 
@@ -259,7 +301,7 @@ Progress: ███████████░░░░░░ 67% (33/49 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-22
-Stopped at: Committed compound key migration (70f11ae) — Plans 01-03 + cross-cutting compound key fix
+Last session: 2026-02-23
+Stopped at: Phase 03.6 TanStack Query service auto-loading committed + pushed to PR #124
 Resume file: None
-Next step: Phase 3.6 Plan 04 (schema removal) or force-push branch + update PR
+Next step: Phase 3.5 Plan 08 (dashboard updates) or Phase 5 (Web UI & Monitoring)

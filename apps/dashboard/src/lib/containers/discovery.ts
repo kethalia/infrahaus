@@ -15,7 +15,10 @@
  */
 
 import { encrypt, decrypt } from "@/lib/encryption";
-import { CREDENTIALS_DIR } from "@/lib/constants/infrastructure";
+import {
+  CREDENTIALS_DIR,
+  SERVICE_CACHE_TTL_S,
+} from "@/lib/constants/infrastructure";
 
 // ============================================================================
 // Types (shared across worker, actions, API routes, UI components)
@@ -258,7 +261,14 @@ export async function discoverServices(
  * This is the main entry point used by both the worker and the refresh action.
  */
 export async function discoverAndCacheServices(
-  redis: { set: (key: string, value: string) => Promise<unknown> },
+  redis: {
+    set: (
+      key: string,
+      value: string,
+      exFlag: "EX",
+      ttl: number,
+    ) => Promise<unknown>;
+  },
   containerId: string,
   ssh: ExecAdapter,
   containerIp: string | null,
@@ -271,7 +281,12 @@ export async function discoverAndCacheServices(
     discoveredAt: new Date().toISOString(),
   };
 
-  await redis.set(getServiceCacheKey(containerId), JSON.stringify(cache));
+  await redis.set(
+    getServiceCacheKey(containerId),
+    JSON.stringify(cache),
+    "EX",
+    SERVICE_CACHE_TTL_S,
+  );
 
   return cache;
 }

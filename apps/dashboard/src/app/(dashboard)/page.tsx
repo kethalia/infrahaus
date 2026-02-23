@@ -20,12 +20,13 @@ export default async function DashboardPage() {
   const hasNodes = userNodes.length > 0;
 
   // Only fetch container data if nodes exist
-  const { containers, counts, proxmoxReachable } = hasNodes
+  const { containers, counts, proxmoxReachable, failedNodes } = hasNodes
     ? await getContainersWithStatus(session.username)
     : {
         containers: [],
-        counts: { total: 0, running: 0, stopped: 0, creating: 0, error: 0 },
+        counts: { total: 0, running: 0, stopped: 0, error: 0 },
         proxmoxReachable: false,
+        failedNodes: [] as string[],
       };
 
   // Extract unique node names for filtering
@@ -52,16 +53,13 @@ export default async function DashboardPage() {
 
       {hasNodes && (
         <>
-          <SummaryBar
-            counts={counts}
-            running={counts.running}
-            stopped={counts.stopped}
-          />
+          <SummaryBar counts={counts} />
 
           <ContainerGrid
             containers={containers}
             proxmoxReachable={proxmoxReachable}
             nodeNames={nodeNames}
+            failedNodes={failedNodes}
           />
         </>
       )}

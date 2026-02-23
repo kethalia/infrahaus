@@ -17,6 +17,12 @@ export interface ContainerJobData {
   nodeId: string; // Prisma ProxmoxNode ID
   nodeName: string; // Proxmox node name (e.g., "pve") for API paths
   templateId: string | null; // Prisma Template ID (null = "From Scratch" mode)
+  /** Proxmox ticket auth — passed from session at enqueue time so the worker
+   *  can authenticate without API tokens. Tickets are valid ~2h, plenty for creation. */
+  ticket?: string;
+  csrfToken?: string;
+  username?: string; // e.g. "root@pam"
+  ticketExpiresAt?: string; // ISO string — real expiry from session
   config: {
     hostname: string;
     vmid: number;

@@ -9,11 +9,7 @@
 
 // Server-side module — do not import from client components
 
-import {
-  PrismaClient,
-  ContainerLifecycle,
-  EventType,
-} from "@/generated/prisma/client";
+import { PrismaClient } from "@/generated/prisma/client";
 import type {
   ProxmoxNode,
   Template,
@@ -23,8 +19,6 @@ import type {
   PackageBucket,
   PackageManager,
   FilePolicy,
-  Container,
-  ContainerEvent,
 } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -54,9 +48,6 @@ if (process.env.NODE_ENV !== "production") {
 /** Direct Prisma instance export for complex operations (e.g., transactions) */
 export { prismaInstance as prisma };
 
-/** Re-export enums for worker and consumer use */
-export { ContainerLifecycle, EventType };
-
 // ============================================================================
 // Derived Types
 // ============================================================================
@@ -77,28 +68,6 @@ export type TemplateWithDetails = Template & {
 export type BucketWithPackages = PackageBucket & {
   packages: Package[];
 };
-
-/** Container with node, template, and latest events */
-export type ContainerWithRelations = Container & {
-  node: ProxmoxNode;
-  template: Template | null;
-  events: ContainerEvent[];
-};
-
-/** Container with ALL relations (full events list, node, template) */
-export type ContainerWithDetails = Container & {
-  node: ProxmoxNode;
-  template: Template | null;
-  events: ContainerEvent[];
-};
-
-/** Aggregate counts of containers by lifecycle status */
-export interface ContainerCounts {
-  total: number;
-  creating: number;
-  ready: number;
-  error: number;
-}
 
 /** Input for creating a new template with all related data */
 export interface CreateTemplateInput {
@@ -646,146 +615,5 @@ export class DatabaseService {
    */
   static async getBucketCount(): Promise<number> {
     return this.prisma.packageBucket.count();
-  }
-
-  // ============================================================================
-  // Container Operations
-  // ============================================================================
-
-  /**
-   * Create a new container record.
-   */
-  static async createContainer(data: {
-    vmid: number;
-    hostname?: string; // Store for fallback when Proxmox unreachable
-    nodeId: string;
-    templateId?: string;
-  }): Promise<Container> {
-    return this.prisma.container.create({ data });
-  }
-
-  /**
-   * Get a container by ID with related node and template.
-   */
-  static async getContainerById(id: string): Promise<
-    | (Container & {
-        node: ProxmoxNode;
-        template: Template | null;
-      })
-    | null
-  > {
-    return this.prisma.container.findUnique({
-      where: { id },
-      include: { node: true, template: true },
-    });
-  }
-
-  /**
-   * Update a container's lifecycle status.
-   */
-  static async updateContainerLifecycle(
-    id: string,
-    lifecycle: ContainerLifecycle,
-  ): Promise<Container> {
-    return this.prisma.container.update({
-      where: { id },
-      data: { lifecycle },
-    });
-  }
-
-  // ============================================================================
-  // ContainerEvent Operations
-  // ============================================================================
-
-  /**
-   * Create a container event (audit log entry).
-   */
-  static async createContainerEvent(data: {
-    containerId: string;
-    type: EventType;
-    message: string;
-    metadata?: string; // JSON string
-  }): Promise<ContainerEvent> {
-    return this.prisma.containerEvent.create({ data });
-  }
-
-  /**
-   * Get all events for a container, ordered chronologically.
-   */
-  static async getContainerEvents(
-    containerId: string,
-  ): Promise<ContainerEvent[]> {
-    return this.prisma.containerEvent.findMany({
-      where: { containerId },
-      orderBy: { createdAt: "asc" },
-    });
-  }
-
-  // ============================================================================
-  // Container Query Methods (Dashboard & Detail Page)
-  // ============================================================================
-
-  /**
-   * List all containers with relations (node, template, latest 3 events).
-   * Used by the dashboard page for container cards.
-   */
-  static async listContainersWithRelations(): Promise<
-    ContainerWithRelations[]
-  > {
-    return this.prisma.container.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        node: true,
-        template: true,
-        events: {
-          orderBy: { createdAt: "desc" },
-          take: 3,
-        },
-      },
-    });
-  }
-
-  /**
-   * Get aggregate counts of containers by lifecycle status.
-   * Used by the dashboard summary bar.
-   */
-  static async getContainerCounts(): Promise<ContainerCounts> {
-    const [total, creating, ready, error] = await Promise.all([
-      this.prisma.container.count(),
-      this.prisma.container.count({ where: { lifecycle: "creating" } }),
-      this.prisma.container.count({ where: { lifecycle: "ready" } }),
-      this.prisma.container.count({ where: { lifecycle: "error" } }),
-    ]);
-
-    return { total, creating, ready, error };
-  }
-
-  /**
-   * Get a single container with ALL relations (full events, node, template).
-   * Used by the container detail page.
-   */
-  static async getContainerWithDetails(
-    id: string,
-  ): Promise<ContainerWithDetails | null> {
-    return this.prisma.container.findUnique({
-      where: { id },
-      include: {
-        node: true,
-        template: true,
-        events: {
-          orderBy: { createdAt: "desc" },
-        },
-      },
-    });
-  }
-
-  /**
-   * Delete a container by ID. Cascade delete handles services and events.
-   * Used by the delete action after removing from Proxmox.
-   */
-  static async deleteContainerById(id: string): Promise<void> {
-    // Prisma cascade should handle children, but explicitly delete to be safe
-    // since Container relations use onDelete: Cascade
-    await this.prisma.container.delete({ where: { id } });
   }
 }

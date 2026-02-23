@@ -32,37 +32,16 @@ const stats = [
   },
 ];
 
-interface SummaryBarWithProxmoxProps {
-  counts: {
-    total: number;
-    running: number;
-    stopped: number;
-    creating: number;
-    error: number;
-  };
-  /** Live running count from Proxmox status merge */
-  running: number;
-  /** Live stopped count from Proxmox status merge */
-  stopped: number;
+interface SummaryBarProps {
+  counts: { total: number; running: number; stopped: number; error: number };
 }
 
-export function SummaryBar({
-  counts,
-  running,
-  stopped,
-}: SummaryBarWithProxmoxProps) {
-  const displayValues: Record<string, number> = {
-    total: counts.total,
-    running,
-    stopped,
-    error: counts.error,
-  };
-
+export function SummaryBar({ counts }: SummaryBarProps) {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
       {stats.map((stat) => {
         const Icon = stat.icon;
-        const value = displayValues[stat.key] ?? 0;
+        const value = counts[stat.key] ?? 0;
 
         return (
           <Card key={stat.key} className="gap-2 py-3">

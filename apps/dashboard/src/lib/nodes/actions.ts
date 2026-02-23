@@ -201,29 +201,8 @@ export const deleteNodeAction = authActionClient
     // 1. Verify ownership
     const node = await verifyOwnership(data.id, userId);
 
-    // 2. Check for existing containers via Proxmox API
-    try {
-      const { createSessionClient } = await import("@/lib/containers/helpers");
-      const { listContainers } = await import("@/lib/proxmox/containers");
-      const client = await createSessionClient(node);
-      const containers = await listContainers(client, node.name);
-
-      if (containers.length > 0) {
-        throw new ActionError(
-          `Cannot delete node with ${containers.length} container${containers.length !== 1 ? "s" : ""}. Remove containers first.`,
-        );
-      }
-    } catch (err) {
-      // Re-throw ActionErrors (our own validation)
-      if (err instanceof ActionError) throw err;
-      // Proxmox unreachable — allow deletion (node is likely misconfigured)
-      console.warn(
-        `Could not reach Proxmox for node ${node.name} during delete check:`,
-        err,
-      );
-    }
-
-    // 3. Delete the node
+    // 2. Delete the node (no container check — this app is not the primary
+    //    way to manage containers, so node removal should always be allowed)
     await DatabaseService.deleteNode(data.id);
 
     // 4. If deleted node was default, promote the first remaining node
