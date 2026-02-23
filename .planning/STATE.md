@@ -276,6 +276,10 @@ Progress: █████████████████ 78% (38/49 plans)
 - 30s auto-refresh kept for full page; 2s polling only for lightweight resource metrics
 - Migration created with `--create-only` for container table removal — PostgreSQL unreachable in CI workspace
 - Redis `.set()` param widened to `...args: any[]` for ioredis overload compatibility (discovery.ts)
+- **TanStack Query for service fetching** — @tanstack/react-query installed with QueryProvider wrapping dashboard layout. Services fetched client-side per card via useContainerServices hook (5min staleTime, auto-discovery for running containers). Dashboard no longer merges services server-side in getContainersWithStatus.
+- Services API route supports `?discover=true` — cache-first pattern with SSH auto-discovery fallback when cache is empty
+- container-card.tsx converted to client component ("use client") for useContainerServices hook. Shows Skeleton loading state while services load.
+- services-tab.tsx uses useQueryClient for cache invalidation on manual refresh instead of hand-rolled useEffect
 
 ## Pending Work
 
@@ -297,7 +301,7 @@ Progress: █████████████████ 78% (38/49 plans)
 
 ## Session Continuity
 
-Last session: 2026-02-22
-Stopped at: Phase 03.6 complete — all 6 plans executed, verified (10/10 must-haves)
+Last session: 2026-02-23
+Stopped at: Phase 03.6 TanStack Query service auto-loading committed + pushed to PR #124
 Resume file: None
 Next step: Phase 3.5 Plan 08 (dashboard updates) or Phase 5 (Web UI & Monitoring)
