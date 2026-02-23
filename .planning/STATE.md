@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04.5-auth-decoupling (6 of 10 phases)
-**Plan:** 1 of 4 in current phase
+**Plan:** 2 of 4 in current phase
 **Status:** In progress
-**Last activity:** 2026-02-23 — Completed 04.5-01-PLAN.md (Web3 deps + session rewrite)
+**Last activity:** 2026-02-23 — Completed 04.5-02-PLAN.md (SIWE auth API routes)
 
-Progress: █████████████████░░░ 82% (40/49 plans)
+Progress: █████████████████░░░ 84% (41/49 plans)
 
 ## Completed Work
 
@@ -292,11 +292,14 @@ Progress: █████████████████░░░ 82% (40/4
 - **viem explicit dep** — pnpm strict hoisting requires viem as direct dependency (not just peer)
 - **Dynamic session TTL** — createSession computes TTL from SIWE expirationTime, capped at MAX_SESSION_TTL_S (24h), fallback DEFAULT_SESSION_TTL_S (2h)
 - **Nonce in iron-session cookie** — stored temporarily during SIWE flow, consumed by verify endpoint
+- **SIWE verify uses verifySiweMessage** — luksoPublicClient.verifySiweMessage() handles both EOA and EIP-1271 smart contract (UP) signatures
+- **Default SIWE expiry 2h** — if SIWE message lacks expirationTime, defaults to 2 hours from now
+- **Auth actions simplified** — loginAction, loginSchema, ensureNodeExists removed; only logoutAction remains
 
 ## Pending Work
 
-- **NEXT: 04.5-02** — SIWE auth API routes (nonce, verify, logout, me) + auth actions cleanup
-- 04.5-03 — Proxmox client refactor + identity migration (session.username → session.address)
+- 04.5-02: Complete ✓ — SIWE auth API routes (nonce, verify, logout, me) + auth actions cleanup
+- **NEXT: 04.5-03** — Proxmox client refactor + identity migration (session.username → session.address)
 - 04.5-04 — Login UI (RainbowKit ConnectButton) + Web3Provider + build verification
 - Phase 3.5: Complete ✓ — All 8 plans executed
 - Phase 3.6: Complete ✓ — All 6 plans executed
@@ -316,7 +319,7 @@ Progress: █████████████████░░░ 82% (40/4
 
 ## Session Continuity
 
-Last session: 2026-02-23T20:11:35Z
-Stopped at: Completed 04.5-01-PLAN.md
+Last session: 2026-02-23T20:18:33Z
+Stopped at: Completed 04.5-02-PLAN.md
 Resume file: None
-Next step: Execute 04.5-02-PLAN.md — SIWE auth API routes
+Next step: Execute 04.5-03-PLAN.md — Proxmox client refactor + identity migration
