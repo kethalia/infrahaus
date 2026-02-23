@@ -2,13 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useAction } from "next-safe-action/hooks";
-import { AlertCircle } from "lucide-react";
-import { loginAction } from "@/lib/auth/actions";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
 import {
   Card,
   CardHeader,
@@ -16,172 +11,33 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-
-const loginSchema = z.object({
-  host: z.string().min(1, "Proxmox host is required"),
-  port: z.number().int().min(1).max(65535),
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
-  realm: z.enum(["pam", "pve"]),
-});
-
-type LoginValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { execute, result, isPending } = useAction(loginAction);
+  const { isConnected } = useAccount();
 
-  const form = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      host: "",
-      port: 8006,
-      username: "",
-      password: "",
-      realm: "pam",
-    },
-  });
-
+  // Redirect to dashboard when authentication completes.
+  // RainbowKit's auth adapter handles the SIWE flow automatically
+  // after wallet connection. Once verified, the server session exists
+  // and the user should be on the dashboard.
   useEffect(() => {
-    if (result.data?.success) {
-      router.push("/");
+    if (isConnected) {
+      // Small delay to let the session cookie propagate
+      const timer = setTimeout(() => router.push("/"), 500);
+      return () => clearTimeout(timer);
     }
-  }, [result.data?.success, router]);
-
-  function onSubmit(values: LoginValues) {
-    execute(values);
-  }
+  }, [isConnected, router]);
 
   return (
     <Card className="w-full max-w-md">
-      <CardHeader>
+      <CardHeader className="text-center">
         <CardTitle className="text-2xl">LXC Manager</CardTitle>
         <CardDescription>
-          Sign in with your Proxmox VE credentials
+          Connect your Universal Profile to sign in
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex flex-col gap-4"
-          >
-            <div className="flex gap-3">
-              <FormField
-                control={form.control}
-                name="host"
-                render={({ field }) => (
-                  <FormItem className="flex-1">
-                    <FormLabel>Proxmox Host</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="192.168.1.100 or pve.local"
-                        autoFocus
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="port"
-                render={({ field }) => (
-                  <FormItem className="w-24">
-                    <FormLabel>Port</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Username</FormLabel>
-                  <FormControl>
-                    <Input placeholder="root" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="realm"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Realm</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select realm" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="pam">Linux PAM</SelectItem>
-                      <SelectItem value="pve">Proxmox VE</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {result.serverError && (
-              <Alert variant="destructive">
-                <AlertCircle className="size-4" />
-                <AlertDescription>{result.serverError}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
-        </Form>
+      <CardContent className="flex justify-center">
+        <ConnectButton />
       </CardContent>
     </Card>
   );
