@@ -16,12 +16,12 @@ export default async function DashboardPage() {
   if (!session) redirect("/login");
 
   // Check if user has any nodes configured
-  const userNodes = await DatabaseService.listNodesForUser(session.username);
+  const userNodes = await DatabaseService.listNodesForUser(session.address);
   const hasNodes = userNodes.length > 0;
 
   // Only fetch container data if nodes exist
   const { containers, counts, proxmoxReachable, failedNodes } = hasNodes
-    ? await getContainersWithStatus(session.username)
+    ? await getContainersWithStatus(session.address)
     : {
         containers: [],
         counts: { total: 0, running: 0, stopped: 0, error: 0 },

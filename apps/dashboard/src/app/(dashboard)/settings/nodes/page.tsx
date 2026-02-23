@@ -14,7 +14,7 @@ export default async function NodesSettingsPage() {
   const session = await getSessionData();
   if (!session) redirect("/login");
 
-  const nodes = await DatabaseService.listNodesForUser(session.username);
+  const nodes = await DatabaseService.listNodesForUser(session.address);
 
   return (
     <div className="flex flex-1 flex-col gap-6">

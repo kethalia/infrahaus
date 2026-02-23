@@ -69,7 +69,7 @@ export async function GET(
   }
 
   // Resolve node from DB by name + userId
-  const userNodes = await DatabaseService.listNodesForUser(session.username);
+  const userNodes = await DatabaseService.listNodesForUser(session.address);
   const dbNode = userNodes.find((n) => n.name === nodeName);
   if (!dbNode) {
     return NextResponse.json({ error: "Node not found" }, { status: 404 });

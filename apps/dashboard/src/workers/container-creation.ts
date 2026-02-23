@@ -25,10 +25,7 @@ import {
   updateCreationLifecycle,
   toContainerId,
 } from "../lib/containers/redis-state";
-import {
-  createProxmoxClientFromNode,
-  createProxmoxClient,
-} from "../lib/proxmox";
+import { createProxmoxClientFromNode } from "../lib/proxmox";
 import { type ProxmoxClient } from "../lib/proxmox/client";
 import { createContainer, startContainer } from "../lib/proxmox/containers";
 import { waitForTask } from "../lib/proxmox/tasks";
@@ -202,27 +199,8 @@ async function processContainerCreation(
       throw new Error(`Node not found: ${job.data.nodeId}`);
     }
 
-    // Authenticate: prefer ticket from session (always available), fall back to API token
-    let client: ProxmoxClient;
-    if (job.data.ticket && job.data.csrfToken && job.data.username) {
-      client = createProxmoxClient({
-        host: node.host,
-        port: node.port,
-        credentials: {
-          type: "ticket",
-          ticket: job.data.ticket,
-          csrfToken: job.data.csrfToken,
-          username: job.data.username,
-          expiresAt: job.data.ticketExpiresAt
-            ? new Date(job.data.ticketExpiresAt)
-            : new Date(Date.now() + 2 * 60 * 60 * 1000),
-        },
-        verifySsl: false,
-      });
-    } else {
-      // Fall back to API token auth (requires tokenId/tokenSecret on the node)
-      client = createProxmoxClientFromNode(node);
-    }
+    // Authenticate via node API token (session no longer carries Proxmox ticket)
+    const client = createProxmoxClientFromNode(node);
     const pveNodeName = nodeName;
 
     // Generate a random password for the Proxmox API (not stored anywhere)

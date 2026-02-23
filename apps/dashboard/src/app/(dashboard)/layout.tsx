@@ -13,15 +13,15 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Read session for sidebar username display. Middleware ensures auth,
+  // Read session for sidebar address display. Middleware ensures auth,
   // but session may be null during edge cases — degrade gracefully.
   const session = await getSessionData();
-  const username = session?.username;
+  const address = session?.address;
 
   return (
     <QueryProvider>
       <SidebarProvider>
-        <AppSidebar username={username} />
+        <AppSidebar address={address} />
         <SidebarInset>
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
             <SidebarTrigger className="-ml-1" />

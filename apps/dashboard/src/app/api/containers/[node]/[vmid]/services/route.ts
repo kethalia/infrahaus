@@ -84,7 +84,7 @@ export async function GET(
 
   try {
     const { DatabaseService } = await import("@/lib/db");
-    const userNodes = await DatabaseService.listNodesForUser(session.username);
+    const userNodes = await DatabaseService.listNodesForUser(session.address);
     const node = userNodes.find((n) => n.name === nodeName);
     if (!node) {
       return NextResponse.json({
