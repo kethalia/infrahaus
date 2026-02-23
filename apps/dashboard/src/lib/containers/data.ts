@@ -382,8 +382,34 @@ export async function getContainerDetailData(
       };
 
       return { container, events, proxmoxReachable: true };
-    } catch {
-      // Container not found on this node — fall through to Redis creation state
+    } catch (err) {
+      // Distinguish "container not found" (404) from "node unreachable" (network error)
+      const is404 =
+        err instanceof Error &&
+        (err.message.includes("500") ||
+          err.message.includes("does not exist") ||
+          err.message.includes("not found"));
+
+      if (!is404) {
+        // Node unreachable — return stub so page can show WifiOff error
+        return {
+          container: {
+            vmid,
+            hostname: `CT-${vmid}`,
+            node: { name: dbNode.name, id: dbNode.id },
+            template: null,
+            status: "unknown" as ContainerStatus,
+            resources: null,
+            config: null,
+            containerIp: null,
+            services: [],
+            servicesWithCredentials: [],
+          },
+          events: [],
+          proxmoxReachable: false,
+        };
+      }
+      // 404/not-found — fall through to Redis creation state check
     }
   }
 
