@@ -261,8 +261,14 @@ export async function discoverServices(
  * This is the main entry point used by both the worker and the refresh action.
  */
 export async function discoverAndCacheServices(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  redis: { set: (...args: any[]) => Promise<unknown> },
+  redis: {
+    set: (
+      key: string,
+      value: string,
+      exFlag: "EX",
+      ttl: number,
+    ) => Promise<unknown>;
+  },
   containerId: string,
   ssh: ExecAdapter,
   containerIp: string | null,
