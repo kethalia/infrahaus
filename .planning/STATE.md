@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04.5-auth-decoupling (6 of 10 phases)
-**Plan:** 2 of 4 in current phase
+**Plan:** 3 of 4 in current phase
 **Status:** In progress
-**Last activity:** 2026-02-23 — Completed 04.5-02-PLAN.md (SIWE auth API routes)
+**Last activity:** 2026-02-23 — Completed 04.5-03-PLAN.md (Identity migration + Proxmox client refactor)
 
-Progress: █████████████████░░░ 84% (41/49 plans)
+Progress: █████████████████░░░ 86% (42/49 plans)
 
 ## Completed Work
 
@@ -295,12 +295,16 @@ Progress: █████████████████░░░ 84% (41/4
 - **SIWE verify uses verifySiweMessage** — luksoPublicClient.verifySiweMessage() handles both EOA and EIP-1271 smart contract (UP) signatures
 - **Default SIWE expiry 2h** — if SIWE message lacks expirationTime, defaults to 2 hours from now
 - **Auth actions simplified** — loginAction, loginSchema, ensureNodeExists removed; only logoutAction remains
+- **session.address as universal identity** — all page components, API routes, and server actions use session.address (wallet address) for userId. Zero session.username references remain.
+- **createSessionClient delegates to createProxmoxClientFromNode** — session only provides access control (auth check), Proxmox API auth comes from node's stored API token
+- **Worker uses API token exclusively** — ticket/csrfToken/username fields removed from ContainerJobData; worker always uses createProxmoxClientFromNode
+- **Data migration clears ProxmoxNode** — DELETE FROM ProxmoxNode since old 'root@pam' userIds can't map to wallet addresses. Users re-add nodes after first UP login.
 
 ## Pending Work
 
 - 04.5-02: Complete ✓ — SIWE auth API routes (nonce, verify, logout, me) + auth actions cleanup
-- **NEXT: 04.5-03** — Proxmox client refactor + identity migration (session.username → session.address)
-- 04.5-04 — Login UI (RainbowKit ConnectButton) + Web3Provider + build verification
+- 04.5-03: Complete ✓ — Identity migration + Proxmox client refactor (session.address everywhere)
+- **NEXT: 04.5-04** — Login UI (RainbowKit ConnectButton) + Web3Provider + build verification
 - Phase 3.5: Complete ✓ — All 8 plans executed
 - Phase 3.6: Complete ✓ — All 6 plans executed
 - Phase 5: Web UI & Monitoring (#87-88)
@@ -319,7 +323,7 @@ Progress: █████████████████░░░ 84% (41/4
 
 ## Session Continuity
 
-Last session: 2026-02-23T20:18:33Z
-Stopped at: Completed 04.5-02-PLAN.md
+Last session: 2026-02-23T20:22:00Z
+Stopped at: Completed 04.5-03-PLAN.md
 Resume file: None
-Next step: Execute 04.5-03-PLAN.md — Proxmox client refactor + identity migration
+Next step: Execute 04.5-04-PLAN.md — Login UI + Web3Provider + build verification

@@ -171,7 +171,7 @@ Plans:
 
 - [x] 04.5-01-PLAN.md — Web3 dependencies (RainbowKit + wagmi) + session layer rewrite for SIWE
 - [x] 04.5-02-PLAN.md — SIWE auth API routes (nonce, verify, logout, me) + auth actions cleanup
-- [ ] 04.5-03-PLAN.md — Proxmox client refactor + identity migration (session.username → session.address)
+- [x] 04.5-03-PLAN.md — Proxmox client refactor + identity migration (session.username → session.address)
 - [ ] 04.5-04-PLAN.md — Login UI (RainbowKit ConnectButton) + Web3Provider + build verification
 
 ---
