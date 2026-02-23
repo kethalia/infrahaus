@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Server, Loader2 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "./status-badge";
@@ -98,8 +99,12 @@ export function ContainerCard({
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>VMID {vmid}</span>
-          <span>·</span>
-          <span>{node.name}</span>
+          <Badge
+            variant="outline"
+            className="px-1.5 py-0 text-[10px] font-normal"
+          >
+            {node.name}
+          </Badge>
           {template && (
             <>
               <span>·</span>
