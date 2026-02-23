@@ -41,12 +41,19 @@ export default async function DashboardPage() {
             Manage your LXC containers and templates
           </p>
         </div>
-        <Button asChild size="sm">
-          <Link href="/containers/new">
+        {hasNodes ? (
+          <Button asChild size="sm">
+            <Link href="/containers/new">
+              <Plus className="size-4" />
+              Create Container
+            </Link>
+          </Button>
+        ) : (
+          <Button size="sm" disabled>
             <Plus className="size-4" />
             Create Container
-          </Link>
-        </Button>
+          </Button>
+        )}
       </div>
 
       {!hasNodes && <NoNodesBanner />}
@@ -63,6 +70,8 @@ export default async function DashboardPage() {
           />
         </>
       )}
+      {/* Template browsing and non-Proxmox features still work even without nodes.
+          Container operations are disabled via NoNodesBanner messaging. */}
     </div>
   );
 }
