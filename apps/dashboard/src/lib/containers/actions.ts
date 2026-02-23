@@ -22,6 +22,7 @@ import { getRedis } from "@/lib/redis";
 import { getContainerCreationQueue } from "@/lib/queue/container-creation";
 import {
   storeCreationJob,
+  getCreationJob,
   deleteCreationJob,
   toContainerId,
   parseContainerId,
@@ -443,7 +444,7 @@ export const createContainerAction = authActionClient
 
     // Store creation state in Redis (NX — atomic guard against concurrent
     // creation of the same VMID on the same node)
-    const stored = await storeCreationJob(redis, {
+    const creationJob: Parameters<typeof storeCreationJob>[1] = {
       vmid: data.vmid,
       nodeId,
       nodeName,
@@ -451,11 +452,24 @@ export const createContainerAction = authActionClient
       hostname: data.hostname,
       lifecycle: "creating",
       createdAt: new Date().toISOString(),
-    });
+    };
+    let stored = await storeCreationJob(redis, creationJob);
     if (!stored) {
-      throw new ActionError(
-        "VMID has an active creation in progress. Please wait for it to complete.",
-      );
+      // Key exists — check if it's a stale/terminal job we can replace
+      const existing = await getCreationJob(redis, nodeName, data.vmid);
+      if (
+        existing &&
+        (existing.lifecycle === "error" || existing.lifecycle === "ready")
+      ) {
+        // Previous attempt finished — clean up and retry
+        await deleteCreationJob(redis, nodeName, data.vmid);
+        stored = await storeCreationJob(redis, creationJob);
+      }
+      if (!stored) {
+        throw new ActionError(
+          "VMID has an active creation in progress. Please wait for it to complete.",
+        );
+      }
     }
 
     // Pass session ticket so worker can authenticate without API tokens
