@@ -148,6 +148,31 @@ Issues: #83, #84, #85, #86
 
 ---
 
+### Phase 04.5: Auth Decoupling — RainbowKit + Universal Profiles
+
+**Goal:** Replace Proxmox-coupled authentication with RainbowKit Sign-In with Ethereum (SIWE), restricted to Universal Profiles only. Proxmox nodes stored per connected Universal Profile address. Sessions store signature + message + message hash in Redis with expiry based on signature message.
+**Status:** Not started
+**Depends on:** Phase 03.5 (session infrastructure), Phase 04 (dashboard complete)
+**Plans:** TBD
+
+Key deliverables:
+
+- Remove Proxmox ticket-based login flow entirely
+- RainbowKit integration with Universal Profile-only wallet connector
+- SIWE session model: signature + message + messageHash stored in Redis with message-derived expiry
+- User identity = Universal Profile address (replaces Proxmox username throughout)
+- Proxmox node credentials (API token, SSH password) stored per UP address in ProxmoxNode model
+- userId column migration from Proxmox username to wallet address
+- Login page → RainbowKit connect modal → dashboard
+- No-nodes state becomes the real first-login experience
+- All existing features (containers, templates, wizard, settings) work with new auth
+
+Plans:
+
+- [ ] TBD
+
+---
+
 ### Phase 05: Web UI & Monitoring
 
 **Goal:** Service discovery with web UI access links and resource usage monitoring

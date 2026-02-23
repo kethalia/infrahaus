@@ -291,7 +291,7 @@ Progress: █████████████████ 80% (39/49 plans)
 
 ## Pending Work
 
-- **NEXT: Decouple authentication from Proxmox** — auth should be independent so users can log in without a Proxmox node, then add nodes as configuration step
+- **NEXT: Phase 04.5 — Auth Decoupling** — RainbowKit + Universal Profiles (SIWE), replace Proxmox login, nodes stored per UP address
 - Phase 3.5: Complete ✓ — All 8 plans executed
 - Phase 3.6: Complete ✓ — All 6 plans executed
 - Phase 5: Web UI & Monitoring (#87-88)
@@ -311,6 +311,6 @@ Progress: █████████████████ 80% (39/49 plans)
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 03.5-08-PLAN.md (Phase 3.5 complete)
+Stopped at: Phase 04.5 inserted into roadmap, CONTEXT.md created
 Resume file: None
-Next step: Decouple authentication from Proxmox, then Phase 5 (Web UI & Monitoring)
+Next step: /gsd-plan-phase 04.5 — plan the auth decoupling
