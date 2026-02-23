@@ -45,6 +45,7 @@ import {
 import { waitForTask } from "@/lib/proxmox/tasks";
 import { acquireLock, releaseLock } from "@/lib/utils/redis-lock";
 import { extractIpFromNet0 } from "@/lib/proxmox/utils";
+import { getLogBufferKey } from "@/lib/constants/infrastructure";
 import {
   invalidateVmidCache,
   isVmidTaken,
@@ -461,8 +462,12 @@ export const createContainerAction = authActionClient
         existing &&
         (existing.lifecycle === "error" || existing.lifecycle === "ready")
       ) {
-        // Previous attempt finished — clean up and retry
-        await deleteCreationJob(redis, nodeName, data.vmid);
+        // Previous attempt finished — clean up job + old log buffer, then retry
+        const containerId = toContainerId(nodeName, data.vmid);
+        await Promise.all([
+          deleteCreationJob(redis, nodeName, data.vmid),
+          redis.del(getLogBufferKey(containerId)),
+        ]);
         stored = await storeCreationJob(redis, creationJob);
       }
       if (!stored) {
@@ -838,8 +843,6 @@ export const deleteContainerAction = authActionClient
       const redis = getRedis();
       const { clearCachedServices } =
         await import("@/lib/containers/discovery");
-      const { getLogBufferKey } =
-        await import("@/lib/constants/infrastructure");
       // Use the compound containerId (already nodeName/vmid format if parsed correctly)
       await Promise.all([
         deleteCreationJob(redis, nodeName, vmid),
