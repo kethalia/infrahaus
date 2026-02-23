@@ -2,11 +2,13 @@ import "server-only";
 
 /**
  * Container Data Layer — server-only functions for fetching container data
- * from Proxmox as the sole source of truth, with Redis for creation state
- * and service caching.
+ * from Proxmox as the sole source of truth, with Redis for creation state.
  *
  * Proxmox-first: all container data comes from the Proxmox API.
- * Redis provides in-progress creation state and cached service discovery.
+ * Redis provides in-progress creation state (dashboard + detail).
+ * Service discovery is fetched client-side per card via useContainerServices
+ * hook (TanStack Query) — the dashboard no longer merges services server-side.
+ * Detail page still reads cached services from Redis for the full view.
  * No DB Container or ContainerEvent queries.
  */
 
@@ -28,11 +30,7 @@ import {
   getCachedServices,
   decryptServiceCredentials,
 } from "@/lib/containers/discovery";
-import {
-  getCreationJob,
-  toContainerId,
-  parseContainerId,
-} from "@/lib/containers/redis-state";
+import { getCreationJob, parseContainerId } from "@/lib/containers/redis-state";
 import { getLogBufferKey } from "@/lib/constants/infrastructure";
 import { PROXMOX_NODE_TIMEOUT_MS } from "@/lib/constants/timeouts";
 
@@ -74,9 +72,8 @@ export interface ContainerWithStatus {
   uptime?: number;
   netin?: number;
   netout?: number;
-  /** Service cache (from Redis) */
+  /** Service cache (from Redis, populated on detail page only) */
   services?: CachedServiceInfo[];
-  serviceCount?: number;
   containerIp?: string | null;
   /** Live resource usage from Proxmox (null if unavailable) */
   resources: {
@@ -224,40 +221,8 @@ export async function getContainersWithStatus(
     proxmoxReachable = false;
   }
 
-  // Fetch cached services from Redis for all Proxmox containers (keyed by nodeName/vmid)
-  const redis = getRedis();
-  const servicesByKey = new Map<
-    string,
-    {
-      services: CachedServiceInfo[];
-      serviceCount: number;
-      containerIp: string | null;
-    }
-  >();
-  try {
-    const cachePromises = pveContainers.map(async (pve) => {
-      const cacheKey = toContainerId(pve.node.name, pve.vmid);
-      const cache = await getCachedServices(redis, cacheKey);
-      if (cache) {
-        servicesByKey.set(cacheKey, {
-          services: cache.services.map((s) => ({
-            name: s.name,
-            type: s.type,
-            port: s.port,
-            status: s.status,
-            isSystem: s.isSystem,
-          })),
-          serviceCount: cache.services.length,
-          containerIp: cache.containerIp,
-        });
-      }
-    });
-    await Promise.all(cachePromises);
-  } catch {
-    // Redis failure is non-fatal
-  }
-
   // Map Proxmox containers to ContainerWithStatus
+  // Services are fetched client-side per card via useContainerServices hook
   const containers: ContainerWithStatus[] = pveContainers.map((pve) => {
     // Resolve status from Proxmox live data
     let status: ContainerStatus;
@@ -268,8 +233,6 @@ export async function getContainersWithStatus(
     } else {
       status = "unknown";
     }
-
-    const cached = servicesByKey.get(toContainerId(pve.node.name, pve.vmid));
 
     return {
       vmid: pve.vmid,
@@ -283,9 +246,6 @@ export async function getContainersWithStatus(
       uptime: pve.uptime,
       netin: pve.netin,
       netout: pve.netout,
-      services: cached?.services,
-      serviceCount: cached?.serviceCount,
-      containerIp: cached?.containerIp,
       resources: {
         cpu: Math.round(pve.cpu * 100),
         mem: pve.mem,

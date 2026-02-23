@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   RefreshCw,
   Globe,
@@ -38,6 +39,7 @@ import type { ContainerStatus } from "@/lib/containers/data";
 import type { ServiceWithCredentials } from "@/lib/containers/discovery";
 import { refreshContainerServicesAction } from "@/lib/containers/actions";
 import { serviceStatusConfig } from "@/lib/constants/display";
+import { useContainerServices } from "@/hooks/use-container-services";
 
 // ============================================================================
 // Helpers
@@ -65,8 +67,6 @@ interface ServicesTabProps {
   services: ServiceWithCredentials[];
   status: ContainerStatus;
   containerIp?: string | null;
-  /** ISO timestamp of last service discovery, null if no cache exists */
-  discoveredAt: string | null;
 }
 
 // ============================================================================
@@ -80,17 +80,29 @@ export function ServicesTab({
   services,
   status,
   containerIp,
-  discoveredAt,
 }: ServicesTabProps) {
   const router = useRouter();
-  const autoFetchedRef = useRef(false);
+  const queryClient = useQueryClient();
+
+  // Auto-fetch services from cache (triggers discovery if cache empty + running)
+  const { data: serviceData, isLoading: isDiscovering } = useContainerServices({
+    nodeName,
+    vmid,
+    status,
+  });
+
+  const discoveredAt = serviceData?.discoveredAt ?? null;
 
   const { execute: executeRefresh, isPending } = useAction(
     refreshContainerServicesAction,
     {
       onSuccess: () => {
         toast.success("Services refreshed");
-        router.refresh(); // Immediately re-fetch server component data
+        // Invalidate the TanStack Query cache so it refetches
+        queryClient.invalidateQueries({
+          queryKey: ["container-services", nodeName, vmid],
+        });
+        router.refresh(); // Re-fetch RSC data (decrypted credentials)
       },
       onError: ({ error }) => {
         toast.error("Failed to refresh services", {
@@ -105,14 +117,6 @@ export function ServicesTab({
   }
 
   const isRunning = status === "running";
-
-  // Auto-fetch on first visit when no cache exists
-  useEffect(() => {
-    if (!discoveredAt && !autoFetchedRef.current && isRunning && !isPending) {
-      autoFetchedRef.current = true;
-      executeRefresh({ containerId });
-    }
-  }, [discoveredAt, isRunning, isPending, executeRefresh, containerId]);
 
   // Split into application vs system services
   const appServices = services.filter((s) => !s.isSystem);
@@ -155,7 +159,7 @@ export function ServicesTab({
         {services.length === 0 ? (
           <div className="text-muted-foreground flex flex-col items-center justify-center py-12 text-center">
             <ServerCog className="mb-3 size-8 opacity-30" />
-            {isPending ? (
+            {isPending || isDiscovering ? (
               <>
                 <Loader2 className="mb-2 size-5 animate-spin" />
                 <p className="text-sm">Discovering services...</p>

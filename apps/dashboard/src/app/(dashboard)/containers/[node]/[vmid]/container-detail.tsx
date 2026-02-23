@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,26 +27,6 @@ export function ContainerDetail({
   const { countdown, isPaused, refreshNow, isRefreshing } = useAutoRefresh({
     intervalSeconds: 30,
   });
-
-  // Fetch discoveredAt from the services API (not available in server data)
-  const [discoveredAt, setDiscoveredAt] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchDiscoveredAt() {
-      try {
-        const res = await fetch(
-          `/api/containers/${encodeURIComponent(container.node.name)}/${container.vmid}/services`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setDiscoveredAt(data.discoveredAt ?? null);
-        }
-      } catch {
-        // Non-fatal: discoveredAt is a nice-to-have
-      }
-    }
-    fetchDiscoveredAt();
-  }, [container.node.name, container.vmid]);
 
   // Resource polling for live metrics (2s interval, running containers only)
   const { metrics: liveMetrics } = useResourcePolling({
@@ -133,7 +112,6 @@ export function ContainerDetail({
             services={container.servicesWithCredentials}
             status={container.status}
             containerIp={container.containerIp}
-            discoveredAt={discoveredAt}
           />
         </TabsContent>
 
