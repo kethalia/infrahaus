@@ -65,10 +65,10 @@ export const getServiceCacheKey = (containerId: string) =>
   `container:${containerId}:services`;
 
 // ============================================================================
-// Exec Adapter — abstracts SSH vs PctExec
+// Exec Adapter — abstracts SSH command execution
 // ============================================================================
 
-/** Minimal interface for running commands — satisfied by SSHSession & PctExecSession */
+/** Minimal interface for running commands — satisfied by SSHSession */
 export interface ExecAdapter {
   exec(
     command: string,

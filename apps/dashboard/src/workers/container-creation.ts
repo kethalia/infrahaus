@@ -351,6 +351,18 @@ async function processContainerCreation(
       message: "Container filesystem ready",
     });
 
+    // Harden SSH: disable root password auth (key-only access)
+    await ssh.exec(
+      `sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && ` +
+        `sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && ` +
+        `systemctl restart sshd 2>/dev/null || service ssh restart 2>/dev/null || true`,
+    );
+
+    await publishProgress(containerKey, {
+      type: "log",
+      message: "SSH hardened: root password auth disabled (key-only)",
+    });
+
     // Create credentials directory for service discovery (Phase 5)
     await ssh.exec(`mkdir -p ${CREDENTIALS_DIR}`);
 
