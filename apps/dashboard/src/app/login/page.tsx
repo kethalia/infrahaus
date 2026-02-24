@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { WalletButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
@@ -12,21 +12,58 @@ import {
   CardContent,
 } from "@/components/ui/card";
 
-export default function LoginPage() {
+/**
+ * Poll /api/auth/me to detect when the SIWE verify flow completes.
+ *
+ * Why not useAccount().isConnected? That fires as soon as the wallet
+ * connects — before SIWE sign+verify finishes. The server session
+ * doesn't exist yet, so middleware bounces us back to /login (loop).
+ *
+ * Instead we poll the server: once /api/auth/me returns an address,
+ * we know the Redis session + iron-session cookie are set and the
+ * middleware will let us through.
+ */
+function useRedirectOnAuth() {
   const router = useRouter();
   const { isConnected } = useAccount();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Redirect to dashboard when authentication completes.
-  // RainbowKit's auth adapter handles the SIWE flow automatically
-  // after wallet connection. Once verified, the server session exists
-  // and the user should be on the dashboard.
   useEffect(() => {
-    if (isConnected) {
-      // Small delay to let the session cookie propagate
-      const timer = setTimeout(() => router.push("/"), 500);
-      return () => clearTimeout(timer);
+    // Only start polling after wallet is connected (SIWE flow in progress)
+    if (!isConnected) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
     }
+
+    const checkSession = async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (data.address) {
+          // Server session confirmed — safe to navigate
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          router.push("/");
+        }
+      } catch {
+        // Network error — keep polling
+      }
+    };
+
+    // Check immediately, then every 500ms
+    checkSession();
+    intervalRef.current = setInterval(checkSession, 500);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [isConnected, router]);
+}
+
+export default function LoginPage() {
+  useRedirectOnAuth();
 
   return (
     <Card className="w-full max-w-md">
