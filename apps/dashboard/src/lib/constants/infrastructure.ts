@@ -109,13 +109,6 @@ export const CREATION_TTL_ACTIVE_S = 86400;
 export const CREATION_TTL_COMPLETE_S = 3600;
 
 // ============================================================================
-// Per-Container SSH Keys (Redis — encrypted private keys for direct SSH)
-// ============================================================================
-
-/** Redis key prefix for per-container SSH private keys */
-export const SSH_KEY_PREFIX = "container:ssh-key:";
-
-// ============================================================================
 // Service Discovery Cache (Redis — per-container service scan results)
 // ============================================================================
 
