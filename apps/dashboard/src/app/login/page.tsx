@@ -52,9 +52,9 @@ function useRedirectOnAuth() {
       }
     };
 
-    // Check immediately, then every 500ms
+    // Check immediately, then every 1s (500ms was excessive server load)
     checkSession();
-    intervalRef.current = setInterval(checkSession, 500);
+    intervalRef.current = setInterval(checkSession, 1000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);

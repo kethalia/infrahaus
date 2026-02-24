@@ -53,6 +53,19 @@ export const DEFAULT_SESSION_TTL_S = 7_200;
 export const SESSION_COOKIE_NAME = "lxc-session";
 
 // ============================================================================
+// Auth Rate Limiting (Redis — sliding window per IP)
+// ============================================================================
+
+/** Redis key prefix for nonce rate limiting */
+export const NONCE_RATE_LIMIT_PREFIX = "ratelimit:nonce:";
+
+/** Max nonce requests per window */
+export const NONCE_RATE_LIMIT_MAX = 10;
+
+/** Rate limit window in seconds */
+export const NONCE_RATE_LIMIT_WINDOW_S = 60;
+
+// ============================================================================
 // BullMQ
 // ============================================================================
 

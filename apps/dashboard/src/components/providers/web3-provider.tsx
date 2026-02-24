@@ -21,6 +21,9 @@ import { wagmiConfig } from "@/lib/web3/config";
 const authAdapter = createAuthenticationAdapter({
   getNonce: async () => {
     const response = await fetch("/api/auth/nonce");
+    if (!response.ok) {
+      throw new Error(`Nonce request failed: ${response.status}`);
+    }
     return await response.text();
   },
   createMessage: ({ nonce, address, chainId }) => {
@@ -36,12 +39,28 @@ const authAdapter = createAuthenticationAdapter({
     });
   },
   verify: async ({ message, signature }) => {
-    const response = await fetch("/api/auth/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, signature }),
-    });
-    return Boolean(response.ok);
+    try {
+      const response = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, signature }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        console.error(
+          "[auth] Verification failed:",
+          data.error ?? response.status,
+        );
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      // Network error — distinct from auth failure
+      console.error("[auth] Network error during verification:", error);
+      return false;
+    }
   },
   signOut: async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -56,24 +75,35 @@ const authAdapter = createAuthenticationAdapter({
  * QueryProvider (from query-provider.tsx) so there's no conflict.
  *
  * Auth status is polled on mount and on window focus via /api/auth/me.
+ * Uses a mounted ref to prevent state updates after unmount.
  */
 export function Web3Provider({ children }: { children: ReactNode }) {
   const [authStatus, setAuthStatus] = useState<AuthenticationStatus>("loading");
   const queryClient = useMemo(() => new QueryClient(), []);
 
   useEffect(() => {
+    let mounted = true;
+
     const checkAuth = async () => {
       try {
         const res = await fetch("/api/auth/me");
         const data = await res.json();
-        setAuthStatus(data.address ? "authenticated" : "unauthenticated");
+        if (mounted) {
+          setAuthStatus(data.address ? "authenticated" : "unauthenticated");
+        }
       } catch {
-        setAuthStatus("unauthenticated");
+        if (mounted) {
+          setAuthStatus("unauthenticated");
+        }
       }
     };
+
     checkAuth();
     window.addEventListener("focus", checkAuth);
-    return () => window.removeEventListener("focus", checkAuth);
+    return () => {
+      mounted = false;
+      window.removeEventListener("focus", checkAuth);
+    };
   }, []);
 
   return (
