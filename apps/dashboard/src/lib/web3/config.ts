@@ -4,6 +4,16 @@ import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import { universalProfilesWallet } from "@rainbow-me/rainbowkit/wallets";
 
 /**
+ * WalletConnect project ID — required for RainbowKit to function.
+ * Get a free one at https://cloud.walletconnect.com/
+ *
+ * Falls back to a placeholder to prevent module-load crashes during development.
+ * The connect flow will fail gracefully if the ID is invalid.
+ */
+const projectId =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "MISSING_PROJECT_ID";
+
+/**
  * RainbowKit connectors configured for Universal Profile wallets only.
  * Uses WalletConnect under the hood for mobile UP app connectivity.
  */
@@ -16,7 +26,7 @@ const connectors = connectorsForWallets(
   ],
   {
     appName: "LXC Manager",
-    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
+    projectId,
   },
 );
 
