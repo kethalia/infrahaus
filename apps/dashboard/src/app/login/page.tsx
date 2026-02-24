@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { WalletButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import {
   Card,
@@ -37,7 +37,7 @@ export default function LoginPage() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex justify-center">
-        <ConnectButton />
+        <WalletButton wallet="universal-profiles" />
       </CardContent>
     </Card>
   );
