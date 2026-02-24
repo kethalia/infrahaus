@@ -39,7 +39,6 @@ model ProxmoxNode {
   port        Int      @default(8006)
   tokenId     String?  // API token — optional, only needed for worker (background jobs)
   tokenSecret String?  // Encrypted via encryption utility — optional, paired with tokenId
-  sshPassword String?  // Encrypted — for SSH to Proxmox host for pct exec
   fingerprint String?
   isDefault   Boolean  @default(false)
   userId      String

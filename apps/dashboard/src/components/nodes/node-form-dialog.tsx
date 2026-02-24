@@ -58,7 +58,6 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
       port: node?.port ?? 8006,
       tokenId: node?.tokenId ?? "",
       tokenSecret: "",
-      sshPassword: "",
     },
   });
 
@@ -100,7 +99,6 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
         port: values.port,
         tokenId: values.tokenId || undefined,
         tokenSecret: values.tokenSecret || undefined,
-        sshPassword: values.sshPassword,
       });
     } else if (node) {
       // Build update payload — omit empty secrets to keep existing values
@@ -115,11 +113,6 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
       // Only include tokenSecret if user typed a new one
       if (values.tokenSecret) {
         updatePayload.tokenSecret = values.tokenSecret;
-      }
-
-      // Only include sshPassword if user typed a new one
-      if (values.sshPassword) {
-        updatePayload.sshPassword = values.sshPassword;
       }
 
       executeUpdate(updatePayload);
@@ -228,31 +221,6 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
                       {...field}
                     />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="sshPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>SSH Password (optional)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder={
-                        mode === "edit"
-                          ? "Leave empty to keep current"
-                          : "Root password for pct exec access"
-                      }
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Used for monitoring services inside containers via pct exec
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
