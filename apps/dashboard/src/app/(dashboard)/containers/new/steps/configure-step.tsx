@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useAction } from "next-safe-action/hooks";
+import { KeyRound, Copy, Check, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { generateSshKeyPairAction } from "@/lib/containers/ssh-key-actions";
 import {
   Select,
   SelectContent,
@@ -116,6 +119,7 @@ export function ConfigureStep({
         data?.unprivileged ?? defaultsFromTemplate?.unprivileged ?? true,
       nesting: data?.nesting ?? defaultsFromTemplate?.nesting ?? false,
       sshPublicKey: data?.sshPublicKey ?? "",
+      sshPrivateKey: data?.sshPrivateKey ?? "",
       tags: data?.tags ?? defaultsFromTemplate?.tags ?? "",
       ostemplate:
         data?.ostemplate ??
@@ -357,34 +361,8 @@ export function ConfigureStep({
 
           <Separator />
 
-          {/* Access Section — SSH key only (password removed) */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-              Access
-            </h3>
-            <FormField
-              control={form.control}
-              name="sshPublicKey"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>SSH Public Key (optional)</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="ssh-rsa AAAA..."
-                      className="font-mono text-xs"
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    A random root password will be generated automatically by
-                    the worker. Access containers via SSH key or pct exec.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          {/* SSH Key Pair Section */}
+          <SshKeyPairSection control={form.control} setValue={form.setValue} />
 
           <Separator />
 
@@ -710,6 +688,130 @@ export function ConfigureStep({
           </div>
         </form>
       </Form>
+    </div>
+  );
+}
+
+// ============================================================================
+// SSH Key Pair Section
+// ============================================================================
+
+function SshKeyPairSection({
+  control,
+  setValue,
+}: {
+  control: ReturnType<typeof useForm<ContainerConfigFormValues>>["control"];
+  setValue: ReturnType<typeof useForm<ContainerConfigFormValues>>["setValue"];
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const { execute: generateKeys, isPending: isGenerating } = useAction(
+    generateSshKeyPairAction,
+    {
+      onSuccess: ({ data }) => {
+        if (data) {
+          setValue("sshPrivateKey", data.privateKey, { shouldValidate: true });
+          setValue("sshPublicKey", data.publicKey, { shouldValidate: true });
+        }
+      },
+    },
+  );
+
+  const publicKey = useWatch({ control, name: "sshPublicKey" });
+
+  const handleCopyPublicKey = async () => {
+    if (!publicKey) return;
+    await navigator.clipboard.writeText(publicKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+          SSH Key Pair
+        </h3>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isGenerating}
+          onClick={() => generateKeys({})}
+        >
+          {isGenerating ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <KeyRound className="size-3.5" />
+          )}
+          {isGenerating ? "Generating..." : "Generate Key Pair"}
+        </Button>
+      </div>
+
+      <FormField
+        control={control}
+        name="sshPrivateKey"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Private Key</FormLabel>
+            <FormControl>
+              <Textarea
+                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;..."
+                className="font-mono text-xs"
+                rows={4}
+                {...field}
+              />
+            </FormControl>
+            <FormDescription>
+              Stored encrypted. Used by the dashboard to SSH into the container
+              for service discovery and log fetching.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={control}
+        name="sshPublicKey"
+        render={({ field }) => (
+          <FormItem>
+            <div className="flex items-center justify-between">
+              <FormLabel>Public Key</FormLabel>
+              {publicKey && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 text-xs"
+                  onClick={handleCopyPublicKey}
+                >
+                  {copied ? (
+                    <Check className="size-3" />
+                  ) : (
+                    <Copy className="size-3" />
+                  )}
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              )}
+            </div>
+            <FormControl>
+              <Textarea
+                placeholder="ssh-ed25519 AAAA..."
+                className="font-mono text-xs bg-muted"
+                rows={2}
+                readOnly
+                {...field}
+              />
+            </FormControl>
+            <FormDescription>
+              Injected into the container during creation. Add this to
+              authorized_keys on the Proxmox host if needed.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
     </div>
   );
 }

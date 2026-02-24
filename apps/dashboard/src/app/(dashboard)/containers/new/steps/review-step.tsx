@@ -155,8 +155,8 @@ export function ReviewStep({
             />
             <ReviewItem label="Nesting" value={config.nesting ? "Yes" : "No"} />
             <ReviewItem
-              label="SSH Key"
-              value={config.sshPublicKey ? "Configured" : "None"}
+              label="SSH Key Pair"
+              value={config.sshPrivateKey ? "Generated (Ed25519)" : "Not set"}
             />
           </CardContent>
         </Card>

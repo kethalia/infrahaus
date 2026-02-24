@@ -62,7 +62,8 @@ export const containerConfigBaseSchema = z.object({
   nameserver: z.string().optional(),
   unprivileged: z.boolean(),
   nesting: z.boolean(),
-  sshPublicKey: z.string().optional(),
+  sshPublicKey: z.string().min(1, "SSH public key is required"),
+  sshPrivateKey: z.string().min(1, "SSH private key is required"),
   tags: z.string().optional(),
   ostemplate: z.string().min(1, "OS template is required"),
 });

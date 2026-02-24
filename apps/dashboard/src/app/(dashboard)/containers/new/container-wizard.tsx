@@ -145,6 +145,7 @@ export function ContainerWizard({
         unprivileged: configData.unprivileged,
         nesting: configData.nesting,
         sshPublicKey: configData.sshPublicKey,
+        sshPrivateKey: configData.sshPrivateKey,
         tags: configData.tags,
         ostemplate: configData.ostemplate,
         enabledBuckets: packagesData?.enabledBuckets,
