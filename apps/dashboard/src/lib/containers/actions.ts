@@ -513,6 +513,7 @@ export const createContainerAction = authActionClient
         nameserver: data.nameserver,
         sshPublicKey: data.sshPublicKey,
         sshPrivateKey: encryptedPrivateKey,
+        rootPassword: encryptedRootPassword,
         unprivileged: data.unprivileged,
         nesting: data.nesting,
         ostemplate,
