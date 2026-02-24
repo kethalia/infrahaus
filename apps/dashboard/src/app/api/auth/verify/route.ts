@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { parseSiweMessage } from "viem/siwe";
 import { keccak256, toHex } from "viem";
 import { luksoPublicClient } from "@/lib/web3/client";
@@ -91,8 +92,14 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Verify nonce matches the one stored in the iron-session cookie ---
+    // Uses constant-time comparison to prevent timing attacks on nonce guessing
     const session = await getSession();
-    if (siweMessage.nonce !== session.nonce) {
+    const messageNonce = siweMessage.nonce ?? "";
+    const sessionNonce = session.nonce ?? "";
+    if (
+      messageNonce.length !== sessionNonce.length ||
+      !timingSafeEqual(Buffer.from(messageNonce), Buffer.from(sessionNonce))
+    ) {
       return NextResponse.json(
         { ok: false, error: "Invalid nonce" },
         { status: 422 },
