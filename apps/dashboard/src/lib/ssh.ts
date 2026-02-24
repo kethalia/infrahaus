@@ -10,7 +10,10 @@ export interface SSHConfig {
   host: string;
   port?: number; // default 22
   username: string;
-  password: string;
+  /** Password auth — used for legacy Proxmox host connections */
+  password?: string;
+  /** Private key auth — used for direct SSH to containers (Ed25519/RSA/etc.) */
+  privateKey?: string | Buffer;
   readyTimeout?: number; // default 10000
   keepaliveInterval?: number; // default 15000ms
   keepaliveCountMax?: number; // default 3
@@ -67,20 +70,26 @@ export class SSHSession {
     this.config = config;
     this.conn = new SSHClient();
     this.ready = new Promise<void>((resolve, reject) => {
-      this.conn
-        .on("ready", resolve)
-        .on("error", reject)
-        .connect({
-          host: config.host,
-          port: config.port ?? 22,
-          username: config.username,
-          password: config.password,
-          readyTimeout: config.readyTimeout ?? 10000,
-          // Keepalive prevents silent session drops during long-running scripts
-          // (e.g. Docker install restarts networking and can drop the SSH session)
-          keepaliveInterval: config.keepaliveInterval ?? 15_000,
-          keepaliveCountMax: config.keepaliveCountMax ?? 3,
-        });
+      // Build connection options — supports both password and private key auth
+      const connectOpts: Parameters<SSHClient["connect"]>[0] = {
+        host: config.host,
+        port: config.port ?? 22,
+        username: config.username,
+        readyTimeout: config.readyTimeout ?? 10000,
+        // Keepalive prevents silent session drops during long-running scripts
+        // (e.g. Docker install restarts networking and can drop the SSH session)
+        keepaliveInterval: config.keepaliveInterval ?? 15_000,
+        keepaliveCountMax: config.keepaliveCountMax ?? 3,
+      };
+
+      // Private key takes precedence over password when both are provided
+      if (config.privateKey) {
+        connectOpts.privateKey = config.privateKey;
+      } else if (config.password) {
+        connectOpts.password = config.password;
+      }
+
+      this.conn.on("ready", resolve).on("error", reject).connect(connectOpts);
     });
   }
 
