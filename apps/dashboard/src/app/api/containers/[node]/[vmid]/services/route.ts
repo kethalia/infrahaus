@@ -80,7 +80,7 @@ export async function GET(
     });
   }
 
-  // Auto-discovery: requires running container + SSH access
+  // Auto-discovery: requires running container + SSH key
 
   try {
     const { DatabaseService } = await import("@/lib/db");
@@ -108,8 +108,10 @@ export async function GET(
       });
     }
 
-    // SSH to PVE host for service discovery
-    if (!node.sshPassword) {
+    // Get SSH key from ContainerCredential DB
+    const { getContainerSshKey } = await import("@/lib/containers/ssh-keys");
+    const encryptedKey = await getContainerSshKey(containerId);
+    if (!encryptedKey) {
       return NextResponse.json({
         services: [],
         containerIp: null,
@@ -118,35 +120,42 @@ export async function GET(
     }
 
     const { decrypt } = await import("@/lib/encryption");
-    const pveRootPassword = decrypt(node.sshPassword);
-    const { connectWithRetry, PctExecSession } = await import("@/lib/ssh");
-    const sshHost = await connectWithRetry({
-      host: node.host,
+    const privateKey = decrypt(encryptedKey);
+
+    // Resolve container IP via Proxmox API
+    const { extractIpFromNet0 } = await import("@/lib/proxmox/utils");
+    const config = await getContainerConfig(client, nodeName, vmid);
+    const net0 = (config as Record<string, unknown>)["net0"] as
+      | string
+      | undefined;
+    let containerIp = net0 ? extractIpFromNet0(net0) : null;
+    if (!containerIp) {
+      containerIp = await getRuntimeIp(client, nodeName, vmid);
+    }
+    if (!containerIp) {
+      return NextResponse.json({
+        services: [],
+        containerIp: null,
+        discoveredAt: null,
+      });
+    }
+
+    // SSH directly into the container
+    const { connectWithRetry } = await import("@/lib/ssh");
+    const ssh = await connectWithRetry({
+      host: containerIp,
       username: "root",
-      password: pveRootPassword,
+      privateKey,
     });
 
     try {
-      const pct = new PctExecSession(sshHost, vmid);
-
-      // Resolve container IP
-      const config = await getContainerConfig(client, nodeName, vmid);
-      const net0 = (config as Record<string, unknown>)["net0"] as
-        | string
-        | undefined;
-      const { extractIpFromNet0 } = await import("@/lib/proxmox/utils");
-      let containerIp = net0 ? extractIpFromNet0(net0) : null;
-      if (!containerIp) {
-        containerIp = await getRuntimeIp(client, nodeName, vmid);
-      }
-
       // Discover and cache
       const { discoverAndCacheServices } =
         await import("@/lib/containers/discovery");
       const newCache = await discoverAndCacheServices(
         redis,
         containerId,
-        pct,
+        ssh,
         containerIp,
       );
 
@@ -156,7 +165,7 @@ export async function GET(
         discoveredAt: newCache.discoveredAt,
       });
     } finally {
-      sshHost.close();
+      ssh.close();
     }
   } catch (err) {
     console.error(`Service discovery for ${containerId} failed:`, err);

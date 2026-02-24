@@ -880,26 +880,18 @@ export const deleteContainerAction = authActionClient
 // ============================================================================
 
 /**
- * Re-discover container services by SSHing into the PVE host and running
- * discovery via `pct exec`. Results are cached in Redis (not DB).
- *
- * SSH credentials come from the container's node record in the DB
- * (node.host + node.sshPassword), not from env vars.
+ * Re-discover container services by SSHing directly into the container.
+ * Uses the per-container SSH key stored in ContainerCredential (PostgreSQL).
+ * Results are cached in Redis (not DB).
  */
 export const refreshContainerServicesAction = authActionClient
   .schema(containerIdSchema)
   .action(async ({ parsedInput: { containerId }, ctx }) => {
-    // Resolve container context (works for both DB-tracked and pve-{vmid})
-    const { client, nodeName, vmid, nodeId } = await getContainerContext(
+    // Resolve container context
+    const { client, nodeName, vmid } = await getContainerContext(
       containerId,
       ctx.userId,
     );
-
-    // Find the node record for SSH credentials
-    const node = await DatabaseService.getNodeById(nodeId);
-    if (!node) {
-      throw new ActionError("Node not found");
-    }
 
     // Check container is running on Proxmox
     let status;
@@ -915,36 +907,42 @@ export const refreshContainerServicesAction = authActionClient
       throw new ActionError("Container must be running to refresh services.");
     }
 
-    // Connect to PVE host via SSH using DB-stored credentials
-    if (!node.sshPassword) {
+    // Get SSH key from ContainerCredential DB
+    const { getContainerSshKey } = await import("@/lib/containers/ssh-keys");
+    const encryptedKey = await getContainerSshKey(containerId);
+    if (!encryptedKey) {
       throw new ActionError(
-        "SSH password not configured for this node. Update node settings to enable service discovery.",
+        "SSH key not found for this container. Containers created before SSH key migration cannot be managed.",
       );
     }
-    const pveRootPassword = decrypt(node.sshPassword);
+    const privateKey = decrypt(encryptedKey);
 
-    const { connectWithRetry, PctExecSession } = await import("@/lib/ssh");
-    const sshHost = await connectWithRetry({
-      host: node.host,
+    // Resolve container IP via Proxmox API
+    const { getContainerConfig: getConfig, getRuntimeIp } =
+      await import("@/lib/proxmox/containers");
+    const config = await getConfig(client, nodeName, vmid);
+    const net0 = (config as Record<string, unknown>)["net0"] as
+      | string
+      | undefined;
+    let containerIp = net0 ? extractIpFromNet0(net0) : null;
+    if (!containerIp) {
+      containerIp = await getRuntimeIp(client, nodeName, vmid);
+    }
+    if (!containerIp) {
+      throw new ActionError(
+        "Could not determine container IP. Service discovery requires a reachable IP.",
+      );
+    }
+
+    // SSH directly into the container
+    const { connectWithRetry } = await import("@/lib/ssh");
+    const ssh = await connectWithRetry({
+      host: containerIp,
       username: "root",
-      password: pveRootPassword,
+      privateKey,
     });
 
     try {
-      const pct = new PctExecSession(sshHost, vmid);
-
-      // Resolve container IP
-      const { getContainerConfig: getConfig, getRuntimeIp } =
-        await import("@/lib/proxmox/containers");
-      const config = await getConfig(client, nodeName, vmid);
-      const net0 = (config as Record<string, unknown>)["net0"] as
-        | string
-        | undefined;
-      let containerIp = net0 ? extractIpFromNet0(net0) : null;
-      if (!containerIp) {
-        containerIp = await getRuntimeIp(client, nodeName, vmid);
-      }
-
       // Run discovery and cache in Redis
       const { getRedis } = await import("@/lib/redis");
       const { discoverAndCacheServices } =
@@ -953,7 +951,7 @@ export const refreshContainerServicesAction = authActionClient
       const cache = await discoverAndCacheServices(
         redis,
         containerId,
-        pct,
+        ssh,
         containerIp,
       );
 
@@ -962,6 +960,6 @@ export const refreshContainerServicesAction = authActionClient
 
       return { success: true as const, serviceCount: cache.services.length };
     } finally {
-      sshHost.close();
+      ssh.close();
     }
   });

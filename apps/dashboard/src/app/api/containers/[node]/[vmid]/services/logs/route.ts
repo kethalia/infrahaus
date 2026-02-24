@@ -3,17 +3,22 @@
  *
  * GET /api/containers/[node]/[vmid]/services/logs?service=<name>&lines=50
  *
- * Connects to the Proxmox host via SSH (using DB-stored node credentials)
- * and runs `pct exec <vmid> -- journalctl` to fetch recent log lines.
- * Results are NOT cached — always fresh.
+ * SSHes directly into the container using the per-container SSH key
+ * stored in ContainerCredential (PostgreSQL). Runs `journalctl` to fetch
+ * recent log lines. Results are NOT cached — always fresh.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { DatabaseService } from "@/lib/db";
-import { connectWithRetry, PctExecSession } from "@/lib/ssh";
+import { connectWithRetry } from "@/lib/ssh";
 import { isSafeShellArg } from "@/lib/utils/validation";
 import { decrypt } from "@/lib/encryption";
 import { getSessionData } from "@/lib/session";
+import { getContainerSshKey } from "@/lib/containers/ssh-keys";
+import { toContainerId } from "@/lib/containers/redis-state";
+import { createProxmoxClientFromNode } from "@/lib/proxmox";
+import { getContainerConfig, getRuntimeIp } from "@/lib/proxmox/containers";
+import { extractIpFromNet0 } from "@/lib/proxmox/utils";
 
 const MAX_LOG_LINES = 200;
 const DEFAULT_LOG_LINES = 50;
@@ -75,39 +80,58 @@ export async function GET(
     return NextResponse.json({ error: "Node not found" }, { status: 404 });
   }
 
-  // Resolve SSH credentials from the node record
-  if (!dbNode.sshPassword) {
+  // Get SSH key from ContainerCredential DB
+  const containerId = toContainerId(nodeName, vmid);
+  const encryptedKey = await getContainerSshKey(containerId);
+  if (!encryptedKey) {
     return NextResponse.json(
       {
-        error: `SSH not configured for node "${dbNode.name}". Update node settings to add an SSH password.`,
+        error: `SSH key not found for container "${containerId}". Containers created before SSH key migration cannot be managed.`,
       },
       { status: 500 },
     );
   }
+  const privateKey = decrypt(encryptedKey);
 
-  let sshHost;
+  // Resolve container IP via Proxmox API
+  const client = createProxmoxClientFromNode(dbNode);
+  const config = await getContainerConfig(client, nodeName, vmid);
+  const net0 = (config as Record<string, unknown>)["net0"] as
+    | string
+    | undefined;
+  let containerIp = net0 ? extractIpFromNet0(net0) : null;
+  if (!containerIp) {
+    containerIp = await getRuntimeIp(client, nodeName, vmid);
+  }
+  if (!containerIp) {
+    return NextResponse.json(
+      { error: "Could not determine container IP" },
+      { status: 500 },
+    );
+  }
+
+  // SSH directly into the container
+  let ssh;
   try {
-    sshHost = await connectWithRetry({
-      host: dbNode.host,
+    ssh = await connectWithRetry({
+      host: containerIp,
       username: "root",
-      password: decrypt(dbNode.sshPassword),
+      privateKey,
     });
   } catch {
     return NextResponse.json(
-      { error: "Failed to connect to Proxmox host" },
+      { error: "Failed to connect to container via SSH" },
       { status: 502 },
     );
   }
 
   try {
-    const pct = new PctExecSession(sshHost, vmid);
-
     // Append .service if not already present for systemd unit matching
     const unit = serviceName.endsWith(".service")
       ? serviceName
       : `${serviceName}.service`;
 
-    const result = await pct.exec(
+    const result = await ssh.exec(
       `journalctl -u ${unit} -n ${lines} --no-pager --output=short 2>&1`,
     );
 
@@ -123,6 +147,6 @@ export async function GET(
       { status: 500 },
     );
   } finally {
-    sshHost.close();
+    ssh.close();
   }
 }
