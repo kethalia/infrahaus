@@ -86,9 +86,10 @@ export async function GET(
   if (!encryptedKey) {
     return NextResponse.json(
       {
-        error: `SSH key not found for container "${containerId}". Containers created before SSH key migration cannot be managed.`,
+        error: "Container is not managed. Adopt it to enable service logs.",
+        managed: false,
       },
-      { status: 500 },
+      { status: 422 },
     );
   }
   const privateKey = decrypt(encryptedKey);

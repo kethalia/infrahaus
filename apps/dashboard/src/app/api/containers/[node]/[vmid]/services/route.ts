@@ -116,6 +116,7 @@ export async function GET(
         services: [],
         containerIp: null,
         discoveredAt: null,
+        managed: false,
       });
     }
 

@@ -912,7 +912,7 @@ export const refreshContainerServicesAction = authActionClient
     const encryptedKey = await getContainerSshKey(containerId);
     if (!encryptedKey) {
       throw new ActionError(
-        "SSH key not found for this container. Containers created before SSH key migration cannot be managed.",
+        "Container is not managed. Adopt it first to enable service discovery.",
       );
     }
     const privateKey = decrypt(encryptedKey);

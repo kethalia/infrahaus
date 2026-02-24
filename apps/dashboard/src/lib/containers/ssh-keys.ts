@@ -102,3 +102,18 @@ export async function listContainerCredentials(userId: string) {
     orderBy: { createdAt: "desc" },
   });
 }
+
+/**
+ * Get the set of containerIds that have stored credentials for a user.
+ * Used for efficient batch "is managed?" checks on the dashboard.
+ * Returns a Set<string> of compound containerIds (e.g. "pve-04/100").
+ */
+export async function getManagedContainerIds(
+  userId: string,
+): Promise<Set<string>> {
+  const rows = await prisma.containerCredential.findMany({
+    where: { userId },
+    select: { containerId: true },
+  });
+  return new Set(rows.map((r) => r.containerId));
+}
