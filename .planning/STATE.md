@@ -318,7 +318,6 @@ Progress: █████████████████░░░ 88% (43/4
 - Services API route supports `?discover=true` — cache-first pattern with SSH auto-discovery fallback when cache is empty
 - container-card.tsx converted to client component ("use client") for useContainerServices hook. Shows Skeleton loading state while services load.
 - services-tab.tsx uses useQueryClient for cache invalidation on manual refresh instead of hand-rolled useEffect
-- **NEXT PRIORITY: Decouple auth from Proxmox** — Login should be independent (local accounts or separate provider). Proxmox nodes added post-login as configuration. Makes no-nodes the real first-login experience.
 - **wagmi v2 required** — RainbowKit 2.2.10 does NOT support wagmi v3; pinned to ^2.9.0
 - **viem explicit dep** — pnpm strict hoisting requires viem as direct dependency (not just peer)
 - **Dynamic session TTL** — createSession computes TTL from SIWE expirationTime, capped at MAX_SESSION_TTL_S (24h), fallback DEFAULT_SESSION_TTL_S (2h)

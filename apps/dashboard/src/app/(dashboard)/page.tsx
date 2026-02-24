@@ -87,6 +87,8 @@ export default async function DashboardPage() {
           />
         </>
       )}
+      {/* Template browsing and non-Proxmox features still work even without nodes.
+          Container operations are disabled via NoNodesBanner messaging. */}
     </div>
   );
 }
