@@ -132,7 +132,10 @@ export const createContainerInputSchema = z.object({
   nameserver: z.string().optional(),
   unprivileged: z.boolean().default(true),
   nesting: z.boolean().default(false),
-  sshPublicKey: z.string().optional(),
+  /** SSH public key — injected into container via Proxmox API ssh-public-keys */
+  sshPublicKey: z.string().min(1, "SSH public key is required"),
+  /** SSH private key — stored encrypted in Redis for direct SSH to container */
+  sshPrivateKey: z.string().min(1, "SSH private key is required"),
   tags: z.string().optional(),
   ostemplate: z.string().optional(),
   enabledBuckets: z.array(z.string()).optional(),

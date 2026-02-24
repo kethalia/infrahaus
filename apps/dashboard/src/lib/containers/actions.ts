@@ -14,11 +14,13 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import crypto from "crypto";
 
 import { authActionClient, ActionError } from "@/lib/safe-action";
 import { DatabaseService, prisma } from "@/lib/db";
-import { decrypt } from "@/lib/encryption";
+import { encrypt, decrypt } from "@/lib/encryption";
 import { getRedis } from "@/lib/redis";
+import { storeContainerCredential } from "@/lib/containers/ssh-keys";
 import { getContainerCreationQueue } from "@/lib/queue/container-creation";
 import {
   storeCreationJob,
@@ -476,6 +478,22 @@ export const createContainerAction = authActionClient
       }
     }
 
+    // Encrypt and store container credentials in PostgreSQL for durability.
+    // The root password is generated here (random 32-char hex, same as before
+    // but now persisted). The SSH keys come from the wizard form.
+    const containerId = toContainerId(nodeName, data.vmid);
+    const rootPassword = crypto.randomBytes(16).toString("hex");
+    const encryptedPrivateKey = encrypt(data.sshPrivateKey);
+    const encryptedRootPassword = encrypt(rootPassword);
+
+    await storeContainerCredential({
+      containerId,
+      userId: ctx.userId,
+      sshPrivateKey: encryptedPrivateKey,
+      sshPublicKey: data.sshPublicKey,
+      rootPassword: encryptedRootPassword,
+    });
+
     // Enqueue creation job — worker uses node API token from DB (no session ticket)
     const queue = getContainerCreationQueue();
     await queue.add("create-container", {
@@ -494,6 +512,7 @@ export const createContainerAction = authActionClient
         ipConfig: data.ipConfig,
         nameserver: data.nameserver,
         sshPublicKey: data.sshPublicKey,
+        sshPrivateKey: encryptedPrivateKey,
         unprivileged: data.unprivileged,
         nesting: data.nesting,
         ostemplate,
@@ -510,7 +529,7 @@ export const createContainerAction = authActionClient
     revalidatePath("/containers");
 
     return {
-      containerId: toContainerId(nodeName, data.vmid),
+      containerId,
       nodeName,
       vmid: data.vmid,
     };
@@ -832,15 +851,18 @@ export const deleteContainerAction = authActionClient
       // Invalidate VMID cache for this node (container deleted)
       await invalidateVmidCache(nodeId);
 
-      // Clean up Redis state: creation job, cached services, log buffer
+      // Clean up Redis state + PostgreSQL credentials
       const redis = getRedis();
       const { clearCachedServices } =
         await import("@/lib/containers/discovery");
+      const { deleteContainerCredential } =
+        await import("@/lib/containers/ssh-keys");
       // Use the compound containerId (already nodeName/vmid format if parsed correctly)
       await Promise.all([
         deleteCreationJob(redis, nodeName, vmid),
         clearCachedServices(redis, containerId),
         redis.del(getLogBufferKey(containerId)),
+        deleteContainerCredential(containerId),
       ]);
 
       revalidatePath("/");

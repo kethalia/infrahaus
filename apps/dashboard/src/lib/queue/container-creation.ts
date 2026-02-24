@@ -29,7 +29,10 @@ export interface ContainerJobData {
     bridge: string; // e.g., "vmbr0"
     ipConfig: string; // e.g., "ip=dhcp" or "ip=10.0.0.50/24,gw=10.0.0.1"
     nameserver?: string;
-    sshPublicKey?: string;
+    /** SSH public key — injected into container via Proxmox API ssh-public-keys */
+    sshPublicKey: string;
+    /** Encrypted SSH private key — for direct SSH access to container */
+    sshPrivateKey: string;
     unprivileged: boolean;
     nesting: boolean;
     ostemplate: string; // e.g., "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"
