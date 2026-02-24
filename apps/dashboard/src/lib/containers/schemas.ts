@@ -154,6 +154,20 @@ export const createContainerInputSchema = z.object({
 });
 
 // ============================================================================
+// Adopt Container (for pre-existing containers)
+// ============================================================================
+
+export const adoptContainerSchema = z.object({
+  containerId: z.string().min(1),
+  /** Strategy: "password" = SSH in with password, inject new key; "import-key" = store user-provided key */
+  strategy: z.enum(["password", "import-key"]),
+  /** Root password — required for "password" strategy */
+  password: z.string().optional(),
+  /** Existing SSH private key — required for "import-key" strategy */
+  privateKey: z.string().optional(),
+});
+
+// ============================================================================
 // Inferred Types
 // ============================================================================
 
@@ -168,3 +182,4 @@ export type PackageSelection = z.infer<typeof packageSelectionSchema>;
 export type ScriptConfig = z.infer<typeof scriptConfigSchema>;
 export type WizardState = z.infer<typeof wizardStateSchema>;
 export type CreateContainerInput = z.infer<typeof createContainerInputSchema>;
+export type AdoptContainerInput = z.infer<typeof adoptContainerSchema>;

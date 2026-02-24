@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Server, Loader2 } from "lucide-react";
+import { Server, Loader2, ShieldOff } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -43,17 +43,20 @@ export function ContainerCard({
   isActionPending = false,
   onPendingChange,
 }: ContainerCardProps) {
-  const { vmid, hostname, status, resources, template, node } = container;
+  const { vmid, hostname, status, resources, template, node, isManaged } =
+    container;
 
   const displayName = hostname ?? `CT ${vmid}`;
   const containerId = toContainerId(node.name, vmid);
 
   // Fetch services from cache (auto-discovers if cache empty + container running)
+  // Skip discovery for unmanaged containers (no SSH credentials)
   const { data: serviceData, isLoading: servicesLoading } =
     useContainerServices({
       nodeName: node.name,
       vmid,
       status,
+      discover: isManaged,
     });
 
   // Show first N app services with colored dots (skip system services on dashboard)
@@ -115,8 +118,19 @@ export function ContainerCard({
       </CardHeader>
 
       <CardContent className="flex flex-col gap-2 py-0">
+        {/* Unmanaged container indicator */}
+        {!isManaged && (
+          <Link
+            href={`/containers/${node.name}/${vmid}`}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ShieldOff className="size-3" />
+            <span>Not managed — adopt to enable services</span>
+          </Link>
+        )}
+
         {/* Services with colored dots */}
-        {servicesLoading && status === "running" ? (
+        {isManaged && servicesLoading && status === "running" ? (
           <div className="flex items-center gap-3">
             <Skeleton className="h-3 w-24" />
             <Skeleton className="h-3 w-20" />

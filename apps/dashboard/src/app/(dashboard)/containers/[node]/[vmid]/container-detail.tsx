@@ -44,6 +44,7 @@ export function ContainerDetail({
         vmid={container.vmid}
         status={container.status}
         proxmoxReachable={proxmoxReachable}
+        isManaged={container.isManaged}
       />
 
       {/* Proxmox unreachable warning */}
@@ -107,11 +108,13 @@ export function ContainerDetail({
         <TabsContent value="services">
           <ServicesTab
             containerId={toContainerId(container.node.name, container.vmid)}
+            hostname={container.hostname}
             nodeName={container.node.name}
             vmid={container.vmid}
             services={container.servicesWithCredentials}
             status={container.status}
             containerIp={container.containerIp}
+            isManaged={container.isManaged}
           />
         </TabsContent>
 

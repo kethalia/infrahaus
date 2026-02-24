@@ -63,7 +63,7 @@ import {
   SHUTDOWN_WAIT_MS,
   DELETE_TIMEOUT_MS,
 } from "@/lib/constants/timeouts";
-import { createContainerInputSchema } from "./schemas";
+import { createContainerInputSchema, adoptContainerSchema } from "./schemas";
 
 // ============================================================================
 // VMID Cache Actions
@@ -873,6 +873,177 @@ export const deleteContainerAction = authActionClient
     } finally {
       await releaseContainerLock(containerId, token);
     }
+  });
+
+// ============================================================================
+// Adopt Container Action
+// ============================================================================
+
+/**
+ * Adopt a pre-existing container by establishing SSH credentials.
+ *
+ * Two strategies:
+ *   1. "password" — SSH into the container using root password, generate a new
+ *      Ed25519 key pair, inject the public key into authorized_keys, store
+ *      credentials in PostgreSQL, and harden SSH (disable password auth).
+ *   2. "import-key" — Store a user-provided private key in PostgreSQL.
+ *      Verifies it can connect before persisting.
+ *
+ * After adoption, the container becomes "managed" — service discovery, logs,
+ * and SSH-based features work.
+ */
+export const adoptContainerAction = authActionClient
+  .schema(adoptContainerSchema)
+  .action(async ({ parsedInput: data, ctx }) => {
+    // Resolve container and verify ownership
+    const { client, nodeName, vmid } = await getContainerContext(
+      data.containerId,
+      ctx.userId,
+    );
+
+    // Verify container is running (SSH requires it)
+    const status = await getContainer(client, nodeName, vmid);
+    if (status.status !== "running") {
+      throw new ActionError(
+        "Container must be running to adopt. Start it first.",
+      );
+    }
+
+    // Resolve container IP
+    const { getContainerConfig: getConfig, getRuntimeIp } =
+      await import("@/lib/proxmox/containers");
+    const config = await getConfig(client, nodeName, vmid);
+    const net0 = (config as Record<string, unknown>)["net0"] as
+      | string
+      | undefined;
+    let containerIp = net0 ? extractIpFromNet0(net0) : null;
+    if (!containerIp) {
+      containerIp = await getRuntimeIp(client, nodeName, vmid);
+    }
+    if (!containerIp) {
+      throw new ActionError(
+        "Could not determine container IP. Ensure the container has a reachable network.",
+      );
+    }
+
+    const { connectWithRetry, SSHSession } = await import("@/lib/ssh");
+
+    if (data.strategy === "password") {
+      // === Password strategy ===
+      if (!data.password) {
+        throw new ActionError(
+          "Root password is required for password-based adoption.",
+        );
+      }
+
+      // 1. Connect with password to verify access
+      let ssh: InstanceType<typeof SSHSession>;
+      try {
+        ssh = await connectWithRetry({
+          host: containerIp,
+          username: "root",
+          password: data.password,
+        });
+      } catch {
+        throw new ActionError(
+          "Failed to connect with the provided password. Verify the password and that SSH is enabled in the container.",
+        );
+      }
+
+      try {
+        // 2. Generate new Ed25519 key pair
+        const { generateSshKeyPair } = await import("@/lib/utils/ssh-keys");
+        const { privateKey, publicKey } = generateSshKeyPair(
+          `infrahaus-${nodeName}-${vmid}`,
+        );
+
+        // 3. Inject public key into authorized_keys
+        await ssh.exec("mkdir -p /root/.ssh && chmod 700 /root/.ssh");
+        // Append (don't overwrite) — container may have other authorized keys
+        await ssh.exec(
+          `echo '${publicKey}' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys`,
+        );
+
+        // 4. Harden SSH: disable password auth
+        await ssh.exec(
+          `sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && ` +
+            `sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && ` +
+            `systemctl restart sshd 2>/dev/null || service ssh restart 2>/dev/null || true`,
+        );
+
+        // 5. Store credentials in PostgreSQL
+        const encryptedPrivateKey = encrypt(privateKey);
+        const encryptedRootPassword = encrypt(data.password);
+
+        await storeContainerCredential({
+          containerId: data.containerId,
+          userId: ctx.userId,
+          sshPrivateKey: encryptedPrivateKey,
+          sshPublicKey: publicKey,
+          rootPassword: encryptedRootPassword,
+        });
+
+        // 6. Verify key-based auth works
+        const keySession = await connectWithRetry({
+          host: containerIp,
+          username: "root",
+          privateKey,
+        });
+        keySession.close();
+      } finally {
+        ssh.close();
+      }
+    } else if (data.strategy === "import-key") {
+      // === Import key strategy ===
+      if (!data.privateKey) {
+        throw new ActionError("SSH private key is required for key import.");
+      }
+
+      // 1. Verify the provided key can connect
+      let ssh: InstanceType<typeof SSHSession>;
+      try {
+        ssh = await connectWithRetry({
+          host: containerIp,
+          username: "root",
+          privateKey: data.privateKey,
+        });
+      } catch {
+        throw new ActionError(
+          "Failed to connect with the provided SSH key. Verify the key is correct and authorized in the container.",
+        );
+      }
+      ssh.close();
+
+      // 2. Derive public key from the private key
+      const { derivePublicKeyFromPrivate } =
+        await import("@/lib/utils/ssh-keys");
+      let publicKey: string;
+      try {
+        publicKey = derivePublicKeyFromPrivate(data.privateKey);
+      } catch {
+        throw new ActionError(
+          "Could not derive public key from the provided private key. Ensure it is a valid OpenSSH or PEM private key.",
+        );
+      }
+
+      // 3. Store credentials in PostgreSQL
+      // No root password available for import-key — store a placeholder
+      const encryptedPrivateKey = encrypt(data.privateKey);
+      const encryptedRootPassword = encrypt(""); // Empty — unknown
+
+      await storeContainerCredential({
+        containerId: data.containerId,
+        userId: ctx.userId,
+        sshPrivateKey: encryptedPrivateKey,
+        sshPublicKey: publicKey,
+        rootPassword: encryptedRootPassword,
+      });
+    }
+
+    revalidatePath("/");
+    revalidatePath(`/containers/${encodeURIComponent(data.containerId)}`);
+
+    return { success: true as const };
   });
 
 // ============================================================================
