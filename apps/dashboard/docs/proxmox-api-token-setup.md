@@ -43,8 +43,8 @@ pveum role add InfraHaus.Audit -privs "Sys.Audit,Datastore.Audit"
 # Container lifecycle within a pool (create, start, stop, delete)
 pveum role add InfraHaus.Containers -privs "VM.Allocate,VM.Audit,VM.PowerMgmt,VM.Console,Pool.Allocate"
 
-# Container creation on a specific node (submit creation, poll tasks)
-pveum role add InfraHaus.Node -privs "Sys.Audit,VM.Allocate"
+# Container creation on a specific node (submit creation, poll tasks, use bridges)
+pveum role add InfraHaus.Node -privs "Sys.Audit,VM.Allocate,SDN.Use"
 
 # Disk allocation on a specific storage
 pveum role add InfraHaus.Storage -privs "Datastore.AllocateSpace"
@@ -60,7 +60,7 @@ A single role on every path would grant unnecessary privileges. For example, `VM
 | ---------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | `InfraHaus.Audit`      | `Sys.Audit`, `Datastore.Audit`                                           | No VM access, no write operations, no pool management                                                       |
 | `InfraHaus.Containers` | `VM.Allocate`, `VM.Audit`, `VM.PowerMgmt`, `VM.Console`, `Pool.Allocate` | No Sys._, no Datastore._, no network access                                                                 |
-| `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`                                               | No VM.PowerMgmt (lifecycle is via pool), no Datastore.\*                                                    |
+| `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`, `SDN.Use`                                    | No VM.PowerMgmt (lifecycle is via pool), no Datastore.\*                                                    |
 | `InfraHaus.Storage`    | `Datastore.AllocateSpace`                                                | No Datastore.Allocate (can't create/delete volumes), no Datastore.AllocateTemplate (can't upload templates) |
 
 #### Privileges NOT included anywhere
@@ -78,7 +78,7 @@ A single role on every path would grant unnecessary privileges. For example, `VM
 | `Datastore.Allocate`         | Dashboard doesn't create/delete storage volumes                    |
 | `Datastore.AllocateTemplate` | Dashboard doesn't upload OS templates                              |
 | `User.*`, `Realm.*`          | Dashboard doesn't manage Proxmox users                             |
-| `SDN.*`                      | Dashboard doesn't manage software-defined networking               |
+| `SDN.Allocate`, `SDN.Audit`  | Dashboard doesn't manage SDN zones/vnets                           |
 | `Permissions.Modify`         | Dashboard doesn't change ACLs                                      |
 
 ### Step 2: Create a Resource Pool
@@ -159,7 +159,7 @@ pveum aclmod /storage/local-zfs -user 'infrahaus-alice@pve' -role InfraHaus.Stor
 | --- | ----------------------- | ---------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | `/`                     | `InfraHaus.Audit`      | `Sys.Audit`, `Datastore.Audit`                                           | Proxmox clusters require root-level audit for `GET /nodes/{node}/storage` and `GET /nodes/{node}/network` to return data. Per-path ACLs on `/storage/local` or `/nodes/pve-04` alone don't work for these endpoints. This role is strictly read-only.                  |
 | 2   | `/pool/infrahaus-alice` | `InfraHaus.Containers` | `VM.Allocate`, `VM.Audit`, `VM.PowerMgmt`, `VM.Console`, `Pool.Allocate` | The isolation boundary. Token can only create, list, start, stop, and delete containers **inside this pool**. Other users' pools and unassigned containers are not manageable. `Pool.Allocate` lets the dashboard assign new containers to this pool at creation time. |
-| 3   | `/nodes/pve-04`         | `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`                                               | `POST /nodes/pve-04/lxc` (create container) requires `VM.Allocate` **on the node**. Task polling (`GET /nodes/{node}/tasks/{upid}/status`) requires `Sys.Audit` on the node. The audit on `/` covers read operations, but creation needs node-level write access.      |
+| 3   | `/nodes/pve-04`         | `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`, `SDN.Use`                                    | `POST /nodes/pve-04/lxc` (create container) requires `VM.Allocate` **on the node**. `SDN.Use` is required to attach network bridges to containers. Task polling requires `Sys.Audit` on the node.                                                                      |
 | 4   | `/storage/local-zfs`    | `InfraHaus.Storage`    | `Datastore.AllocateSpace`                                                | Creating a container allocates disk on this storage. The audit role on `/` provides `Datastore.Audit` (read), but writing disk data requires `Datastore.AllocateSpace` on the specific storage.                                                                        |
 
 #### How pool isolation works
