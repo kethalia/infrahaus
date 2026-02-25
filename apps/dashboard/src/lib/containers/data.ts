@@ -202,7 +202,12 @@ export async function getContainersWithStatus(
               },
             }));
           } catch (error) {
-            console.error(`Node ${dbNode.name} container list failed:`, error);
+            // Expected when node is unreachable — warn, not error
+            // (console.error triggers Next.js error overlay in dev)
+            console.warn(
+              `[containers] Node ${dbNode.name} skipped:`,
+              error instanceof Error ? error.message : error,
+            );
             failedNodes.push(dbNode.name);
             return [];
           }
@@ -219,7 +224,10 @@ export async function getContainersWithStatus(
       }
     }
   } catch (error) {
-    console.error("Proxmox API unreachable:", error);
+    console.warn(
+      "[containers] Proxmox API unreachable:",
+      error instanceof Error ? error.message : error,
+    );
     proxmoxReachable = false;
   }
 
