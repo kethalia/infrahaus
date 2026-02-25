@@ -104,13 +104,15 @@ pveum user token add infrahaus-alice@pam dashboard --privsep=1 --comment "InfraH
 Output:
 
 ```
-┌──────────────┬──────────────────────────────────────┐
-│ key          │ value                                │
-╞══════════════╪══════════════════════════════════════╡
-│ full-tokenid │ infrahaus-alice@pam!dashboard        │
-│ info         │ {"comment":"InfraHaus dashboard"}    │
-│ value        │ xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx │
-└──────────────┴──────────────────────────────────────┘
+┌──────────────┬─────────────────────────────────────────────────┐
+│ key          │ value                                           │
+╞══════════════╪═════════════════════════════════════════════════╡
+│ full-tokenid │ infrahaus-alice@pam!dashboard                   │
+├──────────────┼─────────────────────────────────────────────────┤
+│ info         │ {"comment":"InfraHaus dashboard","privsep":"1"} │
+├──────────────┼─────────────────────────────────────────────────┤
+│ value        │ xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx            │
+└──────────────┴─────────────────────────────────────────────────┘
 ```
 
 **Save the token secret immediately** — Proxmox only shows it once.
