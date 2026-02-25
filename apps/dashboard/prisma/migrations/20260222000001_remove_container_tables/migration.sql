@@ -2,6 +2,10 @@
 ALTER TABLE "Container" DROP CONSTRAINT IF EXISTS "Container_nodeId_fkey";
 ALTER TABLE "Container" DROP CONSTRAINT IF EXISTS "Container_templateId_fkey";
 ALTER TABLE "ContainerEvent" DROP CONSTRAINT IF EXISTS "ContainerEvent_containerId_fkey";
+ALTER TABLE "ContainerService" DROP CONSTRAINT IF EXISTS "ContainerService_containerId_fkey";
+
+-- DropTable (ContainerService depends on Container, drop it first)
+DROP TABLE IF EXISTS "ContainerService";
 
 -- DropIndex
 DROP INDEX IF EXISTS "Container_lifecycle_idx";
