@@ -1,6 +1,6 @@
 # Proxmox API Token Setup
 
-This guide walks you through creating a least-privilege API token for the InfraHaus dashboard. The token is scoped to a **single Proxmox node** and can only manage LXC containers — it cannot access other nodes, VMs, or cluster-wide settings.
+This guide walks you through creating a least-privilege API token for the InfraHaus dashboard. The token is scoped to a **single Proxmox node** and uses a **resource pool** so each dashboard user can only see and manage their own containers.
 
 ## Overview
 
@@ -26,90 +26,109 @@ It does **not** need access to:
 - SSH or console access to your Proxmox host
 - Root access (or a user with `Realm.AllocateUser` + `User.Modify` privileges)
 
-## Step 1: Create a Custom Role
+## Step 1: Create a Resource Pool
+
+A Proxmox resource pool isolates containers so each token can only manage containers within its pool. This is critical when sharing a node — each user gets their own pool and can't see or touch anyone else's containers.
+
+```bash
+pveum pool add infrahaus-alice -comment "Containers managed by alice via InfraHaus"
+```
+
+> **Naming convention:** Use `infrahaus-{username}` so it's clear what each pool is for. If you're the only user, `infrahaus` is fine.
+
+## Step 2: Create a Custom Role
 
 Create a role with only the privileges the dashboard needs:
 
 ```bash
-pveum role add InfraHaus -privs "VM.Allocate,VM.Audit,VM.PowerMgmt,VM.Console,Datastore.Audit,Datastore.AllocateSpace,Sys.Audit"
+pveum role add InfraHaus -privs "VM.Allocate,VM.Audit,VM.PowerMgmt,VM.Console,Datastore.Audit,Datastore.AllocateSpace,Sys.Audit,Pool.Allocate,Pool.Audit"
 ```
+
+> **One role for all users.** You only create the `InfraHaus` role once per Proxmox host. Every dashboard user shares the same role — isolation comes from the pool, not the role.
 
 ### What each privilege does
 
-| Privilege                 | Why it's needed                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------ |
-| `VM.Allocate`             | Create and delete LXC containers                                                           |
-| `VM.Audit`                | List containers, read config, read network interfaces, read status                         |
-| `VM.PowerMgmt`            | Start, stop, shutdown, restart containers                                                  |
-| `VM.Console`              | Access container console (future use — included for completeness)                          |
-| `Datastore.Audit`         | List storage volumes and downloaded OS templates                                           |
-| `Datastore.AllocateSpace` | Allocate disk space when creating containers (rootfs)                                      |
-| `Sys.Audit`               | List nodes, read node status, read task status/logs, list available OS templates (aplinfo) |
+| Privilege                 | Why it's needed                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `VM.Allocate`             | Create and delete LXC containers                                                 |
+| `VM.Audit`                | List containers, read config, read network interfaces, read status               |
+| `VM.PowerMgmt`            | Start, stop, shutdown, restart containers                                        |
+| `VM.Console`              | Access container console (future use)                                            |
+| `Datastore.Audit`         | List storage volumes and downloaded OS templates                                 |
+| `Datastore.AllocateSpace` | Allocate disk space when creating containers (rootfs)                            |
+| `Sys.Audit`               | List nodes, read node status, read task status/logs, list available OS templates |
+| `Pool.Allocate`           | Add newly created containers to the user's pool                                  |
+| `Pool.Audit`              | List pool contents                                                               |
 
 ### Privileges explicitly NOT included
 
-| Privilege            | Why it's excluded                                                       |
-| -------------------- | ----------------------------------------------------------------------- |
-| `Sys.Modify`         | Not needed — dashboard doesn't change node configuration                |
-| `Sys.PowerMgmt`      | Not needed — dashboard doesn't reboot/shutdown the host                 |
-| `Sys.Console`        | Not needed — dashboard doesn't access the host console                  |
-| `VM.Config.*`        | Not needed — container config is set at creation time via `VM.Allocate` |
-| `VM.Migrate`         | Not needed — dashboard doesn't migrate containers between nodes         |
-| `VM.Snapshot*`       | Not needed — dashboard doesn't create/manage snapshots                  |
-| `VM.Backup`          | Not needed — dashboard doesn't create backups                           |
-| `VM.Clone`           | Not needed — dashboard creates from OS templates, not clones            |
-| `User.*`             | Not needed — dashboard doesn't manage Proxmox users                     |
-| `Realm.*`            | Not needed — dashboard doesn't manage auth realms                       |
-| `Pool.Allocate`      | Only needed if using pool-based access control (see Advanced section)   |
-| `SDN.*`              | Not needed — dashboard doesn't manage software-defined networking       |
-| `Permissions.Modify` | Not needed — dashboard doesn't change ACLs                              |
+| Privilege            | Why it's excluded                                          |
+| -------------------- | ---------------------------------------------------------- |
+| `Sys.Modify`         | Dashboard doesn't change node configuration                |
+| `Sys.PowerMgmt`      | Dashboard doesn't reboot/shutdown the host                 |
+| `Sys.Console`        | Dashboard doesn't access the host console                  |
+| `VM.Config.*`        | Container config is set at creation time via `VM.Allocate` |
+| `VM.Migrate`         | Dashboard doesn't migrate containers between nodes         |
+| `VM.Snapshot*`       | Dashboard doesn't create/manage snapshots                  |
+| `VM.Backup`          | Dashboard doesn't create backups                           |
+| `VM.Clone`           | Dashboard creates from OS templates, not clones            |
+| `User.*`             | Dashboard doesn't manage Proxmox users                     |
+| `Realm.*`            | Dashboard doesn't manage auth realms                       |
+| `SDN.*`              | Dashboard doesn't manage software-defined networking       |
+| `Permissions.Modify` | Dashboard doesn't change ACLs                              |
 
-## Step 2: Create a Dedicated User
+## Step 3: Create a Dedicated User
 
-Create a PAM user specifically for the dashboard. Don't reuse `root@pam`:
+Create a PAM user for this dashboard user. Don't reuse `root@pam`:
 
 ```bash
-# Create the user (no password needed — API tokens don't use passwords)
-pveum user add infrahaus@pam -comment "InfraHaus dashboard service account"
+pveum user add infrahaus-alice@pam -comment "InfraHaus dashboard — alice"
 ```
 
 > **Why PAM?** PAM users are local to the Proxmox host and don't require an external auth server. The dashboard only uses the API token, never the user's password, so no PAM password is needed.
 
-## Step 3: Assign Permissions to a Specific Node
+> **One user per dashboard user.** If bob also uses the dashboard, create `infrahaus-bob@pam` with their own pool `infrahaus-bob`. They share the same `InfraHaus` role but are isolated by pool.
 
-This is where you scope access to **only your target node**. Replace `pve-04` with your actual node name:
+## Step 4: Assign Permissions
+
+Scope the user's access to their pool, their node, and the storage they need. Replace `pve-04` with your node name:
 
 ```bash
-# Allow reading node info and task status on this specific node
-pveum aclmod /nodes/pve-04 -user infrahaus@pam -role InfraHaus
+# Pool — this is the primary isolation boundary
+# The user can only manage containers inside this pool
+pveum aclmod /pool/infrahaus-alice -user infrahaus-alice@pam -role InfraHaus
 
-# Allow creating/managing containers (see note about VM scoping below)
-pveum aclmod /vms -user infrahaus@pam -role InfraHaus
+# Node — allows reading node info, task status, and OS template listing
+pveum aclmod /nodes/pve-04 -user infrahaus-alice@pam -role InfraHaus
 
-# Allow listing storage and allocating disk space
-# Option A: All storage on this node
-pveum aclmod /storage -user infrahaus@pam -role InfraHaus
-
-# Option B: Specific storage only (more restrictive)
-# pveum aclmod /storage/local-lvm -user infrahaus@pam -role InfraHaus
+# Storage — allows listing volumes and allocating disk space
+# Use a specific storage path for tighter control
+pveum aclmod /storage/local-lvm -user infrahaus-alice@pam -role InfraHaus
 ```
 
-### Important: `/vms` is cluster-wide
+### Why no `/vms` ACL?
 
-Proxmox's permission tree puts all VMs/containers under `/vms/{vmid}` regardless of which node they're on. There is no `/nodes/pve-04/vms` path in the ACL system. This means the `VM.*` privileges on `/vms` technically apply to containers on any node.
+With pool-based access, you do **not** assign permissions on `/vms`. The pool ACL covers all `VM.*` operations for containers within the pool. Containers outside the pool are invisible to this token.
 
-**In practice, this is acceptable** because:
+This is what makes pool-based access secure for shared nodes — alice's token literally cannot see bob's containers.
 
-1. The dashboard only queries the node you configure — it never discovers or contacts other nodes
-2. The API token is scoped to a single user whose only role is `InfraHaus`
-3. The token has no `Sys.Modify`, `VM.Migrate`, or cluster privileges — it can't move containers between nodes
+### How pool isolation works
 
-**If you need stricter isolation**, use the pool-based approach in the [Advanced: Pool-Based Access Control](#advanced-pool-based-access-control) section.
+```
+/pool/infrahaus-alice    ← alice's token has InfraHaus role here
+  └── CT 200             ← alice can manage this (in her pool)
+  └── CT 201             ← alice can manage this (in her pool)
 
-## Step 4: Create the API Token
+/pool/infrahaus-bob      ← bob's token has InfraHaus role here
+  └── CT 300             ← bob can manage this (in his pool)
+
+CT 100                   ← not in any InfraHaus pool — invisible to both
+```
+
+## Step 5: Create the API Token
 
 ```bash
-pveum user token add infrahaus@pam dashboard --privsep=0 --comment "InfraHaus dashboard"
+pveum user token add infrahaus-alice@pam dashboard --privsep=0 --comment "InfraHaus dashboard"
 ```
 
 This outputs:
@@ -118,7 +137,7 @@ This outputs:
 ┌──────────────┬──────────────────────────────────────┐
 │ key          │ value                                │
 ╞══════════════╪══════════════════════════════════════╡
-│ full-tokenid │ infrahaus@pam!dashboard              │
+│ full-tokenid │ infrahaus-alice@pam!dashboard        │
 │ info         │ {"comment":"InfraHaus dashboard"}    │
 │ value        │ xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx │
 └──────────────┴──────────────────────────────────────┘
@@ -131,108 +150,142 @@ This outputs:
 - `--privsep=0` — Token inherits the user's permissions. This is what you want.
 - `--privsep=1` (default) — Token has **no** permissions unless you assign them separately to the token itself. This is more work and easy to misconfigure.
 
-## Step 5: Add the Node in the Dashboard
+## Step 6: Add the Node in the Dashboard
 
 1. Log in to the InfraHaus dashboard with your Universal Profile
 2. Go to **Settings** → **Nodes**
 3. Click **Add Node**
 4. Fill in:
-   - **Name**: A friendly name (e.g., `pve-04`)
+   - **Name**: Your Proxmox node name (e.g., `pve-04`) — must match the actual node name
    - **Host**: Your Proxmox IP or hostname (e.g., `10.0.0.10`)
    - **Port**: `8006` (default)
-   - **Token ID**: `infrahaus@pam!dashboard`
-   - **Token Secret**: The UUID value from step 4
+   - **Token ID**: `infrahaus-alice@pam!dashboard`
+   - **Token Secret**: The UUID value from step 5
+   - **Pool**: `infrahaus-alice` — the pool containers will be created in
 5. Click **Save** — the dashboard will test the connection before saving
 
 ## Verifying the Setup
 
 ### From the Proxmox CLI
 
-Test that the token can access the expected endpoints:
-
 ```bash
 # Set variables
-TOKEN_ID="infrahaus@pam!dashboard"
+TOKEN_ID="infrahaus-alice@pam!dashboard"
 TOKEN_SECRET="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 PVE_HOST="localhost"
+NODE="pve-04"
 
-# Test: List nodes (should work)
+# Should work: list nodes
 curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
   "https://${PVE_HOST}:8006/api2/json/nodes" | jq '.data[].node'
 
-# Test: List containers on your node (should work)
+# Should work: list containers (only those in your pool)
 curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
-  "https://${PVE_HOST}:8006/api2/json/nodes/pve-04/lxc" | jq '.data[].vmid'
+  "https://${PVE_HOST}:8006/api2/json/nodes/${NODE}/lxc" | jq '.data[].vmid'
 
-# Test: List storage (should work)
+# Should work: list storage
 curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
-  "https://${PVE_HOST}:8006/api2/json/nodes/pve-04/storage" | jq '.data[].storage'
+  "https://${PVE_HOST}:8006/api2/json/nodes/${NODE}/storage" | jq '.data[].storage'
 
-# Test: Access cluster config (should FAIL with 403)
+# Should work: list pool contents
+curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
+  "https://${PVE_HOST}:8006/api2/json/pools/infrahaus-alice" | jq '.data.members[].vmid'
+
+# Should FAIL (403): access cluster config
 curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
   "https://${PVE_HOST}:8006/api2/json/cluster/status" | jq
+
+# Should FAIL (403): manage a container outside your pool
+curl -s -k -X POST -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
+  "https://${PVE_HOST}:8006/api2/json/nodes/${NODE}/lxc/100/status/stop"
 ```
 
 ### From the Dashboard
 
-After adding the node, verify on the dashboard:
+After adding the node:
 
-1. **Containers page** loads and shows existing containers (or empty state)
+1. **Containers page** loads and shows only your pool's containers (or empty state)
 2. **Create Container** wizard lists available OS templates and storage
-3. You can start/stop a test container
+3. Creating a container places it in your pool automatically
+4. You can start/stop containers you created
+
+## Adding Another User
+
+To give someone else access to the same Proxmox node with their own isolated containers:
+
+```bash
+# 1. Create their pool
+pveum pool add infrahaus-bob -comment "Containers managed by bob via InfraHaus"
+
+# 2. Create their user
+pveum user add infrahaus-bob@pam -comment "InfraHaus dashboard — bob"
+
+# 3. Assign permissions (same role, different pool)
+pveum aclmod /pool/infrahaus-bob -user infrahaus-bob@pam -role InfraHaus
+pveum aclmod /nodes/pve-04 -user infrahaus-bob@pam -role InfraHaus
+pveum aclmod /storage/local-lvm -user infrahaus-bob@pam -role InfraHaus
+
+# 4. Create their token
+pveum user token add infrahaus-bob@pam dashboard --privsep=0 --comment "InfraHaus dashboard"
+```
+
+Bob adds the node in the dashboard with his own token ID (`infrahaus-bob@pam!dashboard`) and pool (`infrahaus-bob`). He can only see and manage containers in his pool.
 
 ## Revoking Access
 
-If you need to revoke the dashboard's access:
+### Revoke one user
 
 ```bash
-# Option 1: Delete just the token (user and role remain)
-pveum user token remove infrahaus@pam dashboard
+# Delete token
+pveum user token remove infrahaus-alice@pam dashboard
 
-# Option 2: Delete everything
-pveum user token remove infrahaus@pam dashboard
-pveum aclmod /nodes/pve-04 -user infrahaus@pam -delete -role InfraHaus
-pveum aclmod /vms -user infrahaus@pam -delete -role InfraHaus
-pveum aclmod /storage -user infrahaus@pam -delete -role InfraHaus
-pveum user delete infrahaus@pam
+# Remove ACLs
+pveum aclmod /pool/infrahaus-alice -user infrahaus-alice@pam -delete -role InfraHaus
+pveum aclmod /nodes/pve-04 -user infrahaus-alice@pam -delete -role InfraHaus
+pveum aclmod /storage/local-lvm -user infrahaus-alice@pam -delete -role InfraHaus
+
+# Delete user
+pveum user delete infrahaus-alice@pam
+
+# Delete pool (only if empty — move or delete containers first)
+pveum pool delete infrahaus-alice
+```
+
+### Remove InfraHaus entirely
+
+After revoking all users:
+
+```bash
 pveum role delete InfraHaus
 ```
 
 ## Multi-Node Setup
 
-If you have multiple Proxmox nodes (standalone, not clustered), repeat steps 1–5 on each node. Each node gets:
+For **standalone nodes** (not clustered): Repeat this entire guide on each node. Each node gets its own user, token, pool, and role.
 
-- Its own `infrahaus@pam` user + `InfraHaus` role
-- Its own API token
-- Its own entry in the dashboard's Settings → Nodes
+For **clustered nodes**: The Proxmox API is shared across the cluster, so you only need one user and token. Create separate pools per node if you want node-level isolation, or one pool per user if you want user-level isolation regardless of node.
 
-For **clustered** Proxmox nodes, you only need one token — the API is shared across the cluster. Scope the `/nodes/{node}` ACL to whichever node(s) the dashboard should manage.
+## Simplified Setup (Single User Only)
 
-## Advanced: Pool-Based Access Control
-
-If you need the API token to only manage containers it created (not pre-existing ones), use a Proxmox resource pool:
+If you're the only person who will ever use this Proxmox node with the dashboard, you can skip the pool and assign `/vms` directly:
 
 ```bash
-# 1. Create a pool for dashboard-managed containers
-pveum pool add infrahaus-containers -comment "Containers managed by InfraHaus"
+# Role (no Pool.Allocate or Pool.Audit needed)
+pveum role add InfraHaus -privs "VM.Allocate,VM.Audit,VM.PowerMgmt,VM.Console,Datastore.Audit,Datastore.AllocateSpace,Sys.Audit"
 
-# 2. Add Pool.Allocate to the role
-pveum role modify InfraHaus -privs "VM.Allocate,VM.Audit,VM.PowerMgmt,VM.Console,Datastore.Audit,Datastore.AllocateSpace,Sys.Audit,Pool.Allocate"
+# User + permissions
+pveum user add infrahaus@pam -comment "InfraHaus dashboard"
+pveum aclmod /nodes/pve-04 -user infrahaus@pam -role InfraHaus
+pveum aclmod /vms -user infrahaus@pam -role InfraHaus
+pveum aclmod /storage -user infrahaus@pam -role InfraHaus
 
-# 3. Assign permissions to the pool instead of /vms
-pveum aclmod /pool/infrahaus-containers -user infrahaus@pam -role InfraHaus
-
-# 4. Don't assign /vms permissions
-# (The pool ACL covers containers within it)
+# Token
+pveum user token add infrahaus@pam dashboard --privsep=0
 ```
 
-Then when creating containers, Proxmox places them in the pool and the token can only see/manage containers in that pool.
-
-> **Note:** The dashboard currently passes the `pool` parameter if configured in the container creation config, but there is no pool selector in the node settings UI yet. This is a planned feature.
+> **Warning:** With `/vms` permissions, the token can manage **any** container on **any** node in the cluster. This is fine for single-user setups but not suitable if you share the node. Use the pool-based approach above for shared environments.
 
 ## Proxmox API Reference
-
-For the complete privilege documentation, see:
 
 - [Proxmox VE API Permissions](https://pve.proxmox.com/pve-docs/pveum-plain.html)
 - [Proxmox VE API Reference](https://pve.proxmox.com/pve-docs/api-viewer/)
