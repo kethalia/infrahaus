@@ -58,6 +58,7 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
       port: node?.port ?? 8006,
       tokenId: node?.tokenId ?? "",
       tokenSecret: "",
+      pool: node?.pool ?? "",
     },
   });
 
@@ -99,6 +100,7 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
         port: values.port,
         tokenId: values.tokenId || undefined,
         tokenSecret: values.tokenSecret || undefined,
+        pool: values.pool || undefined,
       });
     } else if (node) {
       // Build update payload — omit empty secrets to keep existing values
@@ -108,6 +110,7 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
         host: values.host,
         port: values.port,
         tokenId: values.tokenId,
+        pool: values.pool || undefined,
       };
 
       // Only include tokenSecret if user typed a new one
@@ -221,6 +224,24 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
                       {...field}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="pool"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Resource Pool</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. infrahaus-alice" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Proxmox resource pool for container isolation. See setup
+                    guide.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
