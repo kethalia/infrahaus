@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 04.5-auth-decoupling (6 of 10 phases)
-**Plan:** 4 of 4 in current phase
-**Status:** Phase complete
-**Last activity:** 2026-02-24 — Completed 04.5-04-PLAN.md (Login UI + Web3Provider + build verification)
+**Phase:** 04.6-pool-based-access (7 of 11 phases)
+**Plan:** 0 of 1 in current phase
+**Status:** Ready to execute
+**Last activity:** 2026-02-25 — Created 04.6-01-PLAN.md (Pool-based Proxmox access control)
 
-Progress: █████████████████░░░ 88% (43/49 plans)
+Progress: █████████████████░░░ 86% (43/50 plans)
 
 ## Completed Work
 
@@ -336,6 +336,7 @@ Progress: █████████████████░░░ 88% (43/4
 ## Pending Work
 
 - Phase 04.5: Complete ✓ — All 4 plans executed. Auth fully decoupled from Proxmox.
+- **Phase 04.6: Pool-Based Proxmox Access Control (1 plan) — NEXT**
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 - Phase 7: VM to Run OpenClaw (3 plans)
@@ -352,10 +353,11 @@ Progress: █████████████████░░░ 88% (43/4
 
 - Phase 07 added: VM to Run OpenClaw
 - Phase 08 added: Proxmox LXC Container Template Engine
+- Phase 04.6 added: Pool-Based Proxmox Access Control (least-privilege API token isolation)
 
 ## Session Continuity
 
-Last session: 2026-02-24T05:00:00Z
-Stopped at: Completed 04.5-04-PLAN.md — Phase 04.5 complete
-Resume file: None
-Next step: Phase 05 (Web UI & Monitoring) or Phase 07 (VM to Run OpenClaw)
+Last session: 2026-02-25T00:00:00Z
+Stopped at: Created 04.6-01-PLAN.md — ready to execute
+Resume file: .planning/phases/04.6-pool-based-access/04.6-01-PLAN.md
+Next step: Execute 04.6-01-PLAN.md (pool support across model, form, pipeline, guide)
