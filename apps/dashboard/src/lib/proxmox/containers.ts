@@ -70,7 +70,12 @@ export async function createContainer(
   if (config.startup) formData.append("startup", config.startup);
   if (config.storage) formData.append("storage", config.storage);
   if (config.pool) formData.append("pool", config.pool);
-  if (config.tags) formData.append("tags", config.tags);
+  // NOTE: tags are NOT sent during creation — Proxmox's tag permission check
+  // (PVE::GuestHelpers::assert_tag_permissions) does not resolve through pool
+  // ACLs, causing HTTP 403 on /vms/{vmid}. Tags are applied post-creation via
+  // PUT /nodes/{node}/lxc/{vmid}/config where the VM already exists in the pool.
+  // See: PVE/LXC.pm check_ct_modify_config_perm, tags branch.
+  // if (config.tags) formData.append("tags", config.tags);
   if (config.start !== undefined)
     formData.append("start", config.start ? "1" : "0");
 
@@ -166,6 +171,27 @@ export async function deleteContainer(
 ): Promise<string> {
   const path = `/nodes/${node}/lxc/${vmid}${purge ? "?purge=1" : ""}`;
   return client.delete(path, z.string());
+}
+
+/**
+ * Update container configuration (e.g., apply tags post-creation).
+ *
+ * Used to set tags after container creation because Proxmox's tag permission
+ * check (PVE::GuestHelpers::assert_tag_permissions) does not resolve through
+ * pool ACLs during creation. Once the container exists in the pool, the PUT
+ * config endpoint works with pool-based permissions.
+ */
+export async function updateContainerConfig(
+  client: ProxmoxClient,
+  node: string,
+  vmid: number,
+  config: Record<string, string>,
+): Promise<void> {
+  const formData = new URLSearchParams();
+  for (const [key, value] of Object.entries(config)) {
+    formData.append(key, value);
+  }
+  await client.put(`/nodes/${node}/lxc/${vmid}/config`, formData);
 }
 
 /**
