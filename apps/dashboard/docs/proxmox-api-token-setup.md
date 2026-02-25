@@ -43,16 +43,19 @@ pveum role add InfraHaus.Audit -privs "Sys.Audit,Datastore.Audit"
 # Container lifecycle within a pool (create, start, stop, delete)
 pveum role add InfraHaus.Containers -privs "VM.Allocate,VM.Audit,VM.PowerMgmt,VM.Console,Pool.Allocate"
 
-# Container creation on a specific node (submit creation, poll tasks, use bridges)
-pveum role add InfraHaus.Node -privs "Sys.Audit,VM.Allocate,SDN.Use"
+# Container creation on a specific node (submit creation, poll tasks)
+pveum role add InfraHaus.Node -privs "Sys.Audit,VM.Allocate"
 
 # Disk allocation on a specific storage
 pveum role add InfraHaus.Storage -privs "Datastore.AllocateSpace"
+
+# Network bridge access (list and attach bridges to containers)
+pveum role add InfraHaus.SDN -privs "SDN.Use"
 ```
 
 > **One-time setup.** These roles are shared by all dashboard users. Create them once per cluster.
 
-#### Why four roles instead of one
+#### Why five roles instead of one
 
 A single role on every path would grant unnecessary privileges. For example, `VM.Allocate` on `/storage/local-zfs` is meaningless, and `Datastore.AllocateSpace` on `/pool/infrahaus-alice` does nothing. Per-path roles ensure each path grants **only** what it needs:
 
@@ -60,8 +63,9 @@ A single role on every path would grant unnecessary privileges. For example, `VM
 | ---------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | `InfraHaus.Audit`      | `Sys.Audit`, `Datastore.Audit`                                           | No VM access, no write operations, no pool management                                                       |
 | `InfraHaus.Containers` | `VM.Allocate`, `VM.Audit`, `VM.PowerMgmt`, `VM.Console`, `Pool.Allocate` | No Sys._, no Datastore._, no network access                                                                 |
-| `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`, `SDN.Use`                                    | No VM.PowerMgmt (lifecycle is via pool), no Datastore.\*                                                    |
+| `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`                                               | No VM.PowerMgmt (lifecycle is via pool), no Datastore.\*                                                    |
 | `InfraHaus.Storage`    | `Datastore.AllocateSpace`                                                | No Datastore.Allocate (can't create/delete volumes), no Datastore.AllocateTemplate (can't upload templates) |
+| `InfraHaus.SDN`        | `SDN.Use`                                                                | No SDN.Allocate (can't create zones/vnets), no SDN.Audit                                                    |
 
 #### Privileges NOT included anywhere
 
@@ -151,16 +155,22 @@ pveum aclmod /nodes/pve-04 -user 'infrahaus-alice@pve' -role InfraHaus.Node
 
 # 4. Disk allocation on container storage
 pveum aclmod /storage/local-zfs -user 'infrahaus-alice@pve' -role InfraHaus.Storage
+
+# 5. Network bridge access (list and attach bridges to containers)
+pveum aclmod /sdn/zones/localnetwork -user 'infrahaus-alice@pve' -role InfraHaus.SDN
 ```
+
+> **About `/sdn/zones/localnetwork`:** Proxmox treats all traditional Linux bridges (like `vmbr0`) as belonging to the `localnetwork` SDN zone. The `GET /nodes/{node}/network` endpoint filters out bridge interfaces unless the user has `SDN.Use` on `/sdn/zones/localnetwork/{bridge}` (or the parent path). This ACL covers all local bridges on the cluster.
 
 #### Why each ACL exists
 
-| #   | Path                    | Role                   | Privileges at this path                                                  | Why this path                                                                                                                                                                                                                                                          |
-| --- | ----------------------- | ---------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `/`                     | `InfraHaus.Audit`      | `Sys.Audit`, `Datastore.Audit`                                           | Proxmox clusters require root-level audit for `GET /nodes/{node}/storage` and `GET /nodes/{node}/network` to return data. Per-path ACLs on `/storage/local` or `/nodes/pve-04` alone don't work for these endpoints. This role is strictly read-only.                  |
-| 2   | `/pool/infrahaus-alice` | `InfraHaus.Containers` | `VM.Allocate`, `VM.Audit`, `VM.PowerMgmt`, `VM.Console`, `Pool.Allocate` | The isolation boundary. Token can only create, list, start, stop, and delete containers **inside this pool**. Other users' pools and unassigned containers are not manageable. `Pool.Allocate` lets the dashboard assign new containers to this pool at creation time. |
-| 3   | `/nodes/pve-04`         | `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`, `SDN.Use`                                    | `POST /nodes/pve-04/lxc` (create container) requires `VM.Allocate` **on the node**. `SDN.Use` is required to attach network bridges to containers. Task polling requires `Sys.Audit` on the node.                                                                      |
-| 4   | `/storage/local-zfs`    | `InfraHaus.Storage`    | `Datastore.AllocateSpace`                                                | Creating a container allocates disk on this storage. The audit role on `/` provides `Datastore.Audit` (read), but writing disk data requires `Datastore.AllocateSpace` on the specific storage.                                                                        |
+| #   | Path                      | Role                   | Privileges at this path                                                  | Why this path                                                                                                                                                                                                                                                          |
+| --- | ------------------------- | ---------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `/`                       | `InfraHaus.Audit`      | `Sys.Audit`, `Datastore.Audit`                                           | Proxmox clusters require root-level audit for `GET /nodes/{node}/storage` and `GET /nodes/{node}/network` to return data. Per-path ACLs on `/storage/local` or `/nodes/pve-04` alone don't work for these endpoints. This role is strictly read-only.                  |
+| 2   | `/pool/infrahaus-alice`   | `InfraHaus.Containers` | `VM.Allocate`, `VM.Audit`, `VM.PowerMgmt`, `VM.Console`, `Pool.Allocate` | The isolation boundary. Token can only create, list, start, stop, and delete containers **inside this pool**. Other users' pools and unassigned containers are not manageable. `Pool.Allocate` lets the dashboard assign new containers to this pool at creation time. |
+| 3   | `/nodes/pve-04`           | `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`                                               | `POST /nodes/pve-04/lxc` (create container) requires `VM.Allocate` **on the node**. Task polling (`GET /nodes/{node}/tasks/{upid}/status`) requires `Sys.Audit` on the node.                                                                                           |
+| 4   | `/storage/local-zfs`      | `InfraHaus.Storage`    | `Datastore.AllocateSpace`                                                | Creating a container allocates disk on this storage. The audit role on `/` provides `Datastore.Audit` (read), but writing disk data requires `Datastore.AllocateSpace` on the specific storage.                                                                        |
+| 5   | `/sdn/zones/localnetwork` | `InfraHaus.SDN`        | `SDN.Use`                                                                | Proxmox filters bridge interfaces from the network listing unless `SDN.Use` is granted on the bridge's SDN zone. `localnetwork` is the built-in zone for all traditional Linux bridges (e.g., `vmbr0`).                                                                |
 
 #### How pool isolation works
 

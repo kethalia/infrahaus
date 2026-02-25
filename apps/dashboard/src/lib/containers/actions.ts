@@ -222,22 +222,19 @@ export async function getWizardData(userId: string): Promise<WizardData> {
         const nn = clusterNode.node;
 
         try {
-          const networkSchema = z.array(
-            z
-              .object({
-                iface: z.string(),
-                type: z.string(),
-              })
-              .passthrough(),
-          );
-
           const [storageList, networkList] = await Promise.all([
             storage.listStorage(client, nn),
-            // Try type=any_bridge first (returns Linux bridges + OVS bridges),
-            // fall back to unfiltered if the param is not supported
-            client
-              .get(`/nodes/${nn}/network?type=any_bridge`, networkSchema)
-              .catch(() => client.get(`/nodes/${nn}/network`, networkSchema)),
+            client.get(
+              `/nodes/${nn}/network`,
+              z.array(
+                z
+                  .object({
+                    iface: z.string(),
+                    type: z.string(),
+                  })
+                  .passthrough(),
+              ),
+            ),
           ]);
 
           // Filter storages that support container rootdir/images content
@@ -246,7 +243,7 @@ export async function getWizardData(userId: string): Promise<WizardData> {
               s.content?.includes("rootdir") || s.content?.includes("images"),
           );
 
-          // Filter for bridge-like interfaces (covers "bridge" and "OVSBridge")
+          // Filter for bridge interfaces only
           const bridges = networkList.filter(
             (n) => n.type === "bridge" || n.type === "OVSBridge",
           );
