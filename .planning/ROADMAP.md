@@ -177,6 +177,26 @@ Plans:
 
 ---
 
+### Phase 04.6: Pool-Based Proxmox Access Control
+
+**Goal:** Wire Proxmox resource pools through the dashboard so each user's containers are isolated in their own pool. Enables least-privilege API tokens where users can only see and manage containers they created — critical for shared nodes.
+**Status:** Not started
+**Depends on:** Phase 04.5 (auth decoupling)
+**Plans:** 1 plan
+
+Key deliverables:
+
+- `pool` column on ProxmoxNode model (optional — backward compatible)
+- Pool field in node settings form (Settings → Nodes → Add/Edit)
+- Container creation pipeline passes pool to Proxmox API (`POST /nodes/{node}/lxc` pool param)
+- API token setup guide documents pool-based isolation as the recommended default
+
+Plans:
+
+- [ ] 04.6-01-PLAN.md — Add pool to ProxmoxNode model, node form, creation pipeline, and setup guide
+
+---
+
 ### Phase 05: Web UI & Monitoring
 
 **Goal:** Service discovery with web UI access links and resource usage monitoring
