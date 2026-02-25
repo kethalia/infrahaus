@@ -35,6 +35,8 @@ export interface ContainerJobData {
     sshPrivateKey: string;
     /** Encrypted root password — set during container creation via Proxmox API */
     rootPassword: string;
+    /** Proxmox resource pool — containers assigned to this pool for isolation */
+    pool?: string;
     unprivileged: boolean;
     nesting: boolean;
     ostemplate: string; // e.g., "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"

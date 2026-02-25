@@ -514,6 +514,7 @@ export const createContainerAction = authActionClient
         sshPublicKey: data.sshPublicKey,
         sshPrivateKey: encryptedPrivateKey,
         rootPassword: encryptedRootPassword,
+        pool: node.pool || undefined,
         unprivileged: data.unprivileged,
         nesting: data.nesting,
         ostemplate,
