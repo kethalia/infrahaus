@@ -111,7 +111,6 @@ export interface WizardTemplate {
   diskSize: number | null;
   storage: string | null;
   bridge: string | null;
-  unprivileged: boolean;
   nesting: boolean;
   tags: string | null;
   packages: Array<{ id: string; name: string; manager: string }>;
@@ -353,7 +352,6 @@ function mapTemplate(t: {
   diskSize: number | null;
   storage: string | null;
   bridge: string | null;
-  unprivileged: boolean;
   nesting: boolean;
   tags: string | null;
   packages: Array<{ id: string; name: string; manager: string }>;
@@ -376,7 +374,6 @@ function mapTemplate(t: {
     diskSize: t.diskSize,
     storage: t.storage,
     bridge: t.bridge,
-    unprivileged: t.unprivileged,
     nesting: t.nesting,
     tags: t.tags,
     packages: t.packages.map((p) => ({
@@ -515,7 +512,7 @@ export const createContainerAction = authActionClient
         sshPrivateKey: encryptedPrivateKey,
         rootPassword: encryptedRootPassword,
         pool: node.pool || undefined,
-        unprivileged: data.unprivileged,
+        unprivileged: true, // Always unprivileged — privileged containers require Sys.Modify on /
         nesting: data.nesting,
         ostemplate,
         tags: data.tags,

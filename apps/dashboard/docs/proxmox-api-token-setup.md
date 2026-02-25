@@ -65,21 +65,21 @@ A single role on every path would grant unnecessary privileges. For example, `VM
 
 #### Privileges NOT included anywhere
 
-| Privilege                    | Why excluded                                               |
-| ---------------------------- | ---------------------------------------------------------- |
-| `Sys.Modify`                 | Dashboard doesn't change node configuration                |
-| `Sys.PowerMgmt`              | Dashboard doesn't reboot/shutdown the host                 |
-| `Sys.Console`                | Dashboard doesn't access the host console                  |
-| `VM.Config.*`                | Container config is set at creation time via `VM.Allocate` |
-| `VM.Migrate`                 | Dashboard doesn't move containers between nodes            |
-| `VM.Snapshot*`               | Dashboard doesn't manage snapshots                         |
-| `VM.Backup`                  | Dashboard doesn't create backups                           |
-| `VM.Clone`                   | Dashboard creates from OS templates, not clones            |
-| `Datastore.Allocate`         | Dashboard doesn't create/delete storage volumes            |
-| `Datastore.AllocateTemplate` | Dashboard doesn't upload OS templates                      |
-| `User.*`, `Realm.*`          | Dashboard doesn't manage Proxmox users                     |
-| `SDN.*`                      | Dashboard doesn't manage software-defined networking       |
-| `Permissions.Modify`         | Dashboard doesn't change ACLs                              |
+| Privilege                    | Why excluded                                                       |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `Sys.Modify`                 | Required for privileged containers — dashboard forces unprivileged |
+| `Sys.PowerMgmt`              | Dashboard doesn't reboot/shutdown the host                         |
+| `Sys.Console`                | Dashboard doesn't access the host console                          |
+| `VM.Config.*`                | Container config is set at creation time via `VM.Allocate`         |
+| `VM.Migrate`                 | Dashboard doesn't move containers between nodes                    |
+| `VM.Snapshot*`               | Dashboard doesn't manage snapshots                                 |
+| `VM.Backup`                  | Dashboard doesn't create backups                                   |
+| `VM.Clone`                   | Dashboard creates from OS templates, not clones                    |
+| `Datastore.Allocate`         | Dashboard doesn't create/delete storage volumes                    |
+| `Datastore.AllocateTemplate` | Dashboard doesn't upload OS templates                              |
+| `User.*`, `Realm.*`          | Dashboard doesn't manage Proxmox users                             |
+| `SDN.*`                      | Dashboard doesn't manage software-defined networking               |
+| `Permissions.Modify`         | Dashboard doesn't change ACLs                                      |
 
 ### Step 2: Create a Resource Pool
 

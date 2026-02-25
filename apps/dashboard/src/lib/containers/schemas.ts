@@ -60,7 +60,6 @@ export const containerConfigBaseSchema = z.object({
   ip: z.string().optional(),
   gateway: z.string().optional(),
   nameserver: z.string().optional(),
-  unprivileged: z.boolean(),
   nesting: z.boolean(),
   sshPublicKey: z.string().min(1, "SSH public key is required"),
   sshPrivateKey: z.string().min(1, "SSH private key is required"),
@@ -131,7 +130,6 @@ export const createContainerInputSchema = z.object({
   bridge: z.string().min(1),
   ipConfig: z.string().min(1, "IP configuration is required"),
   nameserver: z.string().optional(),
-  unprivileged: z.boolean().default(true),
   nesting: z.boolean().default(false),
   /** SSH public key — injected into container via Proxmox API ssh-public-keys */
   sshPublicKey: z.string().min(1, "SSH public key is required"),
