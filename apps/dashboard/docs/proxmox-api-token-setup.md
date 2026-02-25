@@ -98,13 +98,27 @@ Scope the user's access to their pool, their node, and the storage they need. Re
 # The user can only manage containers inside this pool
 pveum aclmod /pool/infrahaus-alice -user infrahaus-alice@pam -role InfraHaus
 
-# Node — allows reading node info, task status, and OS template listing
+# Node — allows reading node info, task status, network interfaces, and OS template listing
 pveum aclmod /nodes/pve-04 -user infrahaus-alice@pam -role InfraHaus
 
-# Storage — allows listing volumes and allocating disk space
-# Use a specific storage path for tighter control
+# Storage — you need BOTH the template storage AND the disk storage
+# "local" holds OS templates (vztmpl) and ISOs
+# "local-lvm" holds container disk volumes (rootdir/images)
+# List your storages with: pvesm status
+pveum aclmod /storage/local -user infrahaus-alice@pam -role InfraHaus
 pveum aclmod /storage/local-lvm -user infrahaus-alice@pam -role InfraHaus
 ```
+
+> **Why two storages?** Proxmox uses separate storages for different content types. OS templates (`vztmpl`) typically live on `local` (a directory-type storage), while container disk volumes (`rootdir`, `images`) live on `local-lvm` (LVM-thin). The dashboard needs access to both: `local` to list available OS templates in the creation wizard, and `local-lvm` to allocate disk space for new containers. Run `pvesm status` on your node to see your actual storage names — they may differ.
+
+### What each ACL path grants
+
+| ACL Path                | What it enables in the dashboard                                                              |
+| ----------------------- | --------------------------------------------------------------------------------------------- |
+| `/pool/infrahaus-alice` | Create, list, start, stop, delete containers in this pool                                     |
+| `/nodes/pve-04`         | List node info, poll task status, list network bridges, list available OS templates (aplinfo) |
+| `/storage/local`        | List downloaded OS templates in the creation wizard                                           |
+| `/storage/local-lvm`    | List container-capable storage, allocate disk space for rootfs                                |
 
 ### Why no `/vms` ACL?
 
@@ -183,9 +197,17 @@ curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
 curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
   "https://${PVE_HOST}:8006/api2/json/nodes/${NODE}/lxc" | jq '.data[].vmid'
 
-# Should work: list storage
+# Should work: list storage volumes
 curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
   "https://${PVE_HOST}:8006/api2/json/nodes/${NODE}/storage" | jq '.data[].storage'
+
+# Should work: list OS templates (from "local" storage)
+curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
+  "https://${PVE_HOST}:8006/api2/json/nodes/${NODE}/storage/local/content?content=vztmpl" | jq '.data[].volid'
+
+# Should work: list network bridges
+curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
+  "https://${PVE_HOST}:8006/api2/json/nodes/${NODE}/network" | jq '.data[] | select(.type=="bridge") | .iface'
 
 # Should work: list pool contents
 curl -s -k -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
@@ -223,6 +245,7 @@ pveum user add infrahaus-bob@pam -comment "InfraHaus dashboard — bob"
 # 3. Assign permissions (same role, different pool)
 pveum aclmod /pool/infrahaus-bob -user infrahaus-bob@pam -role InfraHaus
 pveum aclmod /nodes/pve-04 -user infrahaus-bob@pam -role InfraHaus
+pveum aclmod /storage/local -user infrahaus-bob@pam -role InfraHaus
 pveum aclmod /storage/local-lvm -user infrahaus-bob@pam -role InfraHaus
 
 # 4. Create their token
@@ -242,6 +265,7 @@ pveum user token remove infrahaus-alice@pam dashboard
 # Remove ACLs
 pveum aclmod /pool/infrahaus-alice -user infrahaus-alice@pam -delete -role InfraHaus
 pveum aclmod /nodes/pve-04 -user infrahaus-alice@pam -delete -role InfraHaus
+pveum aclmod /storage/local -user infrahaus-alice@pam -delete -role InfraHaus
 pveum aclmod /storage/local-lvm -user infrahaus-alice@pam -delete -role InfraHaus
 
 # Delete user
