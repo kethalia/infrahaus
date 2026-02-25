@@ -4,11 +4,11 @@
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04.6-pool-based-access (7 of 11 phases)
-**Plan:** 0 of 1 in current phase
-**Status:** Ready to execute
-**Last activity:** 2026-02-25 — Created 04.6-01-PLAN.md (Pool-based Proxmox access control)
+**Plan:** 1 of 1 in current phase
+**Status:** Phase complete
+**Last activity:** 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 
-Progress: █████████████████░░░ 86% (43/50 plans)
+Progress: █████████████████░░░ 88% (44/50 plans)
 
 ## Completed Work
 
@@ -332,11 +332,12 @@ Progress: █████████████████░░░ 86% (43/5
 - **WalletButton with wallet="universal-profiles"** — targets specific wallet instead of generic ConnectButton for cleaner UX
 - **Fallback WalletConnect projectId** — "MISSING_PROJECT_ID" prevents module-load crash when env var is empty
 - **Server-session redirect (useRedirectOnAuth)** — polls /api/auth/me instead of wagmi isConnected to prevent redirect loop (isConnected fires before SIWE verify completes)
+- **Pool is optional on ProxmoxNode** — single-user setups without a pool still work. Pool flows: DB → node form → create action → job queue → worker → Proxmox API. Empty pool in create = undefined (not stored); empty in update = clears to null.
 
 ## Pending Work
 
 - Phase 04.5: Complete ✓ — All 4 plans executed. Auth fully decoupled from Proxmox.
-- **Phase 04.6: Pool-Based Proxmox Access Control (1 plan) — NEXT**
+- **Phase 04.6: Pool-Based Proxmox Access Control (1 plan) — COMPLETE ✓**
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
 - Phase 7: VM to Run OpenClaw (3 plans)
@@ -357,7 +358,7 @@ Progress: █████████████████░░░ 86% (43/5
 
 ## Session Continuity
 
-Last session: 2026-02-25T00:00:00Z
-Stopped at: Created 04.6-01-PLAN.md — ready to execute
-Resume file: .planning/phases/04.6-pool-based-access/04.6-01-PLAN.md
-Next step: Execute 04.6-01-PLAN.md (pool support across model, form, pipeline, guide)
+Last session: 2026-02-25T15:30:00Z
+Stopped at: Completed 04.6-01-PLAN.md — phase 04.6 complete
+Resume file: None
+Next step: Phase 5 (Web UI & Monitoring) or merge feat/ssh-key-containers into feat/04.5-auth-decoupling

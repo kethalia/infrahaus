@@ -142,7 +142,6 @@ export function ContainerWizard({
         bridge: configData.bridge,
         ipConfig,
         nameserver: configData.nameserver,
-        unprivileged: configData.unprivileged,
         nesting: configData.nesting,
         sshPublicKey: configData.sshPublicKey,
         sshPrivateKey: configData.sshPrivateKey,

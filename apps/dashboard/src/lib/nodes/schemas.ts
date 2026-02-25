@@ -23,6 +23,7 @@ export const createNodeSchema = z.object({
     .default(8006),
   tokenId: z.string().optional(), // Optional — needed for background container creation
   tokenSecret: z.string().optional(), // Optional — paired with tokenId
+  pool: z.string().optional(), // Proxmox resource pool for container isolation
 });
 
 /**
@@ -41,6 +42,7 @@ export const updateNodeSchema = z.object({
     .default(8006),
   tokenId: z.string().optional(), // Optional — only needed for background jobs
   tokenSecret: z.string().optional(), // Optional on update — keep existing if empty
+  pool: z.string().optional(), // Proxmox resource pool for container isolation
 });
 
 /**
@@ -72,6 +74,7 @@ export const editNodeFormSchema = z.object({
     .max(65535, "Port must be at most 65535"),
   tokenId: z.string().optional(), // Optional — only needed for background container creation
   tokenSecret: z.string().optional(), // Optional — paired with tokenId
+  pool: z.string().optional(), // Proxmox resource pool for container isolation
 });
 
 // ============================================================================

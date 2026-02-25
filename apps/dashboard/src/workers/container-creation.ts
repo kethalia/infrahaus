@@ -215,6 +215,7 @@ async function processContainerCreation(
       unprivileged: config.unprivileged,
       features: featuresStr,
       storage: config.storage,
+      pool: config.pool,
       tags: config.tags,
     });
 

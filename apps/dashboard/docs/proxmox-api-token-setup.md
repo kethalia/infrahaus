@@ -1,6 +1,6 @@
 # Proxmox API Token Setup
 
-Least-privilege API token setup for the InfraHaus dashboard. Permissions are assigned directly to the **token** (not the user) with a dedicated role per ACL path, so each path grants only the exact privileges needed there.
+Least-privilege API token setup for the InfraHaus dashboard. Uses `privsep=0` (token inherits user permissions) with a dedicated role per ACL path, so each path grants only the exact privileges needed. The user has no password — only the token secret grants API access.
 
 ## What the Dashboard Needs
 
@@ -34,52 +34,74 @@ All commands run as `root` on any node in your Proxmox cluster. Roles, users, an
 
 ### Step 1: Create Roles
 
-Four custom roles, each with the minimum privileges for its ACL path:
+Five custom roles, each with the minimum privileges for its ACL path:
 
 ```bash
 # Read-only cluster visibility (storages, networks, templates, node info)
 pveum role add InfraHaus.Audit -privs "Sys.Audit,Datastore.Audit"
 
-# Container lifecycle within a pool (create, start, stop, delete)
-pveum role add InfraHaus.Containers -privs "VM.Allocate,VM.Audit,VM.PowerMgmt,VM.Console,Pool.Allocate"
+# Container lifecycle within a pool (create, configure, start, stop, delete)
+pveum role add InfraHaus.Containers -privs "VM.Allocate,VM.Audit,VM.PowerMgmt,VM.Console,Pool.Allocate,VM.Config.CPU,VM.Config.Disk,VM.Config.Memory,VM.Config.Network,VM.Config.Options"
 
 # Container creation on a specific node (submit creation, poll tasks)
 pveum role add InfraHaus.Node -privs "Sys.Audit,VM.Allocate"
 
 # Disk allocation on a specific storage
 pveum role add InfraHaus.Storage -privs "Datastore.AllocateSpace"
+
+# Network bridge access (list and attach bridges to containers)
+pveum role add InfraHaus.SDN -privs "SDN.Use"
 ```
 
 > **One-time setup.** These roles are shared by all dashboard users. Create them once per cluster.
 
-#### Why four roles instead of one
+#### Why five roles instead of one
 
 A single role on every path would grant unnecessary privileges. For example, `VM.Allocate` on `/storage/local-zfs` is meaningless, and `Datastore.AllocateSpace` on `/pool/infrahaus-alice` does nothing. Per-path roles ensure each path grants **only** what it needs:
 
-| Role                   | Privileges                                                               | What it does NOT include                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `InfraHaus.Audit`      | `Sys.Audit`, `Datastore.Audit`                                           | No VM access, no write operations, no pool management                                                       |
-| `InfraHaus.Containers` | `VM.Allocate`, `VM.Audit`, `VM.PowerMgmt`, `VM.Console`, `Pool.Allocate` | No Sys._, no Datastore._, no network access                                                                 |
-| `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`                                               | No VM.PowerMgmt (lifecycle is via pool), no Datastore.\*                                                    |
-| `InfraHaus.Storage`    | `Datastore.AllocateSpace`                                                | No Datastore.Allocate (can't create/delete volumes), no Datastore.AllocateTemplate (can't upload templates) |
+| Role                   | Privileges                                                                                                                            | What it does NOT include                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `InfraHaus.Audit`      | `Sys.Audit`, `Datastore.Audit`                                                                                                        | No VM access, no write operations, no pool management                                                       |
+| `InfraHaus.Containers` | `VM.Allocate`, `VM.Audit`, `VM.PowerMgmt`, `VM.Console`, `Pool.Allocate`, `VM.Config.CPU`, `.Disk`, `.Memory`, `.Network`, `.Options` | No `Sys.*`, no `Datastore.*`, no `VM.Config.HWType`, no `VM.Migrate`, no `VM.Snapshot*`                     |
+| `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`                                                                                                            | No VM.PowerMgmt (lifecycle is via pool), no Datastore.\*                                                    |
+| `InfraHaus.Storage`    | `Datastore.AllocateSpace`                                                                                                             | No Datastore.Allocate (can't create/delete volumes), no Datastore.AllocateTemplate (can't upload templates) |
+| `InfraHaus.SDN`        | `SDN.Use`                                                                                                                             | No SDN.Allocate (can't create zones/vnets), no SDN.Audit                                                    |
+
+#### Why `InfraHaus.Containers` needs `VM.Config.*` privileges
+
+Proxmox checks `VM.Config.*` sub-privileges **per parameter** during container creation (`POST /nodes/{node}/lxc`). The check happens in `PVE::LXC::check_ct_modify_config_perm`. Each parameter we send maps to a specific privilege:
+
+| Parameter we send                                | Proxmox privilege                | Source (PVE/LXC.pm)                                   |
+| ------------------------------------------------ | -------------------------------- | ----------------------------------------------------- |
+| `cores`, `cpulimit`, `cpuunits`                  | `VM.Config.CPU`                  | line 1678                                             |
+| `rootfs`                                         | `VM.Config.Disk`                 | line 1680                                             |
+| `memory`, `swap`                                 | `VM.Config.Memory`               | line 1695                                             |
+| `net0`, `nameserver`, `searchdomain`, `hostname` | `VM.Config.Network`              | lines 1697, 1703                                      |
+| `onboot`, `startup`, `description`               | `VM.Config.Options`              | line 1759 (catch-all `else`)                          |
+| `features` (nesting only)                        | `VM.Allocate` (already have)     | line 1749                                             |
+| `tags`                                           | Tag permissions (default allows) | line 1754                                             |
+| `password`, `ssh-public-keys`                    | `VM.Allocate` (already have)     | Handled in create_vm, not check_ct_modify_config_perm |
+| `pool`, `storage`, `start`, `unprivileged`       | Handled separately               | Checked in create_vm handler                          |
+
+Without these privileges, `POST /nodes/{node}/lxc` returns `HTTP 403: Permission check failed (/vms/{vmid}, VM.Config.Network)` (or whichever `VM.Config.*` is missing first).
 
 #### Privileges NOT included anywhere
 
-| Privilege                    | Why excluded                                               |
-| ---------------------------- | ---------------------------------------------------------- |
-| `Sys.Modify`                 | Dashboard doesn't change node configuration                |
-| `Sys.PowerMgmt`              | Dashboard doesn't reboot/shutdown the host                 |
-| `Sys.Console`                | Dashboard doesn't access the host console                  |
-| `VM.Config.*`                | Container config is set at creation time via `VM.Allocate` |
-| `VM.Migrate`                 | Dashboard doesn't move containers between nodes            |
-| `VM.Snapshot*`               | Dashboard doesn't manage snapshots                         |
-| `VM.Backup`                  | Dashboard doesn't create backups                           |
-| `VM.Clone`                   | Dashboard creates from OS templates, not clones            |
-| `Datastore.Allocate`         | Dashboard doesn't create/delete storage volumes            |
-| `Datastore.AllocateTemplate` | Dashboard doesn't upload OS templates                      |
-| `User.*`, `Realm.*`          | Dashboard doesn't manage Proxmox users                     |
-| `SDN.*`                      | Dashboard doesn't manage software-defined networking       |
-| `Permissions.Modify`         | Dashboard doesn't change ACLs                              |
+| Privilege                    | Why excluded                                                       |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `Sys.Modify`                 | Required for privileged containers — dashboard forces unprivileged |
+| `Sys.PowerMgmt`              | Dashboard doesn't reboot/shutdown the host                         |
+| `Sys.Console`                | Dashboard doesn't access the host console                          |
+| `VM.Config.HWType`           | Dashboard doesn't configure device passthrough                     |
+| `VM.Migrate`                 | Dashboard doesn't move containers between nodes                    |
+| `VM.Snapshot*`               | Dashboard doesn't manage snapshots                                 |
+| `VM.Backup`                  | Dashboard doesn't create backups                                   |
+| `VM.Clone`                   | Dashboard creates from OS templates, not clones                    |
+| `Datastore.Allocate`         | Dashboard doesn't create/delete storage volumes                    |
+| `Datastore.AllocateTemplate` | Dashboard doesn't upload OS templates                              |
+| `User.*`, `Realm.*`          | Dashboard doesn't manage Proxmox users                             |
+| `SDN.Allocate`, `SDN.Audit`  | Dashboard doesn't manage SDN zones/vnets                           |
+| `Permissions.Modify`         | Dashboard doesn't change ACLs                                      |
 
 ### Step 2: Create a Resource Pool
 
@@ -91,14 +113,14 @@ pveum pool add infrahaus-alice -comment "Containers managed by alice via InfraHa
 
 ### Step 3: Create the User and Token
 
-The user is a blank shell — all permissions go on the token via `privsep=1`.
+The user is created in the `pve` realm (Proxmox-managed, no Linux system account needed) with no password — only the API token grants access.
 
 ```bash
-# Create user (no password needed — dashboard uses tokens, never passwords)
-pveum user add infrahaus-alice@pam -comment "InfraHaus dashboard — alice"
+# Create user (pve realm — no Linux account needed, no password)
+pveum user add infrahaus-alice@pve -comment "InfraHaus dashboard — alice"
 
-# Create token with privilege separation ENABLED
-pveum user token add infrahaus-alice@pam dashboard --privsep=1 --comment "InfraHaus dashboard"
+# Create token with privilege separation DISABLED (inherits user permissions)
+pveum user token add infrahaus-alice@pve dashboard --privsep=0 --comment "InfraHaus dashboard"
 ```
 
 Output:
@@ -107,9 +129,9 @@ Output:
 ┌──────────────┬─────────────────────────────────────────────────┐
 │ key          │ value                                           │
 ╞══════════════╪═════════════════════════════════════════════════╡
-│ full-tokenid │ infrahaus-alice@pam!dashboard                   │
+│ full-tokenid │ infrahaus-alice@pve!dashboard                   │
 ├──────────────┼─────────────────────────────────────────────────┤
-│ info         │ {"comment":"InfraHaus dashboard","privsep":"1"} │
+│ info         │ {"comment":"InfraHaus dashboard","privsep":"0"} │
 ├──────────────┼─────────────────────────────────────────────────┤
 │ value        │ xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx            │
 └──────────────┴─────────────────────────────────────────────────┘
@@ -117,52 +139,65 @@ Output:
 
 **Save the token secret immediately** — Proxmox only shows it once.
 
-#### Why `--privsep=1`
+#### Why `@pve` realm
 
-| Flag          | Behavior                                                                            | Security                                                                                                     |
-| ------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `--privsep=1` | Token has **its own** ACLs, independent of the user. User account is a blank shell. | **More secure.** If the user account is compromised, it has zero permissions. Only the token secret matters. |
-| `--privsep=0` | Token inherits the user's ACLs.                                                     | Less secure — compromising the user or the token both grant full access.                                     |
+| Realm  | Behavior                                                                                                                                              |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@pam` | Requires a matching Linux system user on the Proxmox host. Token auth works but permission resolution may fail silently if the OS user doesn't exist. |
+| `@pve` | Proxmox-managed user. No Linux account needed. Works reliably with API tokens.                                                                        |
 
-With `privsep=1`, ACLs are assigned to `infrahaus-alice@pam!dashboard` (the token) instead of `infrahaus-alice@pam` (the user).
+#### Why `--privsep=0`
+
+| Flag          | Behavior                                                              | Security                                                                                                                                                                                              |
+| ------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--privsep=0` | Token inherits the user's ACLs. Permissions are assigned to the user. | Simpler setup. User has no password so it can't be used to log in — only the token secret grants access.                                                                                              |
+| `--privsep=1` | Token has **its own** ACLs, independent of the user.                  | More granular — but the token's effective permissions are the **intersection** of token ACLs and user ACLs. The user must have at least the same permissions as the token, or the token gets nothing. |
+
+We use `privsep=0` because it's simpler and the user account is passwordless (can't be used to log in). If you need multiple tokens with different permission levels for the same user, use `privsep=1` and assign ACLs to **both** the user and each token.
 
 ### Step 4: Assign Permissions
 
-Each ACL targets the **token** (`-token`) with the exact role for that path.
+Each ACL targets the **user** (`-user`) with the exact role for that path.
 
 Replace `pve-04` with your node name and `local-zfs` with your container storage (run `pvesm status` to find it — look for `rootdir` or `images` content).
 
 ```bash
 # 1. Read-only cluster visibility
-pveum aclmod / -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Audit
+pveum aclmod / -user 'infrahaus-alice@pve' -role InfraHaus.Audit
 
 # 2. Container lifecycle within user's pool
-pveum aclmod /pool/infrahaus-alice -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Containers
+pveum aclmod /pool/infrahaus-alice -user 'infrahaus-alice@pve' -role InfraHaus.Containers
 
 # 3. Container creation + task polling on this node
-pveum aclmod /nodes/pve-04 -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Node
+pveum aclmod /nodes/pve-04 -user 'infrahaus-alice@pve' -role InfraHaus.Node
 
 # 4. Disk allocation on container storage
-pveum aclmod /storage/local-zfs -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Storage
+pveum aclmod /storage/local-zfs -user 'infrahaus-alice@pve' -role InfraHaus.Storage
+
+# 5. Network bridge access (list and attach bridges to containers)
+pveum aclmod /sdn/zones/localnetwork -user 'infrahaus-alice@pve' -role InfraHaus.SDN
 ```
+
+> **About `/sdn/zones/localnetwork`:** Proxmox treats all traditional Linux bridges (like `vmbr0`) as belonging to the `localnetwork` SDN zone. The `GET /nodes/{node}/network` endpoint filters out bridge interfaces unless the user has `SDN.Use` on `/sdn/zones/localnetwork/{bridge}` (or the parent path). This ACL covers all local bridges on the cluster.
 
 #### Why each ACL exists
 
-| #   | Path                    | Role                   | Privileges at this path                                                  | Why this path                                                                                                                                                                                                                                                          |
-| --- | ----------------------- | ---------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `/`                     | `InfraHaus.Audit`      | `Sys.Audit`, `Datastore.Audit`                                           | Proxmox clusters require root-level audit for `GET /nodes/{node}/storage` and `GET /nodes/{node}/network` to return data. Per-path ACLs on `/storage/local` or `/nodes/pve-04` alone don't work for these endpoints. This role is strictly read-only.                  |
-| 2   | `/pool/infrahaus-alice` | `InfraHaus.Containers` | `VM.Allocate`, `VM.Audit`, `VM.PowerMgmt`, `VM.Console`, `Pool.Allocate` | The isolation boundary. Token can only create, list, start, stop, and delete containers **inside this pool**. Other users' pools and unassigned containers are not manageable. `Pool.Allocate` lets the dashboard assign new containers to this pool at creation time. |
-| 3   | `/nodes/pve-04`         | `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`                                               | `POST /nodes/pve-04/lxc` (create container) requires `VM.Allocate` **on the node**. Task polling (`GET /nodes/{node}/tasks/{upid}/status`) requires `Sys.Audit` on the node. The audit on `/` covers read operations, but creation needs node-level write access.      |
-| 4   | `/storage/local-zfs`    | `InfraHaus.Storage`    | `Datastore.AllocateSpace`                                                | Creating a container allocates disk on this storage. The audit role on `/` provides `Datastore.Audit` (read), but writing disk data requires `Datastore.AllocateSpace` on the specific storage.                                                                        |
+| #   | Path                      | Role                   | Privileges at this path                                                                                                               | Why this path                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | ------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `/`                       | `InfraHaus.Audit`      | `Sys.Audit`, `Datastore.Audit`                                                                                                        | Proxmox clusters require root-level audit for `GET /nodes/{node}/storage` and `GET /nodes/{node}/network` to return data. Per-path ACLs on `/storage/local` or `/nodes/pve-04` alone don't work for these endpoints. This role is strictly read-only.                                                                                                                                       |
+| 2   | `/pool/infrahaus-alice`   | `InfraHaus.Containers` | `VM.Allocate`, `VM.Audit`, `VM.PowerMgmt`, `VM.Console`, `Pool.Allocate`, `VM.Config.CPU`, `.Disk`, `.Memory`, `.Network`, `.Options` | The isolation boundary. Token can only create, configure, list, start, stop, and delete containers **inside this pool**. `VM.Config.*` privileges are required because Proxmox checks them per-parameter during container creation (e.g., `cores` → `VM.Config.CPU`, `net0` → `VM.Config.Network`). `Pool.Allocate` lets the dashboard assign new containers to this pool at creation time. |
+| 3   | `/nodes/pve-04`           | `InfraHaus.Node`       | `Sys.Audit`, `VM.Allocate`                                                                                                            | `POST /nodes/pve-04/lxc` (create container) requires `VM.Allocate` **on the node**. Task polling (`GET /nodes/{node}/tasks/{upid}/status`) requires `Sys.Audit` on the node.                                                                                                                                                                                                                |
+| 4   | `/storage/local-zfs`      | `InfraHaus.Storage`    | `Datastore.AllocateSpace`                                                                                                             | Creating a container allocates disk on this storage. The audit role on `/` provides `Datastore.Audit` (read), but writing disk data requires `Datastore.AllocateSpace` on the specific storage.                                                                                                                                                                                             |
+| 5   | `/sdn/zones/localnetwork` | `InfraHaus.SDN`        | `SDN.Use`                                                                                                                             | Proxmox filters bridge interfaces from the network listing unless `SDN.Use` is granted on the bridge's SDN zone. `localnetwork` is the built-in zone for all traditional Linux bridges (e.g., `vmbr0`).                                                                                                                                                                                     |
 
 #### How pool isolation works
 
 ```
-/pool/infrahaus-alice    ← alice's token has InfraHaus.Containers here
+/pool/infrahaus-alice    ← alice's token can manage containers here
   └── CT 200             ← alice can manage (in her pool)
   └── CT 201             ← alice can manage (in her pool)
 
-/pool/infrahaus-bob      ← bob's token has InfraHaus.Containers here
+/pool/infrahaus-bob      ← bob's token can manage containers here
   └── CT 300             ← bob can manage (in his pool)
 
 CT 100                   ← not in any pool — visible (read-only via InfraHaus.Audit) but NOT manageable
@@ -178,15 +213,15 @@ CT 100                   ← not in any pool — visible (read-only via InfraHau
    - **Name**: `pve-04` (must match your Proxmox node name exactly)
    - **Host**: `192.168.0.94` (your Proxmox IP or hostname)
    - **Port**: `8006`
-   - **Token ID**: `infrahaus-alice@pam!dashboard`
+   - **Token ID**: `infrahaus-alice@pve!dashboard`
    - **Token Secret**: the UUID from step 3
-   - **Pool**: `infrahaus-alice`
+   - **Resource Pool**: `infrahaus-alice`
 4. Click **Save** — the dashboard tests the connection before saving
 
 ## Verification
 
 ```bash
-export TOKEN_ID="infrahaus-alice@pam!dashboard"
+export TOKEN_ID="infrahaus-alice@pve!dashboard"
 export TOKEN_SECRET="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 export PVE_HOST="192.168.0.94"
 export NODE="pve-04"
@@ -225,21 +260,22 @@ curl -s -k -X POST -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
 
 ## Adding Another User
 
-Roles already exist. Repeat steps 2–5 for each new user:
+Roles already exist. Repeat steps 2-5 for each new user:
 
 ```bash
 # Pool
 pveum pool add infrahaus-bob -comment "Containers managed by bob via InfraHaus"
 
-# User + token
-pveum user add infrahaus-bob@pam -comment "InfraHaus dashboard — bob"
-pveum user token add infrahaus-bob@pam dashboard --privsep=1 --comment "InfraHaus dashboard"
+# User + token (pve realm, privsep=0)
+pveum user add infrahaus-bob@pve -comment "InfraHaus dashboard — bob"
+pveum user token add infrahaus-bob@pve dashboard --privsep=0 --comment "InfraHaus dashboard"
 
-# Permissions on the TOKEN (4 ACLs, different pool)
-pveum aclmod / -token 'infrahaus-bob@pam!dashboard' -role InfraHaus.Audit
-pveum aclmod /pool/infrahaus-bob -token 'infrahaus-bob@pam!dashboard' -role InfraHaus.Containers
-pveum aclmod /nodes/pve-04 -token 'infrahaus-bob@pam!dashboard' -role InfraHaus.Node
-pveum aclmod /storage/local-zfs -token 'infrahaus-bob@pam!dashboard' -role InfraHaus.Storage
+# Permissions on the USER (5 ACLs, different pool)
+pveum aclmod / -user 'infrahaus-bob@pve' -role InfraHaus.Audit
+pveum aclmod /pool/infrahaus-bob -user 'infrahaus-bob@pve' -role InfraHaus.Containers
+pveum aclmod /nodes/pve-04 -user 'infrahaus-bob@pve' -role InfraHaus.Node
+pveum aclmod /storage/local-zfs -user 'infrahaus-bob@pve' -role InfraHaus.Storage
+pveum aclmod /sdn/zones/localnetwork -user 'infrahaus-bob@pve' -role InfraHaus.SDN
 ```
 
 ## Revoking Access
@@ -248,14 +284,15 @@ pveum aclmod /storage/local-zfs -token 'infrahaus-bob@pam!dashboard' -role Infra
 
 ```bash
 # Delete token (immediately revokes all API access)
-pveum user token remove infrahaus-alice@pam dashboard
+pveum user token remove infrahaus-alice@pve dashboard
 
 # Clean up ACLs, user, and pool
-pveum aclmod / -token 'infrahaus-alice@pam!dashboard' -delete -role InfraHaus.Audit
-pveum aclmod /pool/infrahaus-alice -token 'infrahaus-alice@pam!dashboard' -delete -role InfraHaus.Containers
-pveum aclmod /nodes/pve-04 -token 'infrahaus-alice@pam!dashboard' -delete -role InfraHaus.Node
-pveum aclmod /storage/local-zfs -token 'infrahaus-alice@pam!dashboard' -delete -role InfraHaus.Storage
-pveum user delete infrahaus-alice@pam
+pveum aclmod / -user 'infrahaus-alice@pve' -delete -role InfraHaus.Audit
+pveum aclmod /pool/infrahaus-alice -user 'infrahaus-alice@pve' -delete -role InfraHaus.Containers
+pveum aclmod /nodes/pve-04 -user 'infrahaus-alice@pve' -delete -role InfraHaus.Node
+pveum aclmod /storage/local-zfs -user 'infrahaus-alice@pve' -delete -role InfraHaus.Storage
+pveum aclmod /sdn/zones/localnetwork -user 'infrahaus-alice@pve' -delete -role InfraHaus.SDN
+pveum user delete infrahaus-alice@pve
 pveum pool delete infrahaus-alice  # only if empty — delete containers first
 ```
 
@@ -268,6 +305,7 @@ pveum role delete InfraHaus.Audit
 pveum role delete InfraHaus.Containers
 pveum role delete InfraHaus.Node
 pveum role delete InfraHaus.Storage
+pveum role delete InfraHaus.SDN
 ```
 
 ## Multi-Node Setup
@@ -277,15 +315,15 @@ pveum role delete InfraHaus.Storage
 **Clustered nodes:** Roles, users, and ACLs are cluster-wide. Add one node ACL per node the user should deploy to:
 
 ```bash
-pveum aclmod /nodes/pve-01 -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Node
-pveum aclmod /nodes/pve-04 -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Node
+pveum aclmod /nodes/pve-01 -user 'infrahaus-alice@pve' -role InfraHaus.Node
+pveum aclmod /nodes/pve-04 -user 'infrahaus-alice@pve' -role InfraHaus.Node
 ```
 
 If different nodes use different container storages, add a storage ACL for each:
 
 ```bash
-pveum aclmod /storage/local-zfs -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Storage
-pveum aclmod /storage/local-lvm -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Storage
+pveum aclmod /storage/local-zfs -user 'infrahaus-alice@pve' -role InfraHaus.Storage
+pveum aclmod /storage/local-lvm -user 'infrahaus-alice@pve' -role InfraHaus.Storage
 ```
 
 ## Restricting Read Visibility
@@ -301,15 +339,34 @@ This is already the default. The `InfraHaus.Audit` role as defined above does **
 
 > **If the dashboard shows containers from other nodes:** This is expected behavior from `GET /nodes/{node}/lxc`. The dashboard already filters by the configured node name. Containers from other nodes won't appear in the UI even if the API returns them.
 
+## Using `privsep=1` (Advanced)
+
+If you need multiple tokens with different permission levels for the same user (e.g., a read-only token and a full-access token), use `privsep=1`. With privilege separation enabled, the token's effective permissions are the **intersection** of the token's ACLs and the user's ACLs. This means:
+
+1. The **user** must have at least the same permissions as the token
+2. The **token** also needs its own ACLs
+
+```bash
+# Create token with privsep=1
+pveum user token add infrahaus-alice@pve dashboard --privsep=1
+
+# ACLs on BOTH user AND token
+pveum aclmod / -user 'infrahaus-alice@pve' -role InfraHaus.Audit
+pveum aclmod / -token 'infrahaus-alice@pve!dashboard' -role InfraHaus.Audit
+# ... repeat for all 5 paths
+```
+
+If the user has permissions but the token doesn't (or vice versa), the token gets **nothing**. Both must be set.
+
 ## Summary
 
-| What            | Name                                                                      | Created once per |
-| --------------- | ------------------------------------------------------------------------- | ---------------- |
-| 4 custom roles  | `InfraHaus.Audit`, `.Containers`, `.Node`, `.Storage`                     | Cluster          |
-| 1 resource pool | `infrahaus-{username}`                                                    | User             |
-| 1 PAM user      | `infrahaus-{username}@pam`                                                | User             |
-| 1 API token     | `infrahaus-{username}@pam!dashboard` (`privsep=1`)                        | User             |
-| 4 ACL entries   | On `/`, `/pool/...`, `/nodes/...`, `/storage/...` targeting the **token** | User             |
+| What            | Name                                                                                       | Created once per |
+| --------------- | ------------------------------------------------------------------------------------------ | ---------------- |
+| 5 custom roles  | `InfraHaus.Audit`, `.Containers`, `.Node`, `.Storage`, `.SDN`                              | Cluster          |
+| 1 resource pool | `infrahaus-{username}`                                                                     | User             |
+| 1 PVE user      | `infrahaus-{username}@pve` (no password)                                                   | User             |
+| 1 API token     | `infrahaus-{username}@pve!dashboard` (`privsep=0`)                                         | User             |
+| 5 ACL entries   | On `/`, `/pool/...`, `/nodes/...`, `/storage/...`, `/sdn/zones/...` targeting the **user** | User             |
 
 ## Reference
 

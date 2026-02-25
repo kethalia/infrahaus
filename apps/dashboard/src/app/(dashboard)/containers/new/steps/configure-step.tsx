@@ -53,7 +53,6 @@ interface ConfigureStepProps {
     diskSize?: number | null;
     storage?: string | null;
     bridge?: string | null;
-    unprivileged?: boolean;
     nesting?: boolean;
     osTemplate?: string | null;
     tags?: string | null;
@@ -115,8 +114,6 @@ export function ConfigureStep({
       ip: data?.ip ?? "",
       gateway: data?.gateway ?? "",
       nameserver: data?.nameserver ?? "",
-      unprivileged:
-        data?.unprivileged ?? defaultsFromTemplate?.unprivileged ?? true,
       nesting: data?.nesting ?? defaultsFromTemplate?.nesting ?? false,
       sshPublicKey: data?.sshPublicKey ?? "",
       sshPrivateKey: data?.sshPrivateKey ?? "",
@@ -212,8 +209,6 @@ export function ConfigureStep({
         form.setValue("storage", defaultsFromTemplate.storage);
       if (defaultsFromTemplate.bridge)
         form.setValue("bridge", defaultsFromTemplate.bridge);
-      if (defaultsFromTemplate.unprivileged !== undefined)
-        form.setValue("unprivileged", defaultsFromTemplate.unprivileged);
       if (defaultsFromTemplate.nesting !== undefined)
         form.setValue("nesting", defaultsFromTemplate.nesting);
       if (defaultsFromTemplate.tags)
@@ -610,48 +605,30 @@ export function ConfigureStep({
             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
               Features
             </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="unprivileged"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-sm">Unprivileged</FormLabel>
-                      <FormDescription className="text-xs">
-                        Run container without root privileges (recommended)
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="nesting"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-sm">Nesting</FormLabel>
-                      <FormDescription className="text-xs">
-                        Allow running containers inside this container
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
+            <p className="text-xs text-muted-foreground">
+              All containers are created as unprivileged (required by
+              least-privilege API token setup).
+            </p>
+            <FormField
+              control={form.control}
+              name="nesting"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-sm">Nesting</FormLabel>
+                    <FormDescription className="text-xs">
+                      Allow running containers inside this container
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
           </div>
 
           <Separator />

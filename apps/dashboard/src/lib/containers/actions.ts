@@ -111,7 +111,6 @@ export interface WizardTemplate {
   diskSize: number | null;
   storage: string | null;
   bridge: string | null;
-  unprivileged: boolean;
   nesting: boolean;
   tags: string | null;
   packages: Array<{ id: string; name: string; manager: string }>;
@@ -245,7 +244,9 @@ export async function getWizardData(userId: string): Promise<WizardData> {
           );
 
           // Filter for bridge interfaces only
-          const bridges = networkList.filter((n) => n.type === "bridge");
+          const bridges = networkList.filter(
+            (n) => n.type === "bridge" || n.type === "OVSBridge",
+          );
 
           // Find storages that support vztmpl content and fetch their templates
           const vztmplStorages = storageList.filter((s) =>
@@ -353,7 +354,6 @@ function mapTemplate(t: {
   diskSize: number | null;
   storage: string | null;
   bridge: string | null;
-  unprivileged: boolean;
   nesting: boolean;
   tags: string | null;
   packages: Array<{ id: string; name: string; manager: string }>;
@@ -376,7 +376,6 @@ function mapTemplate(t: {
     diskSize: t.diskSize,
     storage: t.storage,
     bridge: t.bridge,
-    unprivileged: t.unprivileged,
     nesting: t.nesting,
     tags: t.tags,
     packages: t.packages.map((p) => ({
@@ -514,7 +513,8 @@ export const createContainerAction = authActionClient
         sshPublicKey: data.sshPublicKey,
         sshPrivateKey: encryptedPrivateKey,
         rootPassword: encryptedRootPassword,
-        unprivileged: data.unprivileged,
+        pool: node.pool || undefined,
+        unprivileged: true, // Always unprivileged — privileged containers require Sys.Modify on /
         nesting: data.nesting,
         ostemplate,
         tags: data.tags,
