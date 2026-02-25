@@ -27,7 +27,11 @@ import {
 } from "../lib/containers/redis-state";
 import { createProxmoxClientFromNode } from "../lib/proxmox";
 import { type ProxmoxClient } from "../lib/proxmox/client";
-import { createContainer, startContainer } from "../lib/proxmox/containers";
+import {
+  createContainer,
+  startContainer,
+  updateContainerConfig,
+} from "../lib/proxmox/containers";
 import { waitForTask } from "../lib/proxmox/tasks";
 import { connectWithRetry, type SSHSession } from "../lib/ssh";
 import { decrypt } from "../lib/encryption";
@@ -51,7 +55,6 @@ import {
 // ============================================================================
 // Redis Connections
 // ============================================================================
-console.log(process.env.REDIS_URL);
 // Worker connection MUST have maxRetriesPerRequest: null for BullMQ
 const workerConnection = new Redis(process.env.REDIS_URL!, {
   maxRetriesPerRequest: null,
@@ -223,6 +226,15 @@ async function processContainerCreation(
       interval: TASK_POLL_INTERVAL_MS,
       timeout: TASK_TIMEOUT_LONG_MS,
     });
+
+    // Apply tags post-creation — Proxmox's tag permission check doesn't resolve
+    // through pool ACLs during creation, but works via PUT config once the
+    // container exists in the pool.
+    if (config.tags) {
+      await updateContainerConfig(client, pveNodeName, config.vmid, {
+        tags: config.tags,
+      });
+    }
 
     await publishProgress(containerKey, {
       type: "step",
