@@ -1,6 +1,6 @@
 # Proxmox API Token Setup
 
-Least-privilege API token setup for the InfraHaus dashboard. Permissions are assigned directly to the **token** (not the user) with a dedicated role per ACL path, so each path grants only the exact privileges needed there.
+Least-privilege API token setup for the InfraHaus dashboard. Uses `privsep=0` (token inherits user permissions) with a dedicated role per ACL path, so each path grants only the exact privileges needed. The user has no password — only the token secret grants API access.
 
 ## What the Dashboard Needs
 
@@ -91,14 +91,14 @@ pveum pool add infrahaus-alice -comment "Containers managed by alice via InfraHa
 
 ### Step 3: Create the User and Token
 
-The user is a blank shell — all permissions go on the token via `privsep=1`.
+The user is created in the `pve` realm (Proxmox-managed, no Linux system account needed) with no password — only the API token grants access.
 
 ```bash
-# Create user (no password needed — dashboard uses tokens, never passwords)
-pveum user add infrahaus-alice@pam -comment "InfraHaus dashboard — alice"
+# Create user (pve realm — no Linux account needed, no password)
+pveum user add infrahaus-alice@pve -comment "InfraHaus dashboard — alice"
 
-# Create token with privilege separation ENABLED
-pveum user token add infrahaus-alice@pam dashboard --privsep=1 --comment "InfraHaus dashboard"
+# Create token with privilege separation DISABLED (inherits user permissions)
+pveum user token add infrahaus-alice@pve dashboard --privsep=0 --comment "InfraHaus dashboard"
 ```
 
 Output:
@@ -107,9 +107,9 @@ Output:
 ┌──────────────┬─────────────────────────────────────────────────┐
 │ key          │ value                                           │
 ╞══════════════╪═════════════════════════════════════════════════╡
-│ full-tokenid │ infrahaus-alice@pam!dashboard                   │
+│ full-tokenid │ infrahaus-alice@pve!dashboard                   │
 ├──────────────┼─────────────────────────────────────────────────┤
-│ info         │ {"comment":"InfraHaus dashboard","privsep":"1"} │
+│ info         │ {"comment":"InfraHaus dashboard","privsep":"0"} │
 ├──────────────┼─────────────────────────────────────────────────┤
 │ value        │ xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx            │
 └──────────────┴─────────────────────────────────────────────────┘
@@ -117,33 +117,40 @@ Output:
 
 **Save the token secret immediately** — Proxmox only shows it once.
 
-#### Why `--privsep=1`
+#### Why `@pve` realm
 
-| Flag          | Behavior                                                                            | Security                                                                                                     |
-| ------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `--privsep=1` | Token has **its own** ACLs, independent of the user. User account is a blank shell. | **More secure.** If the user account is compromised, it has zero permissions. Only the token secret matters. |
-| `--privsep=0` | Token inherits the user's ACLs.                                                     | Less secure — compromising the user or the token both grant full access.                                     |
+| Realm  | Behavior                                                                                                                                              |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@pam` | Requires a matching Linux system user on the Proxmox host. Token auth works but permission resolution may fail silently if the OS user doesn't exist. |
+| `@pve` | Proxmox-managed user. No Linux account needed. Works reliably with API tokens.                                                                        |
 
-With `privsep=1`, ACLs are assigned to `infrahaus-alice@pam!dashboard` (the token) instead of `infrahaus-alice@pam` (the user).
+#### Why `--privsep=0`
+
+| Flag          | Behavior                                                              | Security                                                                                                                                                                                              |
+| ------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--privsep=0` | Token inherits the user's ACLs. Permissions are assigned to the user. | Simpler setup. User has no password so it can't be used to log in — only the token secret grants access.                                                                                              |
+| `--privsep=1` | Token has **its own** ACLs, independent of the user.                  | More granular — but the token's effective permissions are the **intersection** of token ACLs and user ACLs. The user must have at least the same permissions as the token, or the token gets nothing. |
+
+We use `privsep=0` because it's simpler and the user account is passwordless (can't be used to log in). If you need multiple tokens with different permission levels for the same user, use `privsep=1` and assign ACLs to **both** the user and each token.
 
 ### Step 4: Assign Permissions
 
-Each ACL targets the **token** (`-token`) with the exact role for that path.
+Each ACL targets the **user** (`-user`) with the exact role for that path.
 
 Replace `pve-04` with your node name and `local-zfs` with your container storage (run `pvesm status` to find it — look for `rootdir` or `images` content).
 
 ```bash
 # 1. Read-only cluster visibility
-pveum aclmod / -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Audit
+pveum aclmod / -user 'infrahaus-alice@pve' -role InfraHaus.Audit
 
 # 2. Container lifecycle within user's pool
-pveum aclmod /pool/infrahaus-alice -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Containers
+pveum aclmod /pool/infrahaus-alice -user 'infrahaus-alice@pve' -role InfraHaus.Containers
 
 # 3. Container creation + task polling on this node
-pveum aclmod /nodes/pve-04 -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Node
+pveum aclmod /nodes/pve-04 -user 'infrahaus-alice@pve' -role InfraHaus.Node
 
 # 4. Disk allocation on container storage
-pveum aclmod /storage/local-zfs -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Storage
+pveum aclmod /storage/local-zfs -user 'infrahaus-alice@pve' -role InfraHaus.Storage
 ```
 
 #### Why each ACL exists
@@ -158,11 +165,11 @@ pveum aclmod /storage/local-zfs -token 'infrahaus-alice@pam!dashboard' -role Inf
 #### How pool isolation works
 
 ```
-/pool/infrahaus-alice    ← alice's token has InfraHaus.Containers here
+/pool/infrahaus-alice    ← alice's token can manage containers here
   └── CT 200             ← alice can manage (in her pool)
   └── CT 201             ← alice can manage (in her pool)
 
-/pool/infrahaus-bob      ← bob's token has InfraHaus.Containers here
+/pool/infrahaus-bob      ← bob's token can manage containers here
   └── CT 300             ← bob can manage (in his pool)
 
 CT 100                   ← not in any pool — visible (read-only via InfraHaus.Audit) but NOT manageable
@@ -178,15 +185,15 @@ CT 100                   ← not in any pool — visible (read-only via InfraHau
    - **Name**: `pve-04` (must match your Proxmox node name exactly)
    - **Host**: `192.168.0.94` (your Proxmox IP or hostname)
    - **Port**: `8006`
-   - **Token ID**: `infrahaus-alice@pam!dashboard`
+   - **Token ID**: `infrahaus-alice@pve!dashboard`
    - **Token Secret**: the UUID from step 3
-   - **Pool**: `infrahaus-alice`
+   - **Resource Pool**: `infrahaus-alice`
 4. Click **Save** — the dashboard tests the connection before saving
 
 ## Verification
 
 ```bash
-export TOKEN_ID="infrahaus-alice@pam!dashboard"
+export TOKEN_ID="infrahaus-alice@pve!dashboard"
 export TOKEN_SECRET="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 export PVE_HOST="192.168.0.94"
 export NODE="pve-04"
@@ -225,21 +232,21 @@ curl -s -k -X POST -H "Authorization: PVEAPIToken=${TOKEN_ID}=${TOKEN_SECRET}" \
 
 ## Adding Another User
 
-Roles already exist. Repeat steps 2–5 for each new user:
+Roles already exist. Repeat steps 2-5 for each new user:
 
 ```bash
 # Pool
 pveum pool add infrahaus-bob -comment "Containers managed by bob via InfraHaus"
 
-# User + token
-pveum user add infrahaus-bob@pam -comment "InfraHaus dashboard — bob"
-pveum user token add infrahaus-bob@pam dashboard --privsep=1 --comment "InfraHaus dashboard"
+# User + token (pve realm, privsep=0)
+pveum user add infrahaus-bob@pve -comment "InfraHaus dashboard — bob"
+pveum user token add infrahaus-bob@pve dashboard --privsep=0 --comment "InfraHaus dashboard"
 
-# Permissions on the TOKEN (4 ACLs, different pool)
-pveum aclmod / -token 'infrahaus-bob@pam!dashboard' -role InfraHaus.Audit
-pveum aclmod /pool/infrahaus-bob -token 'infrahaus-bob@pam!dashboard' -role InfraHaus.Containers
-pveum aclmod /nodes/pve-04 -token 'infrahaus-bob@pam!dashboard' -role InfraHaus.Node
-pveum aclmod /storage/local-zfs -token 'infrahaus-bob@pam!dashboard' -role InfraHaus.Storage
+# Permissions on the USER (4 ACLs, different pool)
+pveum aclmod / -user 'infrahaus-bob@pve' -role InfraHaus.Audit
+pveum aclmod /pool/infrahaus-bob -user 'infrahaus-bob@pve' -role InfraHaus.Containers
+pveum aclmod /nodes/pve-04 -user 'infrahaus-bob@pve' -role InfraHaus.Node
+pveum aclmod /storage/local-zfs -user 'infrahaus-bob@pve' -role InfraHaus.Storage
 ```
 
 ## Revoking Access
@@ -248,14 +255,14 @@ pveum aclmod /storage/local-zfs -token 'infrahaus-bob@pam!dashboard' -role Infra
 
 ```bash
 # Delete token (immediately revokes all API access)
-pveum user token remove infrahaus-alice@pam dashboard
+pveum user token remove infrahaus-alice@pve dashboard
 
 # Clean up ACLs, user, and pool
-pveum aclmod / -token 'infrahaus-alice@pam!dashboard' -delete -role InfraHaus.Audit
-pveum aclmod /pool/infrahaus-alice -token 'infrahaus-alice@pam!dashboard' -delete -role InfraHaus.Containers
-pveum aclmod /nodes/pve-04 -token 'infrahaus-alice@pam!dashboard' -delete -role InfraHaus.Node
-pveum aclmod /storage/local-zfs -token 'infrahaus-alice@pam!dashboard' -delete -role InfraHaus.Storage
-pveum user delete infrahaus-alice@pam
+pveum aclmod / -user 'infrahaus-alice@pve' -delete -role InfraHaus.Audit
+pveum aclmod /pool/infrahaus-alice -user 'infrahaus-alice@pve' -delete -role InfraHaus.Containers
+pveum aclmod /nodes/pve-04 -user 'infrahaus-alice@pve' -delete -role InfraHaus.Node
+pveum aclmod /storage/local-zfs -user 'infrahaus-alice@pve' -delete -role InfraHaus.Storage
+pveum user delete infrahaus-alice@pve
 pveum pool delete infrahaus-alice  # only if empty — delete containers first
 ```
 
@@ -277,15 +284,15 @@ pveum role delete InfraHaus.Storage
 **Clustered nodes:** Roles, users, and ACLs are cluster-wide. Add one node ACL per node the user should deploy to:
 
 ```bash
-pveum aclmod /nodes/pve-01 -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Node
-pveum aclmod /nodes/pve-04 -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Node
+pveum aclmod /nodes/pve-01 -user 'infrahaus-alice@pve' -role InfraHaus.Node
+pveum aclmod /nodes/pve-04 -user 'infrahaus-alice@pve' -role InfraHaus.Node
 ```
 
 If different nodes use different container storages, add a storage ACL for each:
 
 ```bash
-pveum aclmod /storage/local-zfs -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Storage
-pveum aclmod /storage/local-lvm -token 'infrahaus-alice@pam!dashboard' -role InfraHaus.Storage
+pveum aclmod /storage/local-zfs -user 'infrahaus-alice@pve' -role InfraHaus.Storage
+pveum aclmod /storage/local-lvm -user 'infrahaus-alice@pve' -role InfraHaus.Storage
 ```
 
 ## Restricting Read Visibility
@@ -301,15 +308,34 @@ This is already the default. The `InfraHaus.Audit` role as defined above does **
 
 > **If the dashboard shows containers from other nodes:** This is expected behavior from `GET /nodes/{node}/lxc`. The dashboard already filters by the configured node name. Containers from other nodes won't appear in the UI even if the API returns them.
 
+## Using `privsep=1` (Advanced)
+
+If you need multiple tokens with different permission levels for the same user (e.g., a read-only token and a full-access token), use `privsep=1`. With privilege separation enabled, the token's effective permissions are the **intersection** of the token's ACLs and the user's ACLs. This means:
+
+1. The **user** must have at least the same permissions as the token
+2. The **token** also needs its own ACLs
+
+```bash
+# Create token with privsep=1
+pveum user token add infrahaus-alice@pve dashboard --privsep=1
+
+# ACLs on BOTH user AND token
+pveum aclmod / -user 'infrahaus-alice@pve' -role InfraHaus.Audit
+pveum aclmod / -token 'infrahaus-alice@pve!dashboard' -role InfraHaus.Audit
+# ... repeat for all 4 paths
+```
+
+If the user has permissions but the token doesn't (or vice versa), the token gets **nothing**. Both must be set.
+
 ## Summary
 
-| What            | Name                                                                      | Created once per |
-| --------------- | ------------------------------------------------------------------------- | ---------------- |
-| 4 custom roles  | `InfraHaus.Audit`, `.Containers`, `.Node`, `.Storage`                     | Cluster          |
-| 1 resource pool | `infrahaus-{username}`                                                    | User             |
-| 1 PAM user      | `infrahaus-{username}@pam`                                                | User             |
-| 1 API token     | `infrahaus-{username}@pam!dashboard` (`privsep=1`)                        | User             |
-| 4 ACL entries   | On `/`, `/pool/...`, `/nodes/...`, `/storage/...` targeting the **token** | User             |
+| What            | Name                                                                     | Created once per |
+| --------------- | ------------------------------------------------------------------------ | ---------------- |
+| 4 custom roles  | `InfraHaus.Audit`, `.Containers`, `.Node`, `.Storage`                    | Cluster          |
+| 1 resource pool | `infrahaus-{username}`                                                   | User             |
+| 1 PVE user      | `infrahaus-{username}@pve` (no password)                                 | User             |
+| 1 API token     | `infrahaus-{username}@pve!dashboard` (`privsep=0`)                       | User             |
+| 4 ACL entries   | On `/`, `/pool/...`, `/nodes/...`, `/storage/...` targeting the **user** | User             |
 
 ## Reference
 
