@@ -112,6 +112,7 @@ export const createNodeAction = authActionClient
       port: data.port,
       tokenId: data.tokenId,
       tokenSecret: encryptedSecret,
+      pool: data.pool || undefined,
       isDefault,
       userId,
     });
@@ -166,6 +167,11 @@ export const updateNodeAction = authActionClient
 
     if (data.tokenSecret) {
       updateData.tokenSecret = encrypt(data.tokenSecret);
+    }
+
+    // Pool: empty string = clear, non-empty = set, undefined = keep existing
+    if (data.pool !== undefined) {
+      updateData.pool = data.pool || null;
     }
 
     // 5. Update the node
