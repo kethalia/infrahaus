@@ -8,7 +8,7 @@
  * server-side only (will fail in browser context).
  */
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import os from "os";
@@ -28,9 +28,15 @@ export function generateSshKeyPair(comment = "infrahaus-container"): {
   const keyPath = join(tmpDir, "key");
 
   try {
-    execSync(`ssh-keygen -t ed25519 -f "${keyPath}" -N "" -C "${comment}" -q`, {
-      stdio: "pipe",
-    });
+    // Use execFileSync to avoid shell interpolation — prevents injection
+    // if comment ever contains shell metacharacters.
+    execFileSync(
+      "ssh-keygen",
+      ["-t", "ed25519", "-f", keyPath, "-N", "", "-C", comment, "-q"],
+      {
+        stdio: "pipe",
+      },
+    );
 
     const privateKey = readFileSync(keyPath, "utf-8");
     const publicKey = readFileSync(`${keyPath}.pub`, "utf-8").trim();
@@ -57,7 +63,7 @@ export function derivePublicKeyFromPrivate(privateKey: string): string {
 
   try {
     writeFileSync(keyPath, privateKey, { mode: 0o600 });
-    const output = execSync(`ssh-keygen -y -f "${keyPath}"`, {
+    const output = execFileSync("ssh-keygen", ["-y", "-f", keyPath], {
       stdio: "pipe",
     });
     return output.toString().trim();

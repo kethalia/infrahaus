@@ -30,12 +30,18 @@ export async function GET(request: NextRequest) {
 
     const redis = getRedis();
     const rateLimitKey = `${NONCE_RATE_LIMIT_PREFIX}${ip}`;
-    const current = await redis.incr(rateLimitKey);
 
-    // Set expiry on first request in the window
-    if (current === 1) {
-      await redis.expire(rateLimitKey, NONCE_RATE_LIMIT_WINDOW_S);
-    }
+    // Atomic INCR + EXPIRE via Lua script to prevent race condition where
+    // two simultaneous first-requests both INCR to 1 and race on EXPIRE,
+    // potentially leaving the key without a TTL.
+    const current = (await redis.eval(
+      `local c = redis.call('INCR', KEYS[1])
+       if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+       return c`,
+      1,
+      rateLimitKey,
+      NONCE_RATE_LIMIT_WINDOW_S,
+    )) as number;
 
     if (current > NONCE_RATE_LIMIT_MAX) {
       return NextResponse.json(
