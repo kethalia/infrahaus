@@ -60,9 +60,9 @@ export const containerConfigBaseSchema = z.object({
   ip: z.string().optional(),
   gateway: z.string().optional(),
   nameserver: z.string().optional(),
-  unprivileged: z.boolean(),
   nesting: z.boolean(),
-  sshPublicKey: z.string().optional(),
+  sshPublicKey: z.string().min(1, "SSH public key is required"),
+  sshPrivateKey: z.string().min(1, "SSH private key is required"),
   tags: z.string().optional(),
   ostemplate: z.string().min(1, "OS template is required"),
 });
@@ -130,9 +130,11 @@ export const createContainerInputSchema = z.object({
   bridge: z.string().min(1),
   ipConfig: z.string().min(1, "IP configuration is required"),
   nameserver: z.string().optional(),
-  unprivileged: z.boolean().default(true),
   nesting: z.boolean().default(false),
-  sshPublicKey: z.string().optional(),
+  /** SSH public key — injected into container via Proxmox API ssh-public-keys */
+  sshPublicKey: z.string().min(1, "SSH public key is required"),
+  /** SSH private key — stored encrypted in Redis for direct SSH to container */
+  sshPrivateKey: z.string().min(1, "SSH private key is required"),
   tags: z.string().optional(),
   ostemplate: z.string().optional(),
   enabledBuckets: z.array(z.string()).optional(),
@@ -150,6 +152,20 @@ export const createContainerInputSchema = z.object({
 });
 
 // ============================================================================
+// Adopt Container (for pre-existing containers)
+// ============================================================================
+
+export const adoptContainerSchema = z.object({
+  containerId: z.string().min(1),
+  /** Strategy: "password" = SSH in with password, inject new key; "import-key" = store user-provided key */
+  strategy: z.enum(["password", "import-key"]),
+  /** Root password — required for "password" strategy */
+  password: z.string().optional(),
+  /** Existing SSH private key — required for "import-key" strategy */
+  privateKey: z.string().optional(),
+});
+
+// ============================================================================
 // Inferred Types
 // ============================================================================
 
@@ -164,3 +180,4 @@ export type PackageSelection = z.infer<typeof packageSelectionSchema>;
 export type ScriptConfig = z.infer<typeof scriptConfigSchema>;
 export type WizardState = z.infer<typeof wizardStateSchema>;
 export type CreateContainerInput = z.infer<typeof createContainerInputSchema>;
+export type AdoptContainerInput = z.infer<typeof adoptContainerSchema>;

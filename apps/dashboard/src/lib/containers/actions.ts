@@ -7,18 +7,20 @@
  * and managing container lifecycle (start/stop/shutdown/restart/delete).
  * Uses authActionClient for authenticated access and next-safe-action patterns.
  *
- * All Proxmox client creation uses session ticket auth via createSessionClient().
- * The session ticket is obtained at login; host/port come from the DB node record.
+ * All Proxmox client creation uses node API token auth via createSessionClient().
+ * Session check ensures user is authenticated (Universal Profile connected).
  * No env-var references (PVE_HOST, PVE_PORT, PVE_ROOT_PASSWORD, PVE_NODE).
  */
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import crypto from "crypto";
 
 import { authActionClient, ActionError } from "@/lib/safe-action";
 import { DatabaseService, prisma } from "@/lib/db";
-import { decrypt } from "@/lib/encryption";
+import { encrypt, decrypt } from "@/lib/encryption";
 import { getRedis } from "@/lib/redis";
+import { storeContainerCredential } from "@/lib/containers/ssh-keys";
 import { getContainerCreationQueue } from "@/lib/queue/container-creation";
 import {
   storeCreationJob,
@@ -33,7 +35,6 @@ import {
   templates as proxmoxTemplates,
 } from "@/lib/proxmox";
 import { createSessionClient } from "@/lib/containers/helpers";
-import { getSessionData } from "@/lib/session";
 import { ProxmoxApiError } from "@/lib/proxmox/errors";
 import {
   startContainer,
@@ -62,7 +63,7 @@ import {
   SHUTDOWN_WAIT_MS,
   DELETE_TIMEOUT_MS,
 } from "@/lib/constants/timeouts";
-import { createContainerInputSchema } from "./schemas";
+import { createContainerInputSchema, adoptContainerSchema } from "./schemas";
 
 // ============================================================================
 // VMID Cache Actions
@@ -110,7 +111,6 @@ export interface WizardTemplate {
   diskSize: number | null;
   storage: string | null;
   bridge: string | null;
-  unprivileged: boolean;
   nesting: boolean;
   tags: string | null;
   packages: Array<{ id: string; name: string; manager: string }>;
@@ -244,7 +244,9 @@ export async function getWizardData(userId: string): Promise<WizardData> {
           );
 
           // Filter for bridge interfaces only
-          const bridges = networkList.filter((n) => n.type === "bridge");
+          const bridges = networkList.filter(
+            (n) => n.type === "bridge" || n.type === "OVSBridge",
+          );
 
           // Find storages that support vztmpl content and fetch their templates
           const vztmplStorages = storageList.filter((s) =>
@@ -352,7 +354,6 @@ function mapTemplate(t: {
   diskSize: number | null;
   storage: string | null;
   bridge: string | null;
-  unprivileged: boolean;
   nesting: boolean;
   tags: string | null;
   packages: Array<{ id: string; name: string; manager: string }>;
@@ -375,7 +376,6 @@ function mapTemplate(t: {
     diskSize: t.diskSize,
     storage: t.storage,
     bridge: t.bridge,
-    unprivileged: t.unprivileged,
     nesting: t.nesting,
     tags: t.tags,
     packages: t.packages.map((p) => ({
@@ -477,19 +477,28 @@ export const createContainerAction = authActionClient
       }
     }
 
-    // Pass session ticket so worker can authenticate without API tokens
-    const session = await getSessionData();
+    // Encrypt and store container credentials in PostgreSQL for durability.
+    // The root password is generated here (random 32-char hex, same as before
+    // but now persisted). The SSH keys come from the wizard form.
+    const containerId = toContainerId(nodeName, data.vmid);
+    const rootPassword = crypto.randomBytes(16).toString("hex");
+    const encryptedPrivateKey = encrypt(data.sshPrivateKey);
+    const encryptedRootPassword = encrypt(rootPassword);
 
-    // Enqueue creation job
+    await storeContainerCredential({
+      containerId,
+      userId: ctx.userId,
+      sshPrivateKey: encryptedPrivateKey,
+      sshPublicKey: data.sshPublicKey,
+      rootPassword: encryptedRootPassword,
+    });
+
+    // Enqueue creation job — worker uses node API token from DB (no session ticket)
     const queue = getContainerCreationQueue();
     await queue.add("create-container", {
       nodeId,
       nodeName,
       templateId: data.templateId || null,
-      ticket: session?.ticket,
-      csrfToken: session?.csrfToken,
-      username: session?.username,
-      ticketExpiresAt: session?.expiresAt,
       config: {
         hostname: data.hostname,
         vmid: data.vmid,
@@ -502,7 +511,10 @@ export const createContainerAction = authActionClient
         ipConfig: data.ipConfig,
         nameserver: data.nameserver,
         sshPublicKey: data.sshPublicKey,
-        unprivileged: data.unprivileged,
+        sshPrivateKey: encryptedPrivateKey,
+        rootPassword: encryptedRootPassword,
+        pool: node.pool || undefined,
+        unprivileged: true, // Always unprivileged — privileged containers require Sys.Modify on /
         nesting: data.nesting,
         ostemplate,
         tags: data.tags,
@@ -518,7 +530,7 @@ export const createContainerAction = authActionClient
     revalidatePath("/containers");
 
     return {
-      containerId: toContainerId(nodeName, data.vmid),
+      containerId,
       nodeName,
       vmid: data.vmid,
     };
@@ -840,15 +852,18 @@ export const deleteContainerAction = authActionClient
       // Invalidate VMID cache for this node (container deleted)
       await invalidateVmidCache(nodeId);
 
-      // Clean up Redis state: creation job, cached services, log buffer
+      // Clean up Redis state + PostgreSQL credentials
       const redis = getRedis();
       const { clearCachedServices } =
         await import("@/lib/containers/discovery");
+      const { deleteContainerCredential } =
+        await import("@/lib/containers/ssh-keys");
       // Use the compound containerId (already nodeName/vmid format if parsed correctly)
       await Promise.all([
         deleteCreationJob(redis, nodeName, vmid),
         clearCachedServices(redis, containerId),
         redis.del(getLogBufferKey(containerId)),
+        deleteContainerCredential(containerId),
       ]);
 
       revalidatePath("/");
@@ -861,30 +876,193 @@ export const deleteContainerAction = authActionClient
   });
 
 // ============================================================================
+// Adopt Container Action
+// ============================================================================
+
+/**
+ * Adopt a pre-existing container by establishing SSH credentials.
+ *
+ * Two strategies:
+ *   1. "password" — SSH into the container using root password, generate a new
+ *      Ed25519 key pair, inject the public key into authorized_keys, store
+ *      credentials in PostgreSQL, and harden SSH (disable password auth).
+ *   2. "import-key" — Store a user-provided private key in PostgreSQL.
+ *      Verifies it can connect before persisting.
+ *
+ * After adoption, the container becomes "managed" — service discovery, logs,
+ * and SSH-based features work.
+ */
+export const adoptContainerAction = authActionClient
+  .schema(adoptContainerSchema)
+  .action(async ({ parsedInput: data, ctx }) => {
+    // Resolve container and verify ownership
+    const { client, nodeName, vmid } = await getContainerContext(
+      data.containerId,
+      ctx.userId,
+    );
+
+    // Verify container is running (SSH requires it)
+    const status = await getContainer(client, nodeName, vmid);
+    if (status.status !== "running") {
+      throw new ActionError(
+        "Container must be running to adopt. Start it first.",
+      );
+    }
+
+    // Resolve container IP
+    const { getContainerConfig: getConfig, getRuntimeIp } =
+      await import("@/lib/proxmox/containers");
+    const config = await getConfig(client, nodeName, vmid);
+    const net0 = (config as Record<string, unknown>)["net0"] as
+      | string
+      | undefined;
+    let containerIp = net0 ? extractIpFromNet0(net0) : null;
+    if (!containerIp) {
+      containerIp = await getRuntimeIp(client, nodeName, vmid);
+    }
+    if (!containerIp) {
+      throw new ActionError(
+        "Could not determine container IP. Ensure the container has a reachable network.",
+      );
+    }
+
+    const { connectWithRetry, SSHSession } = await import("@/lib/ssh");
+
+    if (data.strategy === "password") {
+      // === Password strategy ===
+      if (!data.password) {
+        throw new ActionError(
+          "Root password is required for password-based adoption.",
+        );
+      }
+
+      // 1. Connect with password to verify access
+      let ssh: InstanceType<typeof SSHSession>;
+      try {
+        ssh = await connectWithRetry({
+          host: containerIp,
+          username: "root",
+          password: data.password,
+        });
+      } catch {
+        throw new ActionError(
+          "Failed to connect with the provided password. Verify the password and that SSH is enabled in the container.",
+        );
+      }
+
+      try {
+        // 2. Generate new Ed25519 key pair
+        const { generateSshKeyPair } = await import("@/lib/utils/ssh-keys");
+        const { privateKey, publicKey } = generateSshKeyPair(
+          `infrahaus-${nodeName}-${vmid}`,
+        );
+
+        // 3. Inject public key into authorized_keys
+        await ssh.exec("mkdir -p /root/.ssh && chmod 700 /root/.ssh");
+        // Append (don't overwrite) — container may have other authorized keys
+        await ssh.exec(
+          `echo '${publicKey}' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys`,
+        );
+
+        // 4. Harden SSH: disable password auth
+        await ssh.exec(
+          `sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && ` +
+            `sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && ` +
+            `systemctl restart sshd 2>/dev/null || service ssh restart 2>/dev/null || true`,
+        );
+
+        // 5. Store credentials in PostgreSQL
+        const encryptedPrivateKey = encrypt(privateKey);
+        const encryptedRootPassword = encrypt(data.password);
+
+        await storeContainerCredential({
+          containerId: data.containerId,
+          userId: ctx.userId,
+          sshPrivateKey: encryptedPrivateKey,
+          sshPublicKey: publicKey,
+          rootPassword: encryptedRootPassword,
+        });
+
+        // 6. Verify key-based auth works
+        const keySession = await connectWithRetry({
+          host: containerIp,
+          username: "root",
+          privateKey,
+        });
+        keySession.close();
+      } finally {
+        ssh.close();
+      }
+    } else if (data.strategy === "import-key") {
+      // === Import key strategy ===
+      if (!data.privateKey) {
+        throw new ActionError("SSH private key is required for key import.");
+      }
+
+      // 1. Verify the provided key can connect
+      let ssh: InstanceType<typeof SSHSession>;
+      try {
+        ssh = await connectWithRetry({
+          host: containerIp,
+          username: "root",
+          privateKey: data.privateKey,
+        });
+      } catch {
+        throw new ActionError(
+          "Failed to connect with the provided SSH key. Verify the key is correct and authorized in the container.",
+        );
+      }
+      ssh.close();
+
+      // 2. Derive public key from the private key
+      const { derivePublicKeyFromPrivate } =
+        await import("@/lib/utils/ssh-keys");
+      let publicKey: string;
+      try {
+        publicKey = derivePublicKeyFromPrivate(data.privateKey);
+      } catch {
+        throw new ActionError(
+          "Could not derive public key from the provided private key. Ensure it is a valid OpenSSH or PEM private key.",
+        );
+      }
+
+      // 3. Store credentials in PostgreSQL
+      // No root password available for import-key — store a placeholder
+      const encryptedPrivateKey = encrypt(data.privateKey);
+      const encryptedRootPassword = encrypt(""); // Empty — unknown
+
+      await storeContainerCredential({
+        containerId: data.containerId,
+        userId: ctx.userId,
+        sshPrivateKey: encryptedPrivateKey,
+        sshPublicKey: publicKey,
+        rootPassword: encryptedRootPassword,
+      });
+    }
+
+    revalidatePath("/");
+    revalidatePath(`/containers/${encodeURIComponent(data.containerId)}`);
+
+    return { success: true as const };
+  });
+
+// ============================================================================
 // Service Refresh Action
 // ============================================================================
 
 /**
- * Re-discover container services by SSHing into the PVE host and running
- * discovery via `pct exec`. Results are cached in Redis (not DB).
- *
- * SSH credentials come from the container's node record in the DB
- * (node.host + node.sshPassword), not from env vars.
+ * Re-discover container services by SSHing directly into the container.
+ * Uses the per-container SSH key stored in ContainerCredential (PostgreSQL).
+ * Results are cached in Redis (not DB).
  */
 export const refreshContainerServicesAction = authActionClient
   .schema(containerIdSchema)
   .action(async ({ parsedInput: { containerId }, ctx }) => {
-    // Resolve container context (works for both DB-tracked and pve-{vmid})
-    const { client, nodeName, vmid, nodeId } = await getContainerContext(
+    // Resolve container context
+    const { client, nodeName, vmid } = await getContainerContext(
       containerId,
       ctx.userId,
     );
-
-    // Find the node record for SSH credentials
-    const node = await DatabaseService.getNodeById(nodeId);
-    if (!node) {
-      throw new ActionError("Node not found");
-    }
 
     // Check container is running on Proxmox
     let status;
@@ -900,36 +1078,42 @@ export const refreshContainerServicesAction = authActionClient
       throw new ActionError("Container must be running to refresh services.");
     }
 
-    // Connect to PVE host via SSH using DB-stored credentials
-    if (!node.sshPassword) {
+    // Get SSH key from ContainerCredential DB
+    const { getContainerSshKey } = await import("@/lib/containers/ssh-keys");
+    const encryptedKey = await getContainerSshKey(containerId);
+    if (!encryptedKey) {
       throw new ActionError(
-        "SSH password not configured for this node. Update node settings to enable service discovery.",
+        "Container is not managed. Adopt it first to enable service discovery.",
       );
     }
-    const pveRootPassword = decrypt(node.sshPassword);
+    const privateKey = decrypt(encryptedKey);
 
-    const { connectWithRetry, PctExecSession } = await import("@/lib/ssh");
-    const sshHost = await connectWithRetry({
-      host: node.host,
+    // Resolve container IP via Proxmox API
+    const { getContainerConfig: getConfig, getRuntimeIp } =
+      await import("@/lib/proxmox/containers");
+    const config = await getConfig(client, nodeName, vmid);
+    const net0 = (config as Record<string, unknown>)["net0"] as
+      | string
+      | undefined;
+    let containerIp = net0 ? extractIpFromNet0(net0) : null;
+    if (!containerIp) {
+      containerIp = await getRuntimeIp(client, nodeName, vmid);
+    }
+    if (!containerIp) {
+      throw new ActionError(
+        "Could not determine container IP. Service discovery requires a reachable IP.",
+      );
+    }
+
+    // SSH directly into the container
+    const { connectWithRetry } = await import("@/lib/ssh");
+    const ssh = await connectWithRetry({
+      host: containerIp,
       username: "root",
-      password: pveRootPassword,
+      privateKey,
     });
 
     try {
-      const pct = new PctExecSession(sshHost, vmid);
-
-      // Resolve container IP
-      const { getContainerConfig: getConfig, getRuntimeIp } =
-        await import("@/lib/proxmox/containers");
-      const config = await getConfig(client, nodeName, vmid);
-      const net0 = (config as Record<string, unknown>)["net0"] as
-        | string
-        | undefined;
-      let containerIp = net0 ? extractIpFromNet0(net0) : null;
-      if (!containerIp) {
-        containerIp = await getRuntimeIp(client, nodeName, vmid);
-      }
-
       // Run discovery and cache in Redis
       const { getRedis } = await import("@/lib/redis");
       const { discoverAndCacheServices } =
@@ -938,7 +1122,7 @@ export const refreshContainerServicesAction = authActionClient
       const cache = await discoverAndCacheServices(
         redis,
         containerId,
-        pct,
+        ssh,
         containerIp,
       );
 
@@ -947,6 +1131,6 @@ export const refreshContainerServicesAction = authActionClient
 
       return { success: true as const, serviceCount: cache.services.length };
     } finally {
-      sshHost.close();
+      ssh.close();
     }
   });

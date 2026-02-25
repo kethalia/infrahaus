@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 03.5-infrastructure-refactor — Complete ✓
-**Plan:** 8 of 8 in current phase (all complete)
-**Status:** Phase complete — All 8 plans executed
-**Last activity:** 2026-02-23 — Completed 03.5-08-PLAN.md (dashboard multi-node support)
+**Phase:** 04.6-pool-based-access (7 of 11 phases)
+**Plan:** 1 of 1 in current phase
+**Status:** Phase complete
+**Last activity:** 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 
-Progress: █████████████████ 80% (39/49 plans)
+Progress: █████████████████░░░ 88% (44/50 plans)
 
 ## Completed Work
 
@@ -192,6 +192,37 @@ Progress: █████████████████ 80% (39/49 plans)
 - Added SERVICE_CACHE_TTL_S = 86_400 to infrastructure.ts
 - Updated discoverAndCacheServices() with Redis EX option for auto-expiry
 
+### Phase 4.5: Auth Decoupling — RainbowKit + Universal Profiles ✓
+
+**04.5-01 — Web3 dependencies + session layer rewrite** ✓
+
+- RainbowKit 2.2.10, wagmi 2.x, viem installed with Universal Profile-only wallet config
+- iron-session rewritten: SIWE session stores address, chainId, message, signature, messageHash
+- Dynamic session TTL from SIWE expirationTime (capped at 24h, default 2h)
+- LUKSO mainnet chain config with Universal Profile connector
+
+**04.5-02 — SIWE auth API routes** ✓
+
+- /api/auth/nonce — generates and stores nonce in iron-session cookie
+- /api/auth/verify — validates SIWE signature via verifySiweMessage(), creates Redis session
+- /api/auth/logout — destroys iron-session + Redis session
+- /api/auth/me — returns session address or 401
+- loginAction/loginSchema/ensureNodeExists removed; only logoutAction remains
+
+**04.5-03 — Identity migration + Proxmox client refactor** ✓
+
+- session.address replaces session.username everywhere (all pages, actions, API routes)
+- createSessionClient delegates to createProxmoxClientFromNode (session = access control, not Proxmox auth)
+- Worker uses API token exclusively (ticket/csrfToken/username removed from ContainerJobData)
+- Data migration clears ProxmoxNode table (old userIds incompatible with wallet addresses)
+
+**04.5-04 — Login UI + Web3Provider + build verification** ✓
+
+- Web3Provider with SIWE auth adapter (nonce → sign → verify → signOut) + auth status polling
+- Login page: RainbowKit WalletButton targeting Universal Profiles only (replaced Proxmox login form)
+- Server-session-based redirect via /api/auth/me polling (not wagmi isConnected)
+- Graceful WalletConnect projectId fallback prevents module-load crash
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -287,15 +318,31 @@ Progress: █████████████████ 80% (39/49 plans)
 - Services API route supports `?discover=true` — cache-first pattern with SSH auto-discovery fallback when cache is empty
 - container-card.tsx converted to client component ("use client") for useContainerServices hook. Shows Skeleton loading state while services load.
 - services-tab.tsx uses useQueryClient for cache invalidation on manual refresh instead of hand-rolled useEffect
-- **NEXT PRIORITY: Decouple auth from Proxmox** — Login should be independent (local accounts or separate provider). Proxmox nodes added post-login as configuration. Makes no-nodes the real first-login experience.
+- **wagmi v2 required** — RainbowKit 2.2.10 does NOT support wagmi v3; pinned to ^2.9.0
+- **viem explicit dep** — pnpm strict hoisting requires viem as direct dependency (not just peer)
+- **Dynamic session TTL** — createSession computes TTL from SIWE expirationTime, capped at MAX_SESSION_TTL_S (24h), fallback DEFAULT_SESSION_TTL_S (2h)
+- **Nonce in iron-session cookie** — stored temporarily during SIWE flow, consumed by verify endpoint
+- **SIWE verify uses verifySiweMessage** — luksoPublicClient.verifySiweMessage() handles both EOA and EIP-1271 smart contract (UP) signatures
+- **Default SIWE expiry 2h** — if SIWE message lacks expirationTime, defaults to 2 hours from now
+- **Auth actions simplified** — loginAction, loginSchema, ensureNodeExists removed; only logoutAction remains
+- **session.address as universal identity** — all page components, API routes, and server actions use session.address (wallet address) for userId. Zero session.username references remain.
+- **createSessionClient delegates to createProxmoxClientFromNode** — session only provides access control (auth check), Proxmox API auth comes from node's stored API token
+- **Worker uses API token exclusively** — ticket/csrfToken/username fields removed from ContainerJobData; worker always uses createProxmoxClientFromNode
+- **Data migration clears ProxmoxNode** — DELETE FROM ProxmoxNode since old 'root@pam' userIds can't map to wallet addresses. Users re-add nodes after first UP login.
+- **WalletButton with wallet="universal-profiles"** — targets specific wallet instead of generic ConnectButton for cleaner UX
+- **Fallback WalletConnect projectId** — "MISSING_PROJECT_ID" prevents module-load crash when env var is empty
+- **Server-session redirect (useRedirectOnAuth)** — polls /api/auth/me instead of wagmi isConnected to prevent redirect loop (isConnected fires before SIWE verify completes)
+- **Pool is optional on ProxmoxNode** — single-user setups without a pool still work. Pool flows: DB → node form → create action → job queue → worker → Proxmox API. Empty pool in create = undefined (not stored); empty in update = clears to null.
 
 ## Pending Work
 
-- **NEXT: Decouple authentication from Proxmox** — auth should be independent so users can log in without a Proxmox node, then add nodes as configuration step
-- Phase 3.5: Complete ✓ — All 8 plans executed
-- Phase 3.6: Complete ✓ — All 6 plans executed
+- Phase 04.5: Complete ✓ — All 4 plans executed. Auth fully decoupled from Proxmox.
+- **Phase 04.6: Pool-Based Proxmox Access Control (1 plan) — COMPLETE ✓**
 - Phase 5: Web UI & Monitoring (#87-88)
 - Phase 6: CI/CD & Deployment (#89-90)
+- Phase 7: VM to Run OpenClaw (3 plans)
+- Phase 8: Proxmox LXC Container Template Engine (9 plans)
+- **Known issue:** Zod v3→v4 type incompatibility with @hookform/resolvers in 6 form files (pre-existing, not blocking)
 
 ## Blockers/Concerns
 
@@ -307,10 +354,11 @@ Progress: █████████████████ 80% (39/49 plans)
 
 - Phase 07 added: VM to Run OpenClaw
 - Phase 08 added: Proxmox LXC Container Template Engine
+- Phase 04.6 added: Pool-Based Proxmox Access Control (least-privilege API token isolation)
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 03.5-08-PLAN.md (Phase 3.5 complete)
+Last session: 2026-02-25T15:30:00Z
+Stopped at: Completed 04.6-01-PLAN.md — phase 04.6 complete
 Resume file: None
-Next step: Decouple authentication from Proxmox, then Phase 5 (Web UI & Monitoring)
+Next step: Phase 5 (Web UI & Monitoring) or merge feat/ssh-key-containers into feat/04.5-auth-decoupling

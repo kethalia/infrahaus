@@ -75,6 +75,8 @@ export interface ContainerWithStatus {
   /** Service cache (from Redis, populated on detail page only) */
   services?: CachedServiceInfo[];
   containerIp?: string | null;
+  /** Whether this container has stored SSH credentials (dashboard-managed) */
+  isManaged: boolean;
   /** Live resource usage from Proxmox (null if unavailable) */
   resources: {
     cpu: number; // percentage 0-100
@@ -200,7 +202,12 @@ export async function getContainersWithStatus(
               },
             }));
           } catch (error) {
-            console.error(`Node ${dbNode.name} container list failed:`, error);
+            // Expected when node is unreachable — warn, not error
+            // (console.error triggers Next.js error overlay in dev)
+            console.warn(
+              `[containers] Node ${dbNode.name} skipped:`,
+              error instanceof Error ? error.message : error,
+            );
             failedNodes.push(dbNode.name);
             return [];
           }
@@ -217,9 +224,16 @@ export async function getContainersWithStatus(
       }
     }
   } catch (error) {
-    console.error("Proxmox API unreachable:", error);
+    console.warn(
+      "[containers] Proxmox API unreachable:",
+      error instanceof Error ? error.message : error,
+    );
     proxmoxReachable = false;
   }
+
+  // Batch-check which containers have stored SSH credentials (managed)
+  const { getManagedContainerIds } = await import("@/lib/containers/ssh-keys");
+  const managedIds = await getManagedContainerIds(userId);
 
   // Map Proxmox containers to ContainerWithStatus
   // Services are fetched client-side per card via useContainerServices hook
@@ -234,12 +248,15 @@ export async function getContainersWithStatus(
       status = "unknown";
     }
 
+    const cid = `${pve.node.name}/${pve.vmid}`;
+
     return {
       vmid: pve.vmid,
       hostname: pve.name || `CT-${pve.vmid}`,
       node: { name: pve.node.name, id: pve.node.id },
       template: null, // Template link no longer available (was DB-only)
       status,
+      isManaged: managedIds.has(cid),
       maxmem: pve.maxmem,
       maxdisk: pve.maxdisk,
       maxcpu: pve.cpus,
@@ -331,6 +348,10 @@ export async function getContainerDetailData(
         resolvedStatus = "unknown";
       }
 
+      // Check if this container is managed (has stored SSH credentials)
+      const { getContainerSshKey } = await import("@/lib/containers/ssh-keys");
+      const hasCredential = !!(await getContainerSshKey(containerId));
+
       // Read cached services from Redis (keyed by compound ID)
       const redis = getRedis();
       const serviceCache = await getCachedServices(redis, containerId);
@@ -363,6 +384,7 @@ export async function getContainerDetailData(
         node: { name: dbNode.name, id: dbNode.id },
         template: null,
         status: resolvedStatus,
+        isManaged: hasCredential,
         maxmem: status.maxmem,
         maxdisk: status.maxdisk,
         maxcpu: (status as Record<string, unknown>).cpus as number | undefined,
@@ -399,6 +421,7 @@ export async function getContainerDetailData(
             node: { name: dbNode.name, id: dbNode.id },
             template: null,
             status: "unknown" as ContainerStatus,
+            isManaged: false,
             resources: null,
             config: null,
             containerIp: null,
@@ -425,6 +448,7 @@ export async function getContainerDetailData(
         node: { name: creationJob.nodeName, id: creationJob.nodeId },
         template: null,
         status: creationJob.lifecycle as ContainerStatus,
+        isManaged: true, // Being created through dashboard = managed
         resources: null,
         config: null,
         containerIp: null,

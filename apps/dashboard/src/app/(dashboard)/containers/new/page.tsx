@@ -18,7 +18,7 @@ export default async function NewContainerPage() {
   const session = await getSessionData();
   if (!session) redirect("/login");
 
-  const userId = session.username;
+  const userId = session.address;
 
   // Get user's nodes and default node
   const defaultNode = await DatabaseService.getDefaultNodeForUser(userId);

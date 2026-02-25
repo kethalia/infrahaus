@@ -1,14 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useAction } from "next-safe-action/hooks";
-import { AlertCircle } from "lucide-react";
-import { loginAction } from "@/lib/auth/actions";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { WalletButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
 import {
   Card,
   CardHeader,
@@ -16,172 +11,70 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
-const loginSchema = z.object({
-  host: z.string().min(1, "Proxmox host is required"),
-  port: z.number().int().min(1).max(65535),
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
-  realm: z.enum(["pam", "pve"]),
-});
-
-type LoginValues = z.infer<typeof loginSchema>;
-
-export default function LoginPage() {
+/**
+ * Poll /api/auth/me to detect when the SIWE verify flow completes.
+ *
+ * Why not useAccount().isConnected? That fires as soon as the wallet
+ * connects — before SIWE sign+verify finishes. The server session
+ * doesn't exist yet, so middleware bounces us back to /login (loop).
+ *
+ * Instead we poll the server: once /api/auth/me returns an address,
+ * we know the Redis session + iron-session cookie are set and the
+ * middleware will let us through.
+ */
+function useRedirectOnAuth() {
   const router = useRouter();
-  const { execute, result, isPending } = useAction(loginAction);
-
-  const form = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      host: "",
-      port: 8006,
-      username: "",
-      password: "",
-      realm: "pam",
-    },
-  });
+  const { isConnected } = useAccount();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (result.data?.success) {
-      router.push("/");
+    // Only start polling after wallet is connected (SIWE flow in progress)
+    if (!isConnected) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
     }
-  }, [result.data?.success, router]);
 
-  function onSubmit(values: LoginValues) {
-    execute(values);
-  }
+    const checkSession = async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (data.address) {
+          // Server session confirmed — safe to navigate
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          router.push("/");
+        }
+      } catch {
+        // Network error — keep polling
+      }
+    };
+
+    // Check immediately, then every 1s (500ms was excessive server load)
+    checkSession();
+    intervalRef.current = setInterval(checkSession, 1000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isConnected, router]);
+}
+
+export default function LoginPage() {
+  useRedirectOnAuth();
 
   return (
     <Card className="w-full max-w-md">
-      <CardHeader>
+      <CardHeader className="text-center">
         <CardTitle className="text-2xl">LXC Manager</CardTitle>
         <CardDescription>
-          Sign in with your Proxmox VE credentials
+          Connect your Universal Profile to sign in
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex flex-col gap-4"
-          >
-            <div className="flex gap-3">
-              <FormField
-                control={form.control}
-                name="host"
-                render={({ field }) => (
-                  <FormItem className="flex-1">
-                    <FormLabel>Proxmox Host</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="192.168.1.100 or pve.local"
-                        autoFocus
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="port"
-                render={({ field }) => (
-                  <FormItem className="w-24">
-                    <FormLabel>Port</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Username</FormLabel>
-                  <FormControl>
-                    <Input placeholder="root" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="realm"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Realm</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select realm" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="pam">Linux PAM</SelectItem>
-                      <SelectItem value="pve">Proxmox VE</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {result.serverError && (
-              <Alert variant="destructive">
-                <AlertCircle className="size-4" />
-                <AlertDescription>{result.serverError}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
-        </Form>
+      <CardContent className="flex justify-center">
+        <WalletButton wallet="universal-profiles" />
       </CardContent>
     </Card>
   );

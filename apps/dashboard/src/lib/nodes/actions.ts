@@ -78,7 +78,7 @@ async function verifyOwnership(nodeId: string, userId: string) {
  * Create a new Proxmox node.
  *
  * - Tests connection to Proxmox before saving
- * - Encrypts tokenSecret and sshPassword before storage
+ * - Encrypts tokenSecret before storage
  * - First node for a user automatically becomes the default
  */
 export const createNodeAction = authActionClient
@@ -100,9 +100,6 @@ export const createNodeAction = authActionClient
     const encryptedSecret = data.tokenSecret
       ? encrypt(data.tokenSecret)
       : undefined;
-    const encryptedSshPassword = data.sshPassword
-      ? encrypt(data.sshPassword)
-      : undefined;
 
     // 3. Auto-default: first node for user becomes the default
     const existingNodes = await DatabaseService.listNodesForUser(userId);
@@ -115,7 +112,7 @@ export const createNodeAction = authActionClient
       port: data.port,
       tokenId: data.tokenId,
       tokenSecret: encryptedSecret,
-      sshPassword: encryptedSshPassword,
+      pool: data.pool || undefined,
       isDefault,
       userId,
     });
@@ -172,11 +169,9 @@ export const updateNodeAction = authActionClient
       updateData.tokenSecret = encrypt(data.tokenSecret);
     }
 
-    // sshPassword: if provided, encrypt; if empty string, clear; if undefined, keep existing
-    if (data.sshPassword !== undefined) {
-      updateData.sshPassword = data.sshPassword
-        ? encrypt(data.sshPassword)
-        : null;
+    // Pool: empty string = clear, non-empty = set, undefined = keep existing
+    if (data.pool !== undefined) {
+      updateData.pool = data.pool || null;
     }
 
     // 5. Update the node

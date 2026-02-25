@@ -48,13 +48,13 @@ export const actionClient = createSafeActionClient({
  * Use for: all protected actions (template CRUD, container ops, settings).
  *
  * Checks for a valid Redis-backed session via iron-session cookie.
- * Provides userId (Proxmox username) in ctx to all downstream actions.
+ * Provides userId (Universal Profile address) in ctx to all downstream actions.
  */
 export const authActionClient = actionClient.use(async ({ next }) => {
   const sessionData = await getSessionData();
   if (!sessionData) {
-    throw new Error("Authentication required. Please log in.");
+    throw new Error("Authentication required. Connect your Universal Profile.");
   }
 
-  return next({ ctx: { userId: sessionData.username } });
+  return next({ ctx: { userId: sessionData.address } });
 });

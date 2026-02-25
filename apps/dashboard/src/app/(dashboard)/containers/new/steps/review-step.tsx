@@ -149,14 +149,11 @@ export function ReviewStep({
             <CardTitle className="text-sm">Features</CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-1">
-            <ReviewItem
-              label="Unprivileged"
-              value={config.unprivileged ? "Yes" : "No"}
-            />
+            <ReviewItem label="Unprivileged" value="Yes" />
             <ReviewItem label="Nesting" value={config.nesting ? "Yes" : "No"} />
             <ReviewItem
-              label="SSH Key"
-              value={config.sshPublicKey ? "Configured" : "None"}
+              label="SSH Key Pair"
+              value={config.sshPrivateKey ? "Generated (Ed25519)" : "Not set"}
             />
           </CardContent>
         </Card>

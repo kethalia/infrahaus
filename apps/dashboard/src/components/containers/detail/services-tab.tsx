@@ -17,6 +17,8 @@ import {
   ScrollText,
   Loader2,
   Cog,
+  ShieldOff,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAction } from "next-safe-action/hooks";
@@ -40,6 +42,7 @@ import type { ServiceWithCredentials } from "@/lib/containers/discovery";
 import { refreshContainerServicesAction } from "@/lib/containers/actions";
 import { serviceStatusConfig } from "@/lib/constants/display";
 import { useContainerServices } from "@/hooks/use-container-services";
+import { AdoptContainerDialog } from "@/components/containers/adopt-container-dialog";
 
 // ============================================================================
 // Helpers
@@ -62,11 +65,13 @@ function formatLastChecked(isoDate: string): string {
 
 interface ServicesTabProps {
   containerId: string;
+  hostname: string;
   nodeName: string;
   vmid: number;
   services: ServiceWithCredentials[];
   status: ContainerStatus;
   containerIp?: string | null;
+  isManaged: boolean;
 }
 
 // ============================================================================
@@ -75,11 +80,13 @@ interface ServicesTabProps {
 
 export function ServicesTab({
   containerId,
+  hostname,
   nodeName,
   vmid,
   services,
   status,
   containerIp,
+  isManaged,
 }: ServicesTabProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -146,7 +153,7 @@ export function ServicesTab({
             variant="outline"
             size="sm"
             onClick={handleRefresh}
-            disabled={isPending || !isRunning}
+            disabled={isPending || !isRunning || !isManaged}
           >
             <RefreshCw
               className={`size-3.5 ${isPending ? "animate-spin" : ""}`}
@@ -156,7 +163,28 @@ export function ServicesTab({
         </div>
       </CardHeader>
       <CardContent>
-        {services.length === 0 ? (
+        {!isManaged ? (
+          <div className="text-muted-foreground flex flex-col items-center justify-center py-12 text-center">
+            <ShieldOff className="mb-3 size-8 opacity-30" />
+            <p className="text-sm font-medium">Container not managed</p>
+            <p className="mt-1 max-w-xs text-xs">
+              This container was created outside the dashboard. Adopt it to
+              enable service discovery, log viewing, and SSH-based management.
+            </p>
+            <div className="mt-4">
+              <AdoptContainerDialog
+                containerId={containerId}
+                hostname={hostname}
+                trigger={
+                  <Button variant="outline" size="sm">
+                    <ShieldCheck className="size-3.5" />
+                    Adopt Container
+                  </Button>
+                }
+              />
+            </div>
+          </div>
+        ) : services.length === 0 ? (
           <div className="text-muted-foreground flex flex-col items-center justify-center py-12 text-center">
             <ServerCog className="mb-3 size-8 opacity-30" />
             {isPending || isDiscovering ? (

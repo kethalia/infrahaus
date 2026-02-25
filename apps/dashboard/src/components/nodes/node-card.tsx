@@ -107,12 +107,6 @@ export function NodeCard({
               {node.tokenId ? "Configured" : "Not set"}
             </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">SSH Password</span>
-            <span className="text-xs">
-              {node.sshPassword ? "Configured" : "Not set"}
-            </span>
-          </div>
         </div>
       </CardContent>
       <CardFooter className="gap-2">

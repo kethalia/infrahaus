@@ -11,6 +11,8 @@ interface ServiceResponse {
   services: CachedServiceInfo[];
   containerIp: string | null;
   discoveredAt: string | null;
+  /** False when container has no stored SSH credentials (pre-existing, not adopted) */
+  managed?: boolean;
 }
 
 interface UseContainerServicesOptions {

@@ -58,7 +58,7 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
       port: node?.port ?? 8006,
       tokenId: node?.tokenId ?? "",
       tokenSecret: "",
-      sshPassword: "",
+      pool: node?.pool ?? "",
     },
   });
 
@@ -100,7 +100,7 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
         port: values.port,
         tokenId: values.tokenId || undefined,
         tokenSecret: values.tokenSecret || undefined,
-        sshPassword: values.sshPassword,
+        pool: values.pool || undefined,
       });
     } else if (node) {
       // Build update payload — omit empty secrets to keep existing values
@@ -110,16 +110,12 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
         host: values.host,
         port: values.port,
         tokenId: values.tokenId,
+        pool: values.pool || undefined,
       };
 
       // Only include tokenSecret if user typed a new one
       if (values.tokenSecret) {
         updatePayload.tokenSecret = values.tokenSecret;
-      }
-
-      // Only include sshPassword if user typed a new one
-      if (values.sshPassword) {
-        updatePayload.sshPassword = values.sshPassword;
       }
 
       executeUpdate(updatePayload);
@@ -235,23 +231,16 @@ export function NodeFormDialog({ mode, node, trigger }: NodeFormDialogProps) {
 
             <FormField
               control={form.control}
-              name="sshPassword"
+              name="pool"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>SSH Password (optional)</FormLabel>
+                  <FormLabel>Resource Pool</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
-                      placeholder={
-                        mode === "edit"
-                          ? "Leave empty to keep current"
-                          : "Root password for pct exec access"
-                      }
-                      {...field}
-                    />
+                    <Input placeholder="e.g. infrahaus-alice" {...field} />
                   </FormControl>
                   <FormDescription>
-                    Used for monitoring services inside containers via pct exec
+                    Proxmox resource pool for container isolation. See setup
+                    guide.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

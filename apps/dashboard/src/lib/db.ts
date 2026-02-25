@@ -189,7 +189,7 @@ export class DatabaseService {
     port?: number;
     tokenId?: string;
     tokenSecret?: string;
-    sshPassword?: string;
+    pool?: string;
     fingerprint?: string;
     isDefault?: boolean;
     userId: string;
@@ -208,7 +208,7 @@ export class DatabaseService {
       port: number;
       tokenId: string;
       tokenSecret: string;
-      sshPassword: string | null;
+      pool: string | null;
       fingerprint: string | null;
       isDefault: boolean;
     }>,

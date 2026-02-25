@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Server } from "lucide-react";
 import { getContainersWithStatus } from "@/lib/containers/data";
 import { DatabaseService } from "@/lib/db";
 import { getSessionData } from "@/lib/session";
 import { SummaryBar } from "@/components/containers/summary-bar";
 import { ContainerGrid } from "@/components/containers/container-grid";
-import { NoNodesBanner } from "@/components/nodes/no-nodes-banner";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +15,12 @@ export default async function DashboardPage() {
   if (!session) redirect("/login");
 
   // Check if user has any nodes configured
-  const userNodes = await DatabaseService.listNodesForUser(session.username);
+  const userNodes = await DatabaseService.listNodesForUser(session.address);
   const hasNodes = userNodes.length > 0;
 
   // Only fetch container data if nodes exist
   const { containers, counts, proxmoxReachable, failedNodes } = hasNodes
-    ? await getContainersWithStatus(session.username)
+    ? await getContainersWithStatus(session.address)
     : {
         containers: [],
         counts: { total: 0, running: 0, stopped: 0, error: 0 },
@@ -56,7 +55,25 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {!hasNodes && <NoNodesBanner />}
+      {!hasNodes && (
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
+          <div className="rounded-full bg-muted p-4">
+            <Server className="size-8 text-muted-foreground" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold">
+              No Proxmox nodes configured
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Add a node to start managing containers. You&apos;ll need your
+              Proxmox host address and an API token.
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/settings/nodes">Add Your First Node</Link>
+          </Button>
+        </div>
+      )}
 
       {hasNodes && (
         <>

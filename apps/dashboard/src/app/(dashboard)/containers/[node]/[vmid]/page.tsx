@@ -20,7 +20,7 @@ export default async function ContainerDetailPage({
   const session = await getSessionData();
   if (!session) redirect("/login");
 
-  const data = await getContainerDetailData(containerId, session.username);
+  const data = await getContainerDetailData(containerId, session.address);
 
   if (!data) {
     // Container was deleted or never existed — redirect home rather than 404.

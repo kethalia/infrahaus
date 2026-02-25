@@ -50,7 +50,12 @@ const navItems = [
   },
 ];
 
-export function AppSidebar({ username }: { username?: string }) {
+function truncateAddress(addr: string): string {
+  if (addr.length <= 13) return addr;
+  return `${addr.slice(0, 6)}\u2026${addr.slice(-4)}`;
+}
+
+export function AppSidebar({ address }: { address?: string }) {
   const pathname = usePathname();
   const { execute: logout } = useAction(logoutAction);
 
@@ -102,9 +107,12 @@ export function AppSidebar({ username }: { username?: string }) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            {username && (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">
-                {username}
+            {address && (
+              <div
+                className="px-2 py-1.5 text-xs text-muted-foreground truncate"
+                title={address}
+              >
+                {truncateAddress(address)}
               </div>
             )}
             <SidebarMenuButton

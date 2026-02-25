@@ -10,12 +10,14 @@ import {
   RotateCcw,
   Trash2,
   Loader2,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useAction } from "next-safe-action/hooks";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/containers/status-badge";
+import { AdoptContainerDialog } from "@/components/containers/adopt-container-dialog";
 import type { ContainerStatus } from "@/lib/containers/data";
 import {
   startContainerAction,
@@ -48,6 +51,7 @@ interface ContainerHeaderProps {
   vmid: number;
   status: ContainerStatus;
   proxmoxReachable: boolean;
+  isManaged: boolean;
 }
 
 export function ContainerHeader({
@@ -56,6 +60,7 @@ export function ContainerHeader({
   vmid,
   status,
   proxmoxReachable,
+  isManaged,
 }: ContainerHeaderProps) {
   const router = useRouter();
   const [confirmDialog, setConfirmDialog] = useState<
@@ -179,6 +184,11 @@ export function ContainerHeader({
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold">{displayName}</h1>
                 <StatusBadge status={status} />
+                {!isManaged && (
+                  <Badge variant="outline" className="text-muted-foreground">
+                    Unmanaged
+                  </Badge>
+                )}
               </div>
               <p className="text-muted-foreground text-sm">VMID {vmid}</p>
             </div>
@@ -190,6 +200,20 @@ export function ContainerHeader({
           <div className="flex items-center gap-2">
             {isPending && (
               <Loader2 className="text-muted-foreground size-4 animate-spin" />
+            )}
+
+            {/* Adopt Button — only for unmanaged containers */}
+            {!isManaged && (
+              <AdoptContainerDialog
+                containerId={containerId}
+                hostname={displayName}
+                trigger={
+                  <Button size="sm" variant="outline">
+                    <ShieldCheck className="size-4" />
+                    Adopt
+                  </Button>
+                }
+              />
             )}
 
             {/* Start Button */}

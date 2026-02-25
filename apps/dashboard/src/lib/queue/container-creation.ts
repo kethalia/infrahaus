@@ -17,12 +17,7 @@ export interface ContainerJobData {
   nodeId: string; // Prisma ProxmoxNode ID
   nodeName: string; // Proxmox node name (e.g., "pve") for API paths
   templateId: string | null; // Prisma Template ID (null = "From Scratch" mode)
-  /** Proxmox ticket auth — passed from session at enqueue time so the worker
-   *  can authenticate without API tokens. Tickets are valid ~2h, plenty for creation. */
-  ticket?: string;
-  csrfToken?: string;
-  username?: string; // e.g. "root@pam"
-  ticketExpiresAt?: string; // ISO string — real expiry from session
+
   config: {
     hostname: string;
     vmid: number;
@@ -34,7 +29,14 @@ export interface ContainerJobData {
     bridge: string; // e.g., "vmbr0"
     ipConfig: string; // e.g., "ip=dhcp" or "ip=10.0.0.50/24,gw=10.0.0.1"
     nameserver?: string;
-    sshPublicKey?: string;
+    /** SSH public key — injected into container via Proxmox API ssh-public-keys */
+    sshPublicKey: string;
+    /** Encrypted SSH private key — for direct SSH access to container */
+    sshPrivateKey: string;
+    /** Encrypted root password — set during container creation via Proxmox API */
+    rootPassword: string;
+    /** Proxmox resource pool — containers assigned to this pool for isolation */
+    pool?: string;
     unprivileged: boolean;
     nesting: boolean;
     ostemplate: string; // e.g., "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"

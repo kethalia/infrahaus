@@ -25,16 +25,16 @@ import {
   updateCreationLifecycle,
   toContainerId,
 } from "../lib/containers/redis-state";
-import {
-  createProxmoxClientFromNode,
-  createProxmoxClient,
-} from "../lib/proxmox";
+import { createProxmoxClientFromNode } from "../lib/proxmox";
 import { type ProxmoxClient } from "../lib/proxmox/client";
-import { createContainer, startContainer } from "../lib/proxmox/containers";
+import {
+  createContainer,
+  startContainer,
+  updateContainerConfig,
+} from "../lib/proxmox/containers";
 import { waitForTask } from "../lib/proxmox/tasks";
-import { connectWithRetry, PctExecSession, type SSHSession } from "../lib/ssh";
+import { connectWithRetry, type SSHSession } from "../lib/ssh";
 import { decrypt } from "../lib/encryption";
-import crypto from "crypto";
 import {
   CONTAINER_CREATION_QUEUE,
   WORKER_CONCURRENCY,
@@ -55,7 +55,6 @@ import {
 // ============================================================================
 // Redis Connections
 // ============================================================================
-console.log(process.env.REDIS_URL);
 // Worker connection MUST have maxRetriesPerRequest: null for BullMQ
 const workerConnection = new Redis(process.env.REDIS_URL!, {
   maxRetriesPerRequest: null,
@@ -113,17 +112,14 @@ function extractIpFromConfig(ipConfig: string): string | null {
 const IPV4_RE = /^\d+\.\d+\.\d+\.\d+$/;
 
 /**
- * Resolve the container's IPv4 address using multiple strategies:
+ * Resolve the container's IPv4 address using API-only strategies (no SSH needed):
  *   1. Static IP from the Proxmox ipConfig string
- *   2. `hostname -I` inside the running container (via pct exec)
- *   3. `ip -4 -o addr show` inside the container (fallback if hostname is missing)
- *   4. Proxmox API: read the container config's net0 field (picks up DHCP leases
- *      stored in the config after the container has started)
+ *   2. Proxmox LXC interfaces endpoint (returns actual IP for DHCP containers)
+ *   3. Proxmox container config net0 field (fallback)
  * Returns the first valid IPv4 address found, or null.
  */
 async function resolveContainerIp(
   ipConfig: string,
-  ssh: PctExecSession | null,
   client: ProxmoxClient,
   nodeName: string,
   vmid: number,
@@ -132,30 +128,16 @@ async function resolveContainerIp(
   const staticIp = extractIpFromConfig(ipConfig);
   if (staticIp) return staticIp;
 
-  // 2. hostname -I (works on most distros)
-  if (ssh) {
-    try {
-      const r = await ssh.exec("hostname -I 2>/dev/null");
-      const ip = r.stdout.trim().split(/\s+/)[0];
-      if (ip && IPV4_RE.test(ip)) return ip;
-    } catch {
-      /* ignore */
-    }
-
-    // 3. ip addr (fallback if hostname command is missing)
-    try {
-      const r = await ssh.exec(
-        "ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | head -1",
-      );
-      const cidr = r.stdout.trim(); // e.g. "10.0.0.50/24"
-      const ip = cidr.split("/")[0];
-      if (ip && IPV4_RE.test(ip)) return ip;
-    } catch {
-      /* ignore */
-    }
+  // 2. Proxmox LXC interfaces endpoint (actual IP for DHCP containers)
+  try {
+    const { getRuntimeIp } = await import("../lib/proxmox/containers");
+    const runtimeIp = await getRuntimeIp(client, nodeName, vmid);
+    if (runtimeIp) return runtimeIp;
+  } catch {
+    /* ignore */
   }
 
-  // 4. Proxmox API — container config net0 field (may reflect DHCP lease)
+  // 3. Proxmox API — container config net0 field
   try {
     const { extractIpFromNet0 } = await import("../lib/proxmox/utils");
     const configResult = await client.get(
@@ -189,7 +171,7 @@ async function processContainerCreation(
     scripts: scriptSelections,
   } = job.data;
   const containerKey = toContainerId(nodeName, config.vmid); // Compound key for Redis channels, log buffer, services
-  let ssh: SSHSession | PctExecSession | null = null;
+  let ssh: SSHSession | null = null;
 
   try {
     // ========================================================================
@@ -202,31 +184,12 @@ async function processContainerCreation(
       throw new Error(`Node not found: ${job.data.nodeId}`);
     }
 
-    // Authenticate: prefer ticket from session (always available), fall back to API token
-    let client: ProxmoxClient;
-    if (job.data.ticket && job.data.csrfToken && job.data.username) {
-      client = createProxmoxClient({
-        host: node.host,
-        port: node.port,
-        credentials: {
-          type: "ticket",
-          ticket: job.data.ticket,
-          csrfToken: job.data.csrfToken,
-          username: job.data.username,
-          expiresAt: job.data.ticketExpiresAt
-            ? new Date(job.data.ticketExpiresAt)
-            : new Date(Date.now() + 2 * 60 * 60 * 1000),
-        },
-        verifySsl: false,
-      });
-    } else {
-      // Fall back to API token auth (requires tokenId/tokenSecret on the node)
-      client = createProxmoxClientFromNode(node);
-    }
+    // Authenticate via node API token (session no longer carries Proxmox ticket)
+    const client = createProxmoxClientFromNode(node);
     const pveNodeName = nodeName;
 
-    // Generate a random password for the Proxmox API (not stored anywhere)
-    const containerPassword = crypto.randomBytes(16).toString("hex");
+    // Root password comes from the action (stored in ContainerCredential DB)
+    const containerPassword = decrypt(config.rootPassword);
 
     await publishProgress(containerKey, {
       type: "step",
@@ -255,6 +218,7 @@ async function processContainerCreation(
       unprivileged: config.unprivileged,
       features: featuresStr,
       storage: config.storage,
+      pool: config.pool,
       tags: config.tags,
     });
 
@@ -262,6 +226,15 @@ async function processContainerCreation(
       interval: TASK_POLL_INTERVAL_MS,
       timeout: TASK_TIMEOUT_LONG_MS,
     });
+
+    // Apply tags post-creation — Proxmox's tag permission check doesn't resolve
+    // through pool ACLs during creation, but works via PUT config once the
+    // container exists in the pool.
+    if (config.tags) {
+      await updateContainerConfig(client, pveNodeName, config.vmid, {
+        tags: config.tags,
+      });
+    }
 
     await publishProgress(containerKey, {
       type: "step",
@@ -299,38 +272,69 @@ async function processContainerCreation(
     // Phase 3: Deploy config-manager and template files via SSH (35-60%)
     // ========================================================================
 
-    // Container IP — resolved later after SSH is connected (needs running container for DHCP).
-    let containerIp: string | null = null;
+    await publishProgress(containerKey, {
+      type: "step",
+      step: "deploying",
+      percent: 38,
+      message: "Resolving container IP...",
+    });
+
+    // Resolve container IP via Proxmox API (no SSH needed)
+    let containerIp = await resolveContainerIp(
+      config.ipConfig,
+      client,
+      pveNodeName,
+      config.vmid,
+    );
+
+    // For DHCP containers, the IP may take a moment to appear — retry a few times
+    if (!containerIp) {
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        containerIp = await resolveContainerIp(
+          config.ipConfig,
+          client,
+          pveNodeName,
+          config.vmid,
+        );
+        if (containerIp) break;
+      }
+    }
+
+    if (!containerIp) {
+      throw new Error(
+        "Could not determine container IP address. Service discovery and SSH access require a reachable IP.",
+      );
+    }
+
+    await publishProgress(containerKey, {
+      type: "log",
+      message: `Container IP: ${containerIp}`,
+    });
 
     await publishProgress(containerKey, {
       type: "step",
       step: "deploying",
       percent: 40,
-      message: "Connecting to Proxmox host...",
+      message: "Connecting to container via SSH...",
     });
 
-    // Connect to the Proxmox host node via SSH using DB-stored credentials.
-    // This avoids needing SSH inside the container — uses pct exec instead.
-    if (!node.sshPassword) {
-      throw new Error(
-        `SSH password not configured for node "${node.name}". Update node settings to add an SSH password.`,
-      );
-    }
+    // SSH directly into the container using the per-container Ed25519 key.
+    // The public key was injected via Proxmox API ssh-public-keys during creation.
+    const containerPrivateKey = decrypt(config.sshPrivateKey);
 
-    const hostSsh = await connectWithRetry({
-      host: node.host,
+    ssh = await connectWithRetry({
+      host: containerIp,
       username: "root",
-      password: decrypt(node.sshPassword),
+      privateKey: containerPrivateKey,
     });
-    ssh = new PctExecSession(hostSsh, config.vmid);
 
     await publishProgress(containerKey, {
       type: "log",
-      message: `Connected to ${node.host}, using pct exec for CT ${config.vmid}`,
+      message: `Connected to container at ${containerIp} via SSH key`,
     });
 
     // Wait for container to be fully ready (systemd initialized)
-    // pct push fails if /etc/systemd/system/ doesn't exist yet
     await publishProgress(containerKey, {
       type: "log",
       message: "Waiting for container filesystem to be ready...",
@@ -360,26 +364,17 @@ async function processContainerCreation(
       message: "Container filesystem ready",
     });
 
-    // Resolve container IP (static from config, or query the running container)
-    containerIp = await resolveContainerIp(
-      config.ipConfig,
-      ssh,
-      client,
-      pveNodeName,
-      config.vmid,
+    // Harden SSH: disable root password auth (key-only access)
+    await ssh.exec(
+      `sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && ` +
+        `sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && ` +
+        `systemctl restart sshd 2>/dev/null || service ssh restart 2>/dev/null || true`,
     );
-    if (containerIp) {
-      await publishProgress(containerKey, {
-        type: "log",
-        message: `Container IP: ${containerIp}`,
-      });
-    } else {
-      await publishProgress(containerKey, {
-        type: "log",
-        message:
-          "Warning: could not determine container IP — service URLs will be unavailable",
-      });
-    }
+
+    await publishProgress(containerKey, {
+      type: "log",
+      message: "SSH hardened: root password auth disabled (key-only)",
+    });
 
     // Create credentials directory for service discovery (Phase 5)
     await ssh.exec(`mkdir -p ${CREDENTIALS_DIR}`);
@@ -717,7 +712,7 @@ save_credential() {
     const cache = await discoverAndCacheServices(
       publisher,
       containerKey,
-      ssh as PctExecSession,
+      ssh,
       containerIp,
     );
 

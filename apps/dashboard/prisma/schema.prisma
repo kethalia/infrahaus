@@ -39,7 +39,7 @@ model ProxmoxNode {
   port        Int      @default(8006)
   tokenId     String?  // API token — optional, only needed for worker (background jobs)
   tokenSecret String?  // Encrypted via encryption utility — optional, paired with tokenId
-  sshPassword String?  // Encrypted — for SSH to Proxmox host for pct exec
+  pool        String?  // Proxmox resource pool for container isolation (e.g. "infrahaus-alice")
   fingerprint String?
   isDefault   Boolean  @default(false)
   userId      String
@@ -123,6 +123,27 @@ model TemplateFile {
   template   Template   @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
+}
+
+/// Per-container credentials stored in PostgreSQL for durability.
+/// Keyed by compound containerId ({nodeName}/{vmid}) — same format used
+/// across Redis keys, URLs, and internal identifiers.
+///
+/// Stores:
+///   - SSH key pair for direct SSH access to the container
+///   - Root password generated during container creation
+///
+/// Created by createContainerAction, deleted by deleteContainerAction.
+model ContainerCredential {
+  id            String   @id @default(cuid())
+  containerId   String   @unique // compound: "nodeName/vmid" — matches toContainerId() format
+  userId        String
+  sshPrivateKey String   @db.Text // Encrypted via lib/encryption.ts — OpenSSH format (multi-line)
+  sshPublicKey  String   // Plain text — "ssh-ed25519 AAAA..." for display + Proxmox injection
+  rootPassword  String   // Encrypted via lib/encryption.ts — random password set during creation
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
 }
 
 
