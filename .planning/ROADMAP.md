@@ -201,11 +201,13 @@ Plans:
 
 **Goal:** Service discovery with web UI access links and resource usage monitoring
 **Status:** Not started
-**Plans:** 0 plans
+**Depends on:** Phase 04.6
+**Plans:** 2 plans
 
 Plans:
 
-- [ ] TBD — service discovery, resource monitoring
+- [ ] 05-01-PLAN.md — RRD data API backend + Globe web-links dropdown on dashboard cards
+- [ ] 05-02-PLAN.md — Resource history area charts (CPU, Memory, Disk, Network I/O) on Overview tab
 
 Issues: #87, #88
 
