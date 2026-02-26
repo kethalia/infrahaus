@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Globe, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +36,7 @@ export function WebLinksDropdown({
       <DropdownMenuContent align="end">
         {services.map((service) => (
           <DropdownMenuItem key={service.name} asChild>
-            <a
+            <Link
               href={`http://${containerIp}:${service.port}`}
               target="_blank"
               rel="noopener noreferrer"
@@ -46,7 +47,7 @@ export function WebLinksDropdown({
                 :{service.port}
               </span>
               <ExternalLink className="size-3.5" />
-            </a>
+            </Link>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
