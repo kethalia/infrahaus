@@ -230,3 +230,19 @@ export const TemplateSchema = z.object({
   section: z.string().optional(),
   type: z.enum(["lxc", "openvz"]),
 });
+
+// ============================================================================
+// RRD Data
+// ============================================================================
+
+export const RrdDataPointSchema = z.object({
+  time: z.number(),
+  cpu: z.number().nullable().optional(),
+  maxcpu: z.number().nullable().optional(),
+  mem: z.number().nullable().optional(),
+  maxmem: z.number().nullable().optional(),
+  disk: z.number().nullable().optional(),
+  maxdisk: z.number().nullable().optional(),
+  netin: z.number().nullable().optional(),
+  netout: z.number().nullable().optional(),
+});

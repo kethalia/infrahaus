@@ -9,6 +9,7 @@ import {
   ContainerSchema,
   ContainerConfigSchema,
   ContainerStatusSchema,
+  RrdDataPointSchema,
 } from "./schemas";
 import type {
   ProxmoxContainer,
@@ -236,4 +237,22 @@ export async function getRuntimeIp(
     // Return null on any error (container stopped, API unavailable, etc.)
     return null;
   }
+}
+
+/**
+ * Get RRD (Round Robin Database) time-series data for a container.
+ * Returns pre-aggregated metrics from Proxmox's RRD database.
+ *
+ * @param timeframe - "hour" (~70 points, 1-min resolution) or "day" (~70 points, ~20-min resolution)
+ */
+export async function getContainerRrdData(
+  client: ProxmoxClient,
+  node: string,
+  vmid: number,
+  timeframe: "hour" | "day",
+): Promise<z.infer<typeof RrdDataPointSchema>[]> {
+  return client.get(
+    `/nodes/${node}/lxc/${vmid}/rrddata?timeframe=${timeframe}`,
+    z.array(RrdDataPointSchema),
+  );
 }

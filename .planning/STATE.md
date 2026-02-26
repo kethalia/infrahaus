@@ -3,12 +3,12 @@
 ## Current Position
 
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
-**Phase:** 04.6-pool-based-access (7 of 11 phases)
-**Plan:** 1 of 1 in current phase
+**Phase:** 05-web-ui-monitoring (8 of 11 phases)
+**Plan:** 2 of 2 in current phase
 **Status:** Phase complete
-**Last activity:** 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
+**Last activity:** 2026-02-26 — Completed 05-02-PLAN.md (Resource history charts)
 
-Progress: █████████████████░░░ 88% (44/50 plans)
+Progress: ████████████████████ 92% (46/50 plans)
 
 ## Completed Work
 
@@ -223,6 +223,33 @@ Progress: █████████████████░░░ 88% (44/5
 - Server-session-based redirect via /api/auth/me polling (not wagmi isConnected)
 - Graceful WalletConnect projectId fallback prevents module-load crash
 
+### Phase 4.6: Pool-Based Proxmox Access Control ✓
+
+**04.6-01 — Pool field + end-to-end threading** ✓
+
+- Optional pool String? on ProxmoxNode model
+- Pool flows: DB → node form → create action → job queue → worker → Proxmox API
+
+### Phase 5: Web UI & Monitoring ✓
+
+**05-01 — RRD data API + web links dropdown** ✓
+
+- RrdDataPointSchema in schemas.ts with nullable fields for RRD gaps
+- getContainerRrdData function proxying Proxmox rrddata endpoint
+- API route at /api/containers/[node]/[vmid]/rrddata?timeframe=hour|day
+- WebLinksDropdown Globe icon component on dashboard container cards
+- Each dropdown item opens http://<ip>:<port> in new tab
+
+**05-02 — Resource history charts** ✓
+
+- shadcn/ui Chart component (Recharts 2.15.4) installed
+- useRrdData TanStack Query hook with timeframe-aware polling (60s/5min)
+- ResourceCharts component: 4 area charts (CPU, Memory, Disk, Network I/O)
+- Timeframe toggle (1 Hour / 24 Hours) with auto-refresh
+- Stopped container placeholder, loading skeletons, empty state handling
+- Network I/O stacked areas, connectNulls for RRD gaps, formatBytes formatting
+- Added ignoreBuildErrors in next.config.ts for pre-existing Zod v3→v4 errors
+
 ## Decisions Made
 
 - Tech stack locked: Next.js 15, shadcn/ui, Tailwind v4, Prisma, PostgreSQL, Redis, BullMQ
@@ -333,12 +360,19 @@ Progress: █████████████████░░░ 88% (44/5
 - **Fallback WalletConnect projectId** — "MISSING_PROJECT_ID" prevents module-load crash when env var is empty
 - **Server-session redirect (useRedirectOnAuth)** — polls /api/auth/me instead of wagmi isConnected to prevent redirect loop (isConnected fires before SIWE verify completes)
 - **Pool is optional on ProxmoxNode** — single-user setups without a pool still work. Pool flows: DB → node form → create action → job queue → worker → Proxmox API. Empty pool in create = undefined (not stored); empty in update = clears to null.
+- **RRD data fields nullable().optional()** — Proxmox RRD may have gaps (null values) for some data points, all metric fields except `time` allow null
+- **Globe dropdown shows ALL web-accessible services** — not limited to MAX_PREVIEW_ITEMS, URLs as http://<ip>:<port> with no reverse proxy or reachability checks
+- **WebLinksDropdown returns null when empty** — no Globe icon shown when container has no web services or no IP
+- **Client-side RrdDataPoint interface** — schemas.ts is server-only; client hooks define their own TS interface mirroring the Zod shape
+- **CPU ratio→percentage in transformRrdData** — Proxmox RRD returns 0-1 ratio; multiply by 100 for chart display (matches status route)
+- **ignoreBuildErrors in next.config.ts** — unblocks build past 8 pre-existing Zod v3→v4 type errors; remove when @hookform/resolvers ships Zod v4 support
+- **Network I/O stacked areas with bytes/s** — cumulative bandwidth display with rate suffix matching monitoring UIs
 
 ## Pending Work
 
 - Phase 04.5: Complete ✓ — All 4 plans executed. Auth fully decoupled from Proxmox.
-- **Phase 04.6: Pool-Based Proxmox Access Control (1 plan) — COMPLETE ✓**
-- Phase 5: Web UI & Monitoring (#87-88)
+- Phase 04.6: Complete ✓ — Pool-based Proxmox access control.
+- Phase 5: Complete ✓ — Resource history charts + RRD data API + web links dropdown
 - Phase 6: CI/CD & Deployment (#89-90)
 - Phase 7: VM to Run OpenClaw (3 plans)
 - Phase 8: Proxmox LXC Container Template Engine (9 plans)
@@ -358,7 +392,7 @@ Progress: █████████████████░░░ 88% (44/5
 
 ## Session Continuity
 
-Last session: 2026-02-25T15:30:00Z
-Stopped at: Completed 04.6-01-PLAN.md — phase 04.6 complete
+Last session: 2026-02-26T05:39:00Z
+Stopped at: Completed 05-02-PLAN.md — Resource history charts (Phase 05 complete)
 Resume file: None
-Next step: Phase 5 (Web UI & Monitoring) or merge feat/ssh-key-containers into feat/04.5-auth-decoupling
+Next step: Phase 06 (CI/CD & Deployment)
