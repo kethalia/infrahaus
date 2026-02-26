@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "./status-badge";
 import { ContainerActions } from "./container-actions";
+import { WebLinksDropdown } from "./web-links-dropdown";
 import type { ContainerWithStatus } from "@/lib/containers/data";
 import type { ServiceStatus } from "@/lib/containers/discovery";
 import { toContainerId } from "@/lib/containers/redis-state";
@@ -65,6 +66,13 @@ export function ContainerCard({
   const visibleServices = appServices.slice(0, MAX_PREVIEW_ITEMS);
   const remainingCount = Math.max(0, appServices.length - MAX_PREVIEW_ITEMS);
 
+  // Web-accessible services = non-system services with a port
+  const webServices = appServices
+    .filter((s): s is typeof s & { port: number } => s.port !== null)
+    .map((s) => ({ name: s.name, port: s.port }));
+
+  const containerIp = serviceData?.containerIp ?? null;
+
   // Resource summary text
   const resourceText =
     resources && status === "running"
@@ -91,6 +99,10 @@ export function ContainerCard({
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
               )}
             </div>
+            <WebLinksDropdown
+              services={webServices}
+              containerIp={containerIp}
+            />
             <ContainerActions
               containerId={containerId}
               hostname={hostname}
