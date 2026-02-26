@@ -82,3 +82,13 @@ export const REDIS_RETRY_DELAY_MULTIPLIER_MS = 50;
 
 /** Per-node timeout for Proxmox container list fetches (ms) */
 export const PROXMOX_NODE_TIMEOUT_MS = 5_000;
+
+// ============================================================================
+// RRD Data Polling
+// ============================================================================
+
+/** RRD data staleTime for 1-hour view — data updates every ~1 minute (ms) */
+export const RRD_HOUR_STALE_TIME_MS = 60_000;
+
+/** RRD data staleTime for 24-hour view — data updates every ~20 minutes (ms) */
+export const RRD_DAY_STALE_TIME_MS = 5 * 60_000;
