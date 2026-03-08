@@ -3,9 +3,17 @@ title: Dokploy Setup
 description: Full setup guide for the Dokploy self-hosted PaaS — Docker Swarm, install script, Traefik, and service configuration.
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 ## Overview
 
 Dokploy provides a web dashboard for deploying applications from Git repositories, Docker images, or Docker Compose files. It handles builds, deployments, SSL certificates, and monitoring — similar to Heroku or Vercel but entirely self-hosted.
+
+<Callout type="info">
+  **Deploy via Dashboard** — Dokploy is available as a one-click LXC template.
+  Go to [Templates](/templates) in the dashboard and click "Discover Templates" to find the Dokploy template.
+  You can also [browse all infra services](/infra) from the Infra catalog.
+</Callout>
 
 ## Prerequisites
 
