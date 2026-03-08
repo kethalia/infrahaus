@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 08-07-PLAN.md — forge-shield files, hooks, and minimal template
-last_updated: "2026-03-08T03:32:08.770Z"
+stopped_at: Completed 08-09-PLAN.md — Claude skills, shell setup, and verification scripts
+last_updated: "2026-03-08T03:34:05.203Z"
 last_activity: 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 progress:
   total_phases: 12
   completed_phases: 8
   total_plans: 59
-  completed_plans: 48
+  completed_plans: 50
   percent: 71
 ---
 
@@ -363,6 +363,8 @@ Progress: [███████░░░] 71%
 - [Phase 08-04]: Go pinned to 1.23.6 in 12_go.sh for reproducibility; Rust installed as non-root user via rustup; pipx enforced for Python CLI tools (PEP 668 on Ubuntu 24.04); npm global dir set to ~/.npm-global for user
 - [Phase 08-06]: Mythril soft-install: timeout 600s + || true pattern ensures z3 compilation failure does not abort 41_security-solidity.sh
 - [Phase 08-06]: ZAP URL dynamic resolution from GitHub API releases (not hardcoded weekly tag) in 42_zap.sh
+- [Phase 08-lxc-container-template-engine]: 50_claude-skills.sh guard checks if commands/ has files (not just exists) — reliable already-configured signal when engine pushes files later
+- [Phase 08-lxc-container-template-engine]: 99_verify.sh: exits 1 only for missing critical tools; optional tools (myth, opencode, ZAP, oh-my-zsh) use separate OPTIONAL_FAIL counter
 
 ## Pending Work
 
@@ -392,7 +394,7 @@ Progress: [███████░░░] 71%
 
 ## Session Continuity
 
-Last session: 2026-03-08T03:32:08.733Z
-Stopped at: Completed 08-07-PLAN.md — forge-shield files, hooks, and minimal template
+Last session: 2026-03-08T03:34:05.199Z
+Stopped at: Completed 08-09-PLAN.md — Claude skills, shell setup, and verification scripts
 Resume file: None
 Next step: Continue Phase 8 — next plan
