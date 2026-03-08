@@ -370,7 +370,7 @@ http://192.168.1.100:8080  # VS Code Server
 
 **Expose via reverse proxy** (recommended for production):
 
-See [Networking documentation](../../../apps/web/content/docs/getting-started/networking.mdx) for Nginx Proxy Manager setup.
+See [Networking documentation](../../../apps/dashboard/content/docs/getting-started/networking.mdx) for Nginx Proxy Manager setup.
 
 ### Web Interfaces
 
