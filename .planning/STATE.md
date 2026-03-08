@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Dashboard as Hub
 status: active
-stopped_at: "Completed 09-02-PLAN.md — Fumadocs DocsLayout + theme integration done"
-last_updated: "2026-03-08T17:30:00Z"
-last_activity: "2026-03-08 — Completed 09-02: DocsLayout + RootProvider + search API + suppressHydrationWarning"
+stopped_at: "Completed 09-03-PLAN.md — Phase 09 complete: Documentation sidebar nav item + isActive fix"
+last_updated: "2026-03-08T17:50:00Z"
+last_activity: "2026-03-08 — Completed 09-03: Documentation nav item in sidebar, startsWith isActive logic, Phase 09 complete"
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 12
-  completed_plans: 2
-  percent: 17
+  completed_plans: 3
+  percent: 25
 ---
 
 # Project State
@@ -20,12 +20,12 @@ progress:
 
 **Project:** Infrahaus (apps/dashboard as hub)
 **Milestone:** v2.0 — Dashboard as Hub
-**Phase:** 09 — Docs Integration (Fumadocs in Dashboard)
-**Plan:** 09-02 COMPLETE → ready for 09-03
-**Status:** In progress (2/3 plans in Phase 09 done)
-**Last activity:** 2026-03-08 — Completed 09-02: Fumadocs DocsLayout + theme integration
+**Phase:** 09 — Docs Integration (Fumadocs in Dashboard) COMPLETE → ready for Phase 10
+**Plan:** 09-03 COMPLETE
+**Status:** In progress (Phase 09 done, Phase 10 not started)
+**Last activity:** 2026-03-08 — Completed 09-03: Dashboard sidebar Documentation nav item
 
-Progress: [██░░░░░░░░] 17%
+Progress: [███░░░░░░░] 25%
 
 ## Milestone v1.0 Summary (CLOSED ✅)
 
@@ -56,6 +56,11 @@ Make `apps/dashboard` the centrepiece of the entire repo:
 - `fumadocs-mdx:collections/*` tsconfig alias must use `./.source/*` (with leading `./`) — TypeScript requires relative paths when `baseUrl` is not set
 - `(docs)` route group needs two layout files: `(docs)/layout.tsx` (RootProvider) and `(docs)/docs/layout.tsx` (DocsLayout) — DocsPage requires SidebarContext
 - Build verified via `npx tsc --noEmit` + `NEXT_SKIP_TYPE_CHECK=1 next build` — the TypeScript type-check worker is OOM-killed in this environment (pre-existing constraint)
+
+## Decisions from Phase 09 Plan 03
+
+- isActive pattern for sidebar: `href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/")` — root requires exact match to avoid activating on all routes; others use startsWith to support sub-path activation (e.g., /docs/getting-started activates Documentation)
+- Documentation nav item placed between Packages and Settings in navItems array
 
 ## Decisions from Phase 09 Plan 02
 

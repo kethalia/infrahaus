@@ -27,25 +27,25 @@ Summary:
 **Branch:** oscar/milestone-2
 **Goal:** Make `apps/dashboard` the centrepiece of the entire repo.
 
-### Phase 09: Docs Integration — Fumadocs in Dashboard
+### Phase 09: Docs Integration — Fumadocs in Dashboard ✅ COMPLETE
 
 **Goal:** Add Fumadocs to `apps/dashboard`. Create `/docs` route with navigation, search, and theme matching the dashboard.
 **Depends on:** Phase 08 (complete)
-**Status:** Not started
-**Plans:** 2/3 plans executed
+**Status:** Complete (2026-03-08)
+**Plans:** 3/3 plans executed
 
 Key deliverables:
-- Fumadocs installed as dependency of apps/dashboard (fumadocs-core, fumadocs-ui, fumadocs-mdx)
-- `/docs` App Router route group with Fumadocs layout
-- source.config.ts configured for MDX content directory
-- Full-text search (Fumadocs Search)
-- Sidebar added to dashboard sidebar: "Docs" link
-- Dark/light mode matching existing dashboard theme
+- Fumadocs installed as dependency of apps/dashboard (fumadocs-core, fumadocs-ui, fumadocs-mdx) ✅
+- `/docs` App Router route group with Fumadocs layout ✅
+- source.config.ts configured for MDX content directory ✅
+- Full-text search (Fumadocs Search) ✅
+- Sidebar added to dashboard sidebar: "Documentation" link with startsWith isActive ✅
+- Dark/light mode matching existing dashboard theme ✅
 
 Plans:
-- [ ] 09-01-PLAN.md — Install Fumadocs + configure source.config.ts + /docs route group
-- [ ] 09-02-PLAN.md — Fumadocs layout (sidebar, breadcrumbs, search, theme integration)
-- [ ] 09-03-PLAN.md — Dashboard sidebar integration + navigation unification
+- [x] 09-01-PLAN.md — Install Fumadocs + configure source.config.ts + /docs route group
+- [x] 09-02-PLAN.md — Fumadocs layout (sidebar, breadcrumbs, search, theme integration)
+- [x] 09-03-PLAN.md — Dashboard sidebar integration + navigation unification
 
 Requirements: REQ-2.01, REQ-2.06
 
@@ -170,10 +170,10 @@ Requirements: REQ-2.07
 
 | Phase | Description | Plans | Status |
 |-------|-------------|-------|--------|
-| 09 | 2/3 | In Progress|  |
+| 09 | Fumadocs integration in dashboard | 3/3 | Complete ✅ |
 | 10 | Content migration from apps/web | 2 | Not started |
 | 11 | New documentation | 2 | Not started |
 | 12 | apps/web removal | 1 | Not started |
 | 13 | Infra template consolidation | 3 | Not started |
 | 14 | Branding + polish | 1 | Not started |
-| **Total** | | **12** | **0/12** |
+| **Total** | | **12** | **3/12** |
