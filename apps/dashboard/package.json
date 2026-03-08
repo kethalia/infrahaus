@@ -33,6 +33,9 @@
     "@rainbow-me/rainbowkit": "^2.2.10",
     "@tanstack/react-query": "^5.90.21",
     "bullmq": "5.67.2",
+    "fumadocs-core": "~15.8.5",
+    "fumadocs-mdx": "~14.2.6",
+    "fumadocs-ui": "~15.8.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "ioredis": "5.9.2",
@@ -58,6 +61,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "@types/mdx": "^2.0.13",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^25.2.0",
     "@types/pg": "^8.11.10",
