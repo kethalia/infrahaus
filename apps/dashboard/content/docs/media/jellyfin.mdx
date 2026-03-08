@@ -3,9 +3,17 @@ title: Jellyfin Stack Setup
 description: Full setup guide for the Jellyfin media stack with VPN, arr-stack, and GPU transcoding.
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 ## Overview
 
 This page covers the complete setup of the 7-service media stack defined in `infra/jellyfin/docker-compose.yaml`. Setup is inspired by the [media-stack](https://github.com/navilg/media-stack) project with modifications for VPN routing and NVIDIA GPU transcoding.
+
+<Callout type="info">
+  **Dashboard Infra Catalog** — Jellyfin and its companion services (VPN, qBittorrent, Arr stack)
+  are listed in the [Infra Catalog](/infra).
+  GPU transcoding requires a VM with NVIDIA PCIe passthrough — LXC deployment is not supported.
+</Callout>
 
 ## Prerequisites
 
