@@ -129,7 +129,7 @@ The separate `apps/web` Fumadocs site goes away. Everything lives in or is acces
 | REQ-2.01 | Fumadocs integration in dashboard | Phase 09 | [ ] |
 | REQ-2.02 | Content migration from apps/web | Phase 09-10 | [ ] |
 | REQ-2.03 | New documentation | Phase 10 | [ ] |
-| REQ-2.04 | apps/web removal | Phase 11 | [ ] |
+| REQ-2.04 | apps/web removal | Phase 12 | [x] |
 | REQ-2.05 | Infra template integration | Phase 12 | [ ] |
 | REQ-2.06 | Unified navigation | Phase 09+12 | [ ] |
 | REQ-2.07 | Branding unification | Phase 13 | [ ] |
