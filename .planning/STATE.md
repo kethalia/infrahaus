@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 08-09-PLAN.md — Claude skills, shell setup, and verification scripts
-last_updated: "2026-03-08T03:34:05.203Z"
-last_activity: 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
+stopped_at: Completed 08-02-PLAN.md — deploy.sh main entry point
+last_updated: "2026-03-08T03:46:00Z"
+last_activity: 2026-03-08 — Completed 08-02-PLAN.md (deploy.sh deployment pipeline orchestrator)
 progress:
   total_phases: 12
   completed_phases: 8
   total_plans: 59
-  completed_plans: 50
-  percent: 71
+  completed_plans: 51
+  percent: 86
 ---
 
 # Project State
@@ -359,6 +359,7 @@ Progress: [███████░░░] 71%
 - [Phase 07-01]: VM stays running after creation — do NOT run qm template. A running VM is immediately usable.
 - [Phase 07-01]: cloud-init is intentionally minimal — all software installation deferred to run-scripts.sh (Plan 02)
 - [Phase 08-01]: Engine library modules use 6 bash files (logging, config, state, container, files, hooks); all output to stderr for machine-parseable stdout; cfg_get converts yq null to empty string; state uses key=value .deploy-state file; pre_deploy runs on host, post_deploy runs inside container
+- [Phase 08-02]: deploy.sh sources config.sh inside validate() (not at top level) to avoid TEMPLATE_DIR:? guard firing before args are parsed; yq auto-installs to /usr/local/bin (root) or ~/bin (non-root); container preserved on failure for debugging and --resume; user-level packages run AFTER scripts phase
 - [Phase 08-03]: pipx in apt packages (PEP 668 compliance on Ubuntu 24.04); Claude Code excluded from npm (curl-installed in 30_claude-code.sh); no pip/cargo/go packages in template.yaml (dedicated scripts handle them)
 - [Phase 08-04]: Go pinned to 1.23.6 in 12_go.sh for reproducibility; Rust installed as non-root user via rustup; pipx enforced for Python CLI tools (PEP 668 on Ubuntu 24.04); npm global dir set to ~/.npm-global for user
 - [Phase 08-06]: Mythril soft-install: timeout 600s + || true pattern ensures z3 compilation failure does not abort 41_security-solidity.sh

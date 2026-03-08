@@ -247,12 +247,12 @@ Plans:
 
 **Goal:** Reusable, config-driven template system that deploys fully provisioned LXC containers on Proxmox via declarative YAML config and convention-based directory structure, shipping "forge-shield" as the first template — a full-stack + EVM dev environment with GSD/OpenCode and integrated security tooling
 **Depends on:** Phase 07
-**Plans:** 2/9 plans executed
+**Plans:** 3/9 plans executed
 
 Plans:
 
 - [x] 08-01-PLAN.md — Engine library modules (logging, config, state, container, files, hooks)
-- [ ] 08-02-PLAN.md — Engine deploy.sh main entry point with full deployment pipeline
+- [x] 08-02-PLAN.md — Engine deploy.sh main entry point with full deployment pipeline
 - [x] 08-03-PLAN.md — forge-shield template.yaml + base system and user creation scripts
 - [ ] 08-04-PLAN.md — forge-shield language runtime scripts (Node, Python, Go, Rust)
 - [ ] 08-05-PLAN.md — forge-shield EVM tools (Foundry, solc-select) + AI tools (Claude Code, OpenCode, GSD)
