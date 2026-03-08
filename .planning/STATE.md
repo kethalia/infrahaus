@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: completed
+stopped_at: Completed 05-01-PLAN.md — RRD data backend and Globe web-links dropdown
+last_updated: "2026-03-08T00:30:36.681Z"
+last_activity: 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
+progress:
+  total_phases: 12
+  completed_phases: 6
+  total_plans: 56
+  completed_plans: 40
+  percent: 71
+---
+
 # Project State
 
 ## Current Position
@@ -8,7 +24,7 @@
 **Status:** Phase complete
 **Last activity:** 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 
-Progress: █████████████████░░░ 88% (44/50 plans)
+Progress: [███████░░░] 71%
 
 ## Completed Work
 
@@ -333,6 +349,7 @@ Progress: █████████████████░░░ 88% (44/5
 - **Fallback WalletConnect projectId** — "MISSING_PROJECT_ID" prevents module-load crash when env var is empty
 - **Server-session redirect (useRedirectOnAuth)** — polls /api/auth/me instead of wagmi isConnected to prevent redirect loop (isConnected fires before SIWE verify completes)
 - **Pool is optional on ProxmoxNode** — single-user setups without a pool still work. Pool flows: DB → node form → create action → job queue → worker → Proxmox API. Empty pool in create = undefined (not stored); empty in update = clears to null.
+- [Phase 05-web-ui-monitoring]: Globe dropdown shows ALL web-accessible services (not capped) — http://ip:port URLs, no reachability checks, returns null when no services or IP
 
 ## Pending Work
 
@@ -358,7 +375,7 @@ Progress: █████████████████░░░ 88% (44/5
 
 ## Session Continuity
 
-Last session: 2026-02-25T15:30:00Z
-Stopped at: Completed 04.6-01-PLAN.md — phase 04.6 complete
+Last session: 2026-03-08T00:30:36.677Z
+Stopped at: Completed 05-01-PLAN.md — RRD data backend and Globe web-links dropdown
 Resume file: None
 Next step: Phase 5 (Web UI & Monitoring) or merge feat/ssh-key-containers into feat/04.5-auth-decoupling
