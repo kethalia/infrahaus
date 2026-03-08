@@ -213,17 +213,18 @@ Issues: #87, #88
 
 ---
 
-### Phase 06: CI/CD & Deployment
+### Phase 06: CI/CD & Deployment ✓
 
 **Goal:** Docker deployment configuration and CI/CD pipeline with E2E testing
-**Status:** Not started
+**Status:** Complete
+**Completed:** 2026-03-08
 **Plans:** 3 plans
 
 Plans:
 
-- [ ] 06-01-PLAN.md — Fix Dockerfile (apps/dashboard target, standalone output) + worker-runner stage
-- [ ] 06-02-PLAN.md — Production docker-compose.yml (postgres, redis, migrate, app, worker) + .env.example
-- [ ] 06-03-PLAN.md — Extend CI (vitest job + docker-build smoke job) + Playwright E2E smoke tests
+- [x] 06-01-PLAN.md — Fix Dockerfile (apps/dashboard target, standalone output) + worker-runner stage
+- [x] 06-02-PLAN.md — Production docker-compose.yml (postgres, redis, migrate, app, worker) + .env.example
+- [x] 06-03-PLAN.md — Extend CI (vitest job + docker-build smoke job) + Playwright E2E smoke tests
 
 Issues: #89, #90
 
