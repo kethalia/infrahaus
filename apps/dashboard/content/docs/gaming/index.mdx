@@ -3,9 +3,17 @@ title: Cloud Gaming
 description: Sunshine game streaming server with Steam, using NVIDIA GPU passthrough and Moonlight clients.
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 ## Overview
 
 The cloud gaming setup uses [Sunshine](https://github.com/LizardByte/Sunshine) (an open-source game streaming server) combined with Steam, running in a Docker container with full NVIDIA GPU access. Connect from any device using the [Moonlight](https://moonlight-stream.org/) client to play games streamed from the home lab.
+
+<Callout type="info">
+  **Dashboard Infra Catalog** — Sunshine and Steam cloud gaming are listed in the
+  [Infra Catalog](/infra).
+  NVIDIA GPU passthrough requires a dedicated VM — LXC deployment is not supported.
+</Callout>
 
 ## Architecture
 
