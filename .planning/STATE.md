@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 07-01-PLAN.md — VM template directory structure
-last_updated: "2026-03-08T02:08:44.350Z"
+stopped_at: Completed 08-05-PLAN.md — EVM and AI tool scripts for forge-shield
+last_updated: "2026-03-08T03:29:39.969Z"
 last_activity: 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 progress:
   total_phases: 12
   completed_phases: 8
   total_plans: 56
-  completed_plans: 44
+  completed_plans: 46
   percent: 71
 ---
 
@@ -358,6 +358,11 @@ Progress: [███████░░░] 71%
 - [Phase 07-vm-to-run-openclaw]: SSH fallback order: root first, then openclaw with NOPASSWD sudo; SCP_CMD strips -o BatchMode=yes via string substitution
 - [Phase 07-01]: VM stays running after creation — do NOT run qm template. A running VM is immediately usable.
 - [Phase 07-01]: cloud-init is intentionally minimal — all software installation deferred to run-scripts.sh (Plan 02)
+- [Phase 08-lxc-container-template-engine]: USER placeholder pattern: paths containing USER/ in templates/forge-shield/files/home/USER/ get username substituted by deploy engine
+- [Phase 08-lxc-container-template-engine]: Hook lifecycle: pre-deploy.sh runs on Proxmox host before container exists, post-deploy.sh runs inside container after all scripts complete
+- [Phase 08]: Foundry installs to ~/.foundry/bin/ — PATH_APPEND in template.yaml handles PATH
+- [Phase 08]: solc-select via pipx (PEP 668 compliance on Ubuntu 24.04), default Solidity 0.8.28
+- [Phase 08]: OpenCode: curl installer first, go install fallback; GSD: git clone installer with directory fallback
 
 ## Pending Work
 
@@ -385,7 +390,7 @@ Progress: [███████░░░] 71%
 
 ## Session Continuity
 
-Last session: 2026-03-08T02:08:11.170Z
-Stopped at: Completed 07-01-PLAN.md — VM template directory structure
+Last session: 2026-03-08T03:29:39.965Z
+Stopped at: Completed 08-05-PLAN.md — EVM and AI tool scripts for forge-shield
 Resume file: None
 Next step: Phase 5 (Web UI & Monitoring) or merge feat/ssh-key-containers into feat/04.5-auth-decoupling
