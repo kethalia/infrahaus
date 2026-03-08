@@ -30,7 +30,7 @@ const authAdapter = createAuthenticationAdapter({
     return createSiweMessage({
       domain: window.location.host,
       address,
-      statement: "Sign in to LXC Manager with your Universal Profile.",
+      statement: "Sign in to Infrahaus with your Universal Profile.",
       uri: window.location.origin,
       version: "1",
       chainId,
