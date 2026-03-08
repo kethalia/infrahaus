@@ -27,7 +27,7 @@ export default defineConfig({
   webServer: process.env.CI
     ? undefined
     : {
-        command: "pnpm --filter dashboard dev",
+        command: "pnpm --filter @infrahaus/dashboard dev",
         url: "http://localhost:3002",
         reuseExistingServer: true,
         timeout: 120_000,
