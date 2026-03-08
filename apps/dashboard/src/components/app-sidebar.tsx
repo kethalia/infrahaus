@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  FileCode,
-  Package2,
+  BookOpen,
   Box,
-  Settings,
+  FileCode,
+  LayoutDashboard,
   LogOut,
+  Package2,
+  Settings,
 } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { logoutAction } from "@/lib/auth/actions";
@@ -42,6 +43,11 @@ const navItems = [
     title: "Packages",
     href: "/templates/packages",
     icon: Package2,
+  },
+  {
+    title: "Documentation",
+    href: "/docs",
+    icon: BookOpen,
   },
   {
     title: "Settings",
@@ -84,7 +90,11 @@ export function AppSidebar({ address }: { address?: string }) {
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive =
+                  item.href === "/"
+                    ? pathname === "/"
+                    : pathname === item.href ||
+                      pathname.startsWith(item.href + "/");
                 return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
