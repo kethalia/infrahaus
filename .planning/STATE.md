@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — LXC Template Manager Dashboard
-status: planning
-last_updated: "2026-03-08T19:30:00.000Z"
-last_activity: "2026-03-08 — Completed 13-02: /infra catalog page with 8 service cards, InfraServiceCard, and sidebar nav item"
+status: executing
+last_updated: "2026-03-08T19:09:00.537Z"
+last_activity: "2026-03-08 — Completed 13-03: Fumadocs Callout cross-links added to 7 MDX docs pages"
 progress:
   total_phases: 6
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 7
-  percent: 93
+  completed_plans: 9
+  percent: 96
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 
 **Project:** Infrahaus (apps/dashboard as hub)
 **Milestone:** v2.0 — Dashboard as Hub
-**Phase:** 13 — Infra Template Consolidation — In Progress
-**Plan:** 13-02 COMPLETE
-**Status:** In progress — ready for Plan 13-03 (if any) or phase completion
-**Last activity:** 2026-03-08 — Completed 13-02: /infra catalog page with 8 service cards, InfraServiceCard, and sidebar nav item
+**Phase:** 13 — Infra Template Consolidation — COMPLETE ✅
+**Plan:** 13-03 COMPLETE (all 3 plans done)
+**Status:** Phase 13 complete — ready for Phase 14 (Infrahaus branding)
+**Last activity:** 2026-03-08 — Completed 13-03: Fumadocs Callout cross-links added to 7 MDX docs pages
 
-Progress: [█████████░] 93%
+Progress: [██████████] 96%
 
 ## Milestone v1.0 Summary (CLOSED ✅)
 
@@ -49,6 +49,12 @@ Make `apps/dashboard` the centrepiece of the entire repo:
 4. **Phase 12:** apps/web removed from monorepo ✅ COMPLETE
 5. **Phase 13:** infra/ configs consolidated into dashboard templates
 6. **Phase 14:** Infrahaus branding unified throughout
+
+## Decisions from Phase 13 Plan 03
+
+- LXC-deployable services (Dokploy, WireGuard) link to /templates; GPU/VM-only services link to /infra
+- Callout position: after overview paragraph, before Prerequisites or first ## heading
+- fumadocs-ui Callout import placed immediately after frontmatter closing --- (before ## heading)
 
 ## Decisions from Phase 13 Plan 02
 
