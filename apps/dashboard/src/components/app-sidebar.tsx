@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   Package2,
+  Server,
   Settings,
 } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
@@ -43,6 +44,11 @@ const navItems = [
     title: "Packages",
     href: "/templates/packages",
     icon: Package2,
+  },
+  {
+    title: "Infra",
+    href: "/infra",
+    icon: Server,
   },
   {
     title: "Documentation",
