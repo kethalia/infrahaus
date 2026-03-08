@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { createMDX } from "fumadocs-mdx/next";
 
 // turbopack.root must be the monorepo root (the directory CONTAINING the
 // project), not the project directory itself. Without it, Turbopack picks up
@@ -21,4 +22,5 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const withMDX = createMDX();
+export default withMDX(nextConfig);
