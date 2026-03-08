@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — LXC Template Manager Dashboard
 status: planning
-last_updated: "2026-03-08T18:38:29.120Z"
-last_activity: "2026-03-08 — Completed 12-01: apps/web deleted, pnpm lockfile cleaned, README rewritten, SETUP.md link fixed"
+last_updated: "2026-03-08T18:59:59.996Z"
+last_activity: "2026-03-08 — Completed 13-01: Dokploy and WireGuard Proxy LXC templates with install scripts and compose files"
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
-  percent: 95
+  total_plans: 9
+  completed_plans: 7
+  percent: 93
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 
 **Project:** Infrahaus (apps/dashboard as hub)
 **Milestone:** v2.0 — Dashboard as Hub
-**Phase:** 12 — apps/web Removal — COMPLETE ✅
-**Plan:** 12-01 COMPLETE
-**Status:** Ready to plan
-**Last activity:** 2026-03-08 — Completed 12-01: apps/web deleted, pnpm lockfile cleaned, README rewritten, SETUP.md link fixed
+**Phase:** 13 — Infra Template Consolidation — In Progress
+**Plan:** 13-01 COMPLETE
+**Status:** In progress — ready for Plan 13-02
+**Last activity:** 2026-03-08 — Completed 13-01: Dokploy and WireGuard Proxy LXC templates with install scripts and compose files
 
-Progress: [██████████] 95%
+Progress: [█████████░] 93%
 
 ## Milestone v1.0 Summary (CLOSED ✅)
 
@@ -49,6 +49,13 @@ Make `apps/dashboard` the centrepiece of the entire repo:
 4. **Phase 12:** apps/web removed from monorepo ✅ COMPLETE
 5. **Phase 13:** infra/ configs consolidated into dashboard templates
 6. **Phase 14:** Infrahaus branding unified throughout
+
+## Decisions from Phase 13 Plan 01
+
+- Dokploy: unprivileged=1, nesting=1 — Docker Swarm operates correctly in unprivileged LXC containers when nesting is enabled
+- WireGuard Proxy: unprivileged=0 (privileged) — WireGuard kernel module requires privileged container for modprobe to succeed
+- Docker CE install script reused verbatim across all templates — no template-specific divergence in Docker CE install logic
+- WireGuard module persisted to /etc/modules in 02-wireguard-install.sh for reboot survival
 
 ## Decisions from Phase 12 Plan 01
 

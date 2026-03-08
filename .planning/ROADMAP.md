@@ -127,7 +127,7 @@ Requirements: REQ-2.04
 **Goal:** Wire `infra/` service configs into the dashboard template engine. Infra configs become first-class dashboard objects.
 **Depends on:** Phase 08 (template engine), Phase 12
 **Status:** Not started
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Key deliverables:
 - Survey all infra/ categories: ai/, docker/, gaming/, jellyfin/, lukso-node/, wireguard/, dokploy/
@@ -174,6 +174,6 @@ Requirements: REQ-2.07
 | 10 | 2/2 | Complete    | 2026-03-08 |
 | 11 | New documentation | 2 | Not started |
 | 12 | apps/web removal | Complete    | 2026-03-08 |
-| 13 | Infra template consolidation | 3 | Not started |
+| 13 | 1/3 | In Progress|  |
 | 14 | Branding + polish | 1 | Not started |
 | **Total** | | **12** | **3/12** |
