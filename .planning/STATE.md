@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — LXC Template Manager Dashboard
 status: planning
-last_updated: "2026-03-08T18:59:59.996Z"
-last_activity: "2026-03-08 — Completed 13-01: Dokploy and WireGuard Proxy LXC templates with install scripts and compose files"
+last_updated: "2026-03-08T19:30:00.000Z"
+last_activity: "2026-03-08 — Completed 13-02: /infra catalog page with 8 service cards, InfraServiceCard, and sidebar nav item"
 progress:
   total_phases: 6
   completed_phases: 3
@@ -20,9 +20,9 @@ progress:
 **Project:** Infrahaus (apps/dashboard as hub)
 **Milestone:** v2.0 — Dashboard as Hub
 **Phase:** 13 — Infra Template Consolidation — In Progress
-**Plan:** 13-01 COMPLETE
-**Status:** In progress — ready for Plan 13-02
-**Last activity:** 2026-03-08 — Completed 13-01: Dokploy and WireGuard Proxy LXC templates with install scripts and compose files
+**Plan:** 13-02 COMPLETE
+**Status:** In progress — ready for Plan 13-03 (if any) or phase completion
+**Last activity:** 2026-03-08 — Completed 13-02: /infra catalog page with 8 service cards, InfraServiceCard, and sidebar nav item
 
 Progress: [█████████░] 93%
 
@@ -49,6 +49,13 @@ Make `apps/dashboard` the centrepiece of the entire repo:
 4. **Phase 12:** apps/web removed from monorepo ✅ COMPLETE
 5. **Phase 13:** infra/ configs consolidated into dashboard templates
 6. **Phase 14:** Infrahaus branding unified throughout
+
+## Decisions from Phase 13 Plan 02
+
+- catalog.ts has no `server-only` — pure static data safe for any rendering context (server, client, worker)
+- InfraServiceCard is a Server Component — no use client directive needed (no interactive elements)
+- `(dashboard)` route group wraps /infra automatically — no custom layout.tsx needed for the infra route
+- Static catalog module pattern: `lib/{domain}/catalog.ts` exports typed interface + CATALOG array
 
 ## Decisions from Phase 13 Plan 01
 

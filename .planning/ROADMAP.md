@@ -126,19 +126,19 @@ Requirements: REQ-2.04
 
 **Goal:** Wire `infra/` service configs into the dashboard template engine. Infra configs become first-class dashboard objects.
 **Depends on:** Phase 08 (template engine), Phase 12
-**Status:** Not started
-**Plans:** 1/3 plans executed
+**Status:** In progress (2/3 plans complete)
+**Plans:** 2/3 plans executed
 
 Key deliverables:
 - Survey all infra/ categories: ai/, docker/, gaming/, jellyfin/, lukso-node/, wireguard/, dokploy/
 - Each infra service gets a dashboard template entry (or docs link where LXC isn't applicable)
-- Docker-compose services linkable/viewable from dashboard infra section
-- Infra templates discoverable from dashboard Templates page
+- Docker-compose services linkable/viewable from dashboard infra section ✅
+- Infra templates discoverable from dashboard Templates page ✅
 - Where applicable: infra configs deployable via template engine
 
 Plans:
-- [ ] 13-01-PLAN.md — Infra inventory + dashboard template definitions for LXC-deployable services
-- [ ] 13-02-PLAN.md — Docker-compose service browser (view/link configs from dashboard)
+- [x] 13-01-PLAN.md — Infra inventory + dashboard template definitions for LXC-deployable services
+- [x] 13-02-PLAN.md — Docker-compose service browser (view/link configs from dashboard)
 - [ ] 13-03-PLAN.md — Infra docs (link each infra service to its docs page in the migrated docs)
 
 Requirements: REQ-2.05, REQ-2.06
@@ -174,6 +174,6 @@ Requirements: REQ-2.07
 | 10 | 2/2 | Complete    | 2026-03-08 |
 | 11 | New documentation | 2 | Not started |
 | 12 | apps/web removal | Complete    | 2026-03-08 |
-| 13 | 1/3 | In Progress|  |
+| 13 | Infra template consolidation | 2/3 | In Progress |
 | 14 | Branding + polish | 1 | Not started |
 | **Total** | | **12** | **3/12** |
