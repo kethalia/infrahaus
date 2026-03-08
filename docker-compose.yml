@@ -31,7 +31,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: builder
-    command: ["pnpm", "--filter", "dashboard", "exec", "prisma", "migrate", "deploy"]
+    command: ["pnpm", "--filter", "@infrahaus/dashboard", "exec", "prisma", "migrate", "deploy"]
     environment:
       DATABASE_URL: postgresql://dashboard:${POSTGRES_PASSWORD}@postgres:5432/dashboard
     depends_on:
