@@ -12,6 +12,10 @@ import type { NextConfig } from "next";
 const monorepoRoot = process.cwd().split("/").slice(0, -2).join("/");
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  outputFileTracingIncludes: {
+    "/**": ["./src/generated/prisma/client/**/*"],
+  },
   turbopack: {
     root: monorepoRoot,
   },

@@ -62,3 +62,120 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm build
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: [lint, format]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dashboard
+          POSTGRES_PASSWORD: dashboard
+          POSTGRES_DB: dashboard
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    env:
+      DATABASE_URL: postgresql://dashboard:dashboard@localhost:5432/dashboard
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run database migrations
+        run: pnpm --filter dashboard exec prisma migrate deploy
+
+      - name: Run tests
+        run: pnpm --filter dashboard test
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image (smoke test)
+        run: docker build -t infrahaus-test .
+
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    needs: [build]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dashboard
+          POSTGRES_PASSWORD: dashboard
+          POSTGRES_DB: dashboard
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    env:
+      DATABASE_URL: postgresql://dashboard:dashboard@localhost:5432/dashboard
+      REDIS_URL: redis://localhost:6379
+      CI: true
+      PLAYWRIGHT_BASE_URL: http://localhost:3002
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter dashboard exec playwright install --with-deps chromium
+
+      - name: Run database migrations
+        run: pnpm --filter dashboard exec prisma migrate deploy
+
+      - name: Start dev server in background
+        run: pnpm --filter dashboard dev &
+
+      - name: Wait for dev server to be ready
+        run: npx wait-on http://localhost:3002 --timeout 60000
+
+      - name: Run E2E smoke tests
+        run: pnpm --filter dashboard test:e2e
