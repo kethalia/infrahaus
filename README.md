@@ -1,13 +1,13 @@
 # Infrahaus
 
-A self-hosted home lab built on [Proxmox VE](https://www.proxmox.com/en/proxmox-virtual-environment/overview), running Docker-based services across AI/ML, media, gaming, blockchain, and development workloads. Everything is defined as code and documented with a [Fumadocs](https://fumadocs.vercel.app/) site.
+A self-hosted home lab built on [Proxmox VE](https://www.proxmox.com/en/proxmox-virtual-environment/overview). `apps/dashboard` is the centrepiece — a full-stack Next.js 15 web app for managing LXC containers, templates, and infrastructure, with integrated documentation at `/docs`.
 
 ## Monorepo Structure
 
 ```
 infrahaus/
 ├── apps/
-│   └── web/                 # Documentation site (Next.js + Fumadocs)
+│   └── dashboard/           # Container management dashboard (Next.js 15 + Fumadocs docs)
 ├── infra/                   # Infrastructure configurations
 │   ├── ai/                  # Ollama, Open WebUI, Kokoro TTS, ComfyUI
 │   ├── coder/               # Coder cloud development workspaces
@@ -39,11 +39,11 @@ cd infrahaus
 # Install dependencies
 pnpm install
 
-# Start the docs site in development mode
-pnpm dev
+# Start the dashboard in development mode
+pnpm --filter dashboard dev
 ```
 
-The documentation site will be available at `http://localhost:3000`.
+The dashboard will be available at `http://localhost:3002`. Documentation is served at `http://localhost:3002/docs`.
 
 ### Build
 
@@ -69,7 +69,7 @@ pnpm build
 - **Containers**: Docker + Docker Compose
 - **GPU**: NVIDIA (CUDA) for AI, media transcoding, and gaming
 - **IaC**: Terraform (Coder templates), Docker Compose (all services)
-- **Docs**: Next.js 15, Fumadocs, Tailwind CSS, Turborepo
+- **Dashboard**: Next.js 15, Fumadocs (/docs), Tailwind CSS, Prisma, Redis, Turborepo
 - **Networking**: WireGuard, Nginx Proxy Manager, Traefik
 
 ## Contributing
@@ -77,7 +77,7 @@ pnpm build
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/your-feature`)
 3. Make your changes
-4. Run `pnpm build` to verify the docs site builds cleanly
+4. Run `pnpm build` to verify the dashboard builds cleanly
 5. Commit and push
 6. Open a pull request
 
