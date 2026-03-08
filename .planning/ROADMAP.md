@@ -217,11 +217,13 @@ Issues: #87, #88
 
 **Goal:** Docker deployment configuration and CI/CD pipeline with E2E testing
 **Status:** Not started
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD — Docker config, CI/CD pipeline
+- [ ] 06-01-PLAN.md — Fix Dockerfile (apps/dashboard target, standalone output) + worker-runner stage
+- [ ] 06-02-PLAN.md — Production docker-compose.yml (postgres, redis, migrate, app, worker) + .env.example
+- [ ] 06-03-PLAN.md — Extend CI (vitest job + docker-build smoke job) + Playwright E2E smoke tests
 
 Issues: #89, #90
 
@@ -251,7 +253,7 @@ Plans:
 
 - [ ] 08-01-PLAN.md — Engine library modules (logging, config, state, container, files, hooks)
 - [ ] 08-02-PLAN.md — Engine deploy.sh main entry point with full deployment pipeline
-- [ ] 08-03-PLAN.md — forge-shield template.yaml + base system and user creation scripts
+- [x] 08-03-PLAN.md — forge-shield template.yaml + base system and user creation scripts
 - [ ] 08-04-PLAN.md — forge-shield language runtime scripts (Node, Python, Go, Rust)
 - [ ] 08-05-PLAN.md — forge-shield EVM tools (Foundry, solc-select) + AI tools (Claude Code, OpenCode, GSD)
 - [ ] 08-06-PLAN.md — forge-shield security tool scripts (web + Solidity + ZAP)

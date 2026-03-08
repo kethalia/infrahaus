@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 08-05-PLAN.md — EVM and AI tool scripts for forge-shield
-last_updated: "2026-03-08T03:29:39.969Z"
+stopped_at: Completed 08-03-PLAN.md — forge-shield template.yaml and base scripts
+last_updated: "2026-03-08T03:27:28Z"
 last_activity: 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 progress:
   total_phases: 12
   completed_phases: 8
   total_plans: 56
-  completed_plans: 46
-  percent: 71
+  completed_plans: 45
+  percent: 73
 ---
 
 # Project State
@@ -358,11 +358,7 @@ Progress: [███████░░░] 71%
 - [Phase 07-vm-to-run-openclaw]: SSH fallback order: root first, then openclaw with NOPASSWD sudo; SCP_CMD strips -o BatchMode=yes via string substitution
 - [Phase 07-01]: VM stays running after creation — do NOT run qm template. A running VM is immediately usable.
 - [Phase 07-01]: cloud-init is intentionally minimal — all software installation deferred to run-scripts.sh (Plan 02)
-- [Phase 08-lxc-container-template-engine]: USER placeholder pattern: paths containing USER/ in templates/forge-shield/files/home/USER/ get username substituted by deploy engine
-- [Phase 08-lxc-container-template-engine]: Hook lifecycle: pre-deploy.sh runs on Proxmox host before container exists, post-deploy.sh runs inside container after all scripts complete
-- [Phase 08]: Foundry installs to ~/.foundry/bin/ — PATH_APPEND in template.yaml handles PATH
-- [Phase 08]: solc-select via pipx (PEP 668 compliance on Ubuntu 24.04), default Solidity 0.8.28
-- [Phase 08]: OpenCode: curl installer first, go install fallback; GSD: git clone installer with directory fallback
+- [Phase 08-03]: pipx in apt packages (PEP 668 compliance on Ubuntu 24.04); Claude Code excluded from npm (curl-installed in 30_claude-code.sh); no pip/cargo/go packages in template.yaml (dedicated scripts handle them)
 
 ## Pending Work
 
@@ -374,6 +370,7 @@ Progress: [███████░░░] 71%
 - Phase 6: CI/CD & Deployment (#89-90)
 - Phase 7: VM to Run OpenClaw (3 plans)
 - Phase 8: Proxmox LXC Container Template Engine (9 plans)
+  - **08-03 COMPLETE** — forge-shield template.yaml + 00_base-system.sh + 01_create-user.sh
 - **Known issue:** Zod v3→v4 type incompatibility with @hookform/resolvers in 6 form files (pre-existing, not blocking)
 
 ## Blockers/Concerns
@@ -390,7 +387,7 @@ Progress: [███████░░░] 71%
 
 ## Session Continuity
 
-Last session: 2026-03-08T03:29:39.965Z
-Stopped at: Completed 08-05-PLAN.md — EVM and AI tool scripts for forge-shield
+Last session: 2026-03-08T03:27:28Z
+Stopped at: Completed 08-03-PLAN.md — forge-shield template.yaml and base scripts
 Resume file: None
-Next step: Phase 5 (Web UI & Monitoring) or merge feat/ssh-key-containers into feat/04.5-auth-decoupling
+Next step: Continue Phase 8 — 08-04-PLAN.md (next forge-shield provisioning scripts)
