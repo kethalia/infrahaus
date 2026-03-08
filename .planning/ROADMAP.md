@@ -106,7 +106,7 @@ Requirements: REQ-2.03
 **Goal:** Delete `apps/web` from the monorepo. Clean up workspace config.
 **Depends on:** Phase 10, 11
 **Status:** Not started
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Key deliverables:
 - `apps/web/` directory removed
@@ -173,7 +173,7 @@ Requirements: REQ-2.07
 | 09 | Fumadocs integration in dashboard | 3/3 | Complete ✅ |
 | 10 | 2/2 | Complete    | 2026-03-08 |
 | 11 | New documentation | 2 | Not started |
-| 12 | apps/web removal | 1 | Not started |
+| 12 | apps/web removal | Complete    | 2026-03-08 |
 | 13 | Infra template consolidation | 3 | Not started |
 | 14 | Branding + polish | 1 | Not started |
 | **Total** | | **12** | **3/12** |
