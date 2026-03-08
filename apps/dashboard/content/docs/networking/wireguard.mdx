@@ -3,9 +3,17 @@ title: WireGuard Setup
 description: Step-by-step WireGuard VPN tunnel and Nginx Proxy Manager configuration.
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 ## Overview
 
 This guide sets up a WireGuard tunnel between a public VPS and your private home server, then configures Nginx Proxy Manager (NPM) to reverse-proxy traffic to internal services. Based on the [Pro Custodibus guide](https://www.procustodibus.com/blog/2022/09/wireguard-port-forward-from-internet/).
+
+<Callout type="info">
+  **Deploy via Dashboard** — WireGuard Proxy (with Nginx Proxy Manager) is available as an LXC template.
+  Go to [Templates](/templates) in the dashboard and click "Discover Templates" to find the WireGuard Proxy template.
+  You can also [browse all infra services](/infra) from the Infra catalog.
+</Callout>
 
 ## Prerequisites
 
