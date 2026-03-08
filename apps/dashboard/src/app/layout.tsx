@@ -14,8 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LXC Template Manager Dashboard",
-  description: "Manage and deploy LXC containers on Proxmox VE",
+  title: {
+    default: "Infrahaus",
+    template: "%s | Infrahaus",
+  },
+  description: "Self-hosted infrastructure management on Proxmox VE",
 };
 
 export default function RootLayout({
