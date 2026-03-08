@@ -217,11 +217,13 @@ Issues: #87, #88
 
 **Goal:** Docker deployment configuration and CI/CD pipeline with E2E testing
 **Status:** Not started
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD — Docker config, CI/CD pipeline
+- [ ] 06-01-PLAN.md — Fix Dockerfile (apps/dashboard target, standalone output) + worker-runner stage
+- [ ] 06-02-PLAN.md — Production docker-compose.yml (postgres, redis, migrate, app, worker) + .env.example
+- [ ] 06-03-PLAN.md — Extend CI (vitest job + docker-build smoke job) + Playwright E2E smoke tests
 
 Issues: #89, #90
 
