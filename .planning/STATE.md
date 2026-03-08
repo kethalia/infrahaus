@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 08-06-PLAN.md — Security tool scripts for forge-shield template
-last_updated: "2026-03-08T03:38:00Z"
+stopped_at: Completed 08-01-PLAN.md — engine library modules (logging, config, state, container, files, hooks)
+last_updated: "2026-03-08T03:35:00Z"
 last_activity: 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 progress:
   total_phases: 12
   completed_phases: 8
   total_plans: 56
   completed_plans: 46
-  percent: 76
+  percent: 73
 ---
 
 # Project State
@@ -358,9 +358,8 @@ Progress: [███████░░░] 71%
 - [Phase 07-vm-to-run-openclaw]: SSH fallback order: root first, then openclaw with NOPASSWD sudo; SCP_CMD strips -o BatchMode=yes via string substitution
 - [Phase 07-01]: VM stays running after creation — do NOT run qm template. A running VM is immediately usable.
 - [Phase 07-01]: cloud-init is intentionally minimal — all software installation deferred to run-scripts.sh (Plan 02)
+- [Phase 08-01]: Engine library modules use 6 bash files (logging, config, state, container, files, hooks); all output to stderr for machine-parseable stdout; cfg_get converts yq null to empty string; state uses key=value .deploy-state file; pre_deploy runs on host, post_deploy runs inside container
 - [Phase 08-03]: pipx in apt packages (PEP 668 compliance on Ubuntu 24.04); Claude Code excluded from npm (curl-installed in 30_claude-code.sh); no pip/cargo/go packages in template.yaml (dedicated scripts handle them)
-- [Phase 08-06]: Mythril soft-install: timeout 600s + || true pattern ensures z3 compilation failure does not abort 41_security-solidity.sh
-- [Phase 08-06]: ZAP URL dynamic resolution from GitHub API releases (not hardcoded weekly tag) in 42_zap.sh
 
 ## Pending Work
 
@@ -372,6 +371,7 @@ Progress: [███████░░░] 71%
 - Phase 6: CI/CD & Deployment (#89-90)
 - Phase 7: VM to Run OpenClaw (3 plans)
 - Phase 8: Proxmox LXC Container Template Engine (9 plans)
+  - **08-01 COMPLETE** — 6 engine library modules (logging, config, state, container, files, hooks)
   - **08-03 COMPLETE** — forge-shield template.yaml + 00_base-system.sh + 01_create-user.sh
 - **Known issue:** Zod v3→v4 type incompatibility with @hookform/resolvers in 6 form files (pre-existing, not blocking)
 
@@ -389,7 +389,7 @@ Progress: [███████░░░] 71%
 
 ## Session Continuity
 
-Last session: 2026-03-08T03:38:00Z
-Stopped at: Completed 08-06-PLAN.md — Security tool scripts for forge-shield template
+Last session: 2026-03-08T03:35:00Z
+Stopped at: Completed 08-01-PLAN.md — engine library modules (logging, config, state, container, files, hooks)
 Resume file: None
-Next step: Continue Phase 8 — 08-04-PLAN.md (next forge-shield provisioning scripts)
+Next step: Continue Phase 8 — next plan
