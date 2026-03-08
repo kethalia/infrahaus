@@ -3,9 +3,17 @@ title: AI Stack
 description: Self-hosted AI services — Ollama for LLM inference, Open WebUI for chat, Kokoro for text-to-speech, and ComfyUI for image generation.
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 ## Overview
 
 The AI stack runs four GPU-accelerated services on a single VM with NVIDIA GPU passthrough. Together they provide a fully self-hosted alternative to cloud AI APIs.
+
+<Callout type="info">
+  **Dashboard Infra Catalog** — Browse the AI services (including Ollama standalone for CPU inference)
+  from the [Infra Catalog](/infra) in the dashboard.
+  GPU-based services require a VM with PCIe passthrough and cannot be deployed as LXC containers.
+</Callout>
 
 ## Architecture
 
