@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 07-03-PLAN.md (run-scripts.sh orchestrator and README)
-last_updated: "2026-03-08T02:05:08.088Z"
+stopped_at: Completed 07-01-PLAN.md — VM template directory structure
+last_updated: "2026-03-08T02:08:44.350Z"
 last_activity: 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 progress:
   total_phases: 12
@@ -356,6 +356,8 @@ Progress: [███████░░░] 71%
 - [Phase 07-vm-to-run-openclaw]: VNC configured with -localhost no for remote access; password 'openclaw' set via vncpasswd -f stdin
 - [Phase 07-vm-to-run-openclaw]: Script 06 gates install on npm view openclaw — exits with TODO instructions if not on public npm registry
 - [Phase 07-vm-to-run-openclaw]: SSH fallback order: root first, then openclaw with NOPASSWD sudo; SCP_CMD strips -o BatchMode=yes via string substitution
+- [Phase 07-01]: VM stays running after creation — do NOT run qm template. A running VM is immediately usable.
+- [Phase 07-01]: cloud-init is intentionally minimal — all software installation deferred to run-scripts.sh (Plan 02)
 
 ## Pending Work
 
@@ -383,7 +385,7 @@ Progress: [███████░░░] 71%
 
 ## Session Continuity
 
-Last session: 2026-03-08T02:05:08.084Z
-Stopped at: Completed 07-03-PLAN.md (run-scripts.sh orchestrator and README)
+Last session: 2026-03-08T02:08:11.170Z
+Stopped at: Completed 07-01-PLAN.md — VM template directory structure
 Resume file: None
 Next step: Phase 5 (Web UI & Monitoring) or merge feat/ssh-key-containers into feat/04.5-auth-decoupling
