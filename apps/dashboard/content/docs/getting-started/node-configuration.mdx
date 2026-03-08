@@ -1,0 +1,127 @@
+---
+title: Node Configuration
+description: Connect your Proxmox VE nodes to the Infrahaus dashboard.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Overview
+
+The Infrahaus dashboard manages containers across one or more Proxmox VE nodes. Each node is connected via its REST API using an API token. This guide walks through adding a node, verifying the connection, and troubleshooting common issues.
+
+<Callout type="info">
+  You need a Proxmox API token before adding a node. See [Proxmox API Token
+  Creation](/docs/getting-started/proxmox-api-token) if you have not created
+  one yet.
+</Callout>
+
+## Prerequisites
+
+- Infrahaus dashboard running and accessible (default: `http://localhost:3002`)
+- You are logged in with your Universal Profile wallet
+- Proxmox VE node accessible from the machine running the dashboard
+- API token created per the [token guide](/docs/getting-started/proxmox-api-token)
+
+## Adding a node
+
+1. Log in to the Infrahaus dashboard
+2. Navigate to **Settings → Proxmox Nodes** in the sidebar
+3. Click **Add Node**
+4. Fill in the connection form:
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| **Name** | A friendly label for this node | `homelab-pve` |
+| **Host** | Full URL including port | `https://192.168.1.10:8006` |
+| **Token ID** | Full token identifier | `infrahaus@pve!dashboard` |
+| **Token Secret** | UUID secret from creation | `xxxxxxxx-xxxx-xxxx-xxxx-xxxx` |
+
+5. Click **Save**
+
+The dashboard will attempt to connect immediately. A green status indicator confirms a successful connection.
+
+## Verifying the connection
+
+After adding a node, you can verify it is working correctly:
+
+1. Navigate to **Settings → Proxmox Nodes**
+2. The node card shows:
+   - **Status**: Online / Offline / Error
+   - **Version**: Proxmox VE version string
+   - **CPU / Memory**: Current utilization
+
+If the node shows **Error**, hover over the status badge to see the error message.
+
+### Test from the command line
+
+```bash
+curl -sk \
+  -H "Authorization: PVEAPIToken=infrahaus@pve!dashboard=<secret>" \
+  https://<server-ip>:8006/api2/json/nodes
+```
+
+A successful response lists the node(s). An error response indicates a connectivity or permission issue.
+
+## Multiple nodes
+
+You can add as many Proxmox nodes as you need. Each node is managed independently — containers are created on the node you select during deployment. The dashboard shows containers from all connected nodes on the **Dashboard** overview page.
+
+<Callout type="info">
+  Each node uses its own API token. If you have a Proxmox cluster (multiple
+  nodes sharing storage and HA), you still add each node individually in the
+  dashboard. Cluster-aware management is planned for a future release.
+</Callout>
+
+## Pool isolation
+
+If you created a pool named `infrahaus` during token setup, only containers in that pool will be visible to the dashboard. This prevents the dashboard from managing unrelated VMs.
+
+To add an existing container to the `infrahaus` pool:
+
+1. In Proxmox, click the container or VM
+2. Go to **Options**
+3. Set **Pool** to `infrahaus`
+
+## Editing a node
+
+1. Navigate to **Settings → Proxmox Nodes**
+2. Click the **⋮** menu on the node card
+3. Select **Edit**
+4. Update the fields and click **Save**
+
+Editing a node re-validates the connection immediately.
+
+## Removing a node
+
+1. Navigate to **Settings → Proxmox Nodes**
+2. Click the **⋮** menu on the node card
+3. Select **Delete**
+4. Confirm deletion
+
+Removing a node does not delete any containers on Proxmox — it only disconnects the dashboard from that node.
+
+## Troubleshooting
+
+**Node shows "Offline"**
+
+- Check that Proxmox is running: `systemctl status pveproxy`
+- Verify the host URL is reachable: `curl -sk https://<ip>:8006/api2/json/version`
+- Check firewall rules — port 8006 must be open from the dashboard host
+
+**Node shows "Certificate error"**
+
+- Proxmox uses a self-signed certificate by default
+- The dashboard trusts self-signed certs on private network ranges (RFC 1918)
+- If you are using a public IP, install a valid certificate in Proxmox or add your CA
+
+**Permission denied when creating containers**
+
+- Verify the token user has `PVEAdmin` on `/pool/infrahaus` or the target node path
+- Check the pool exists in Proxmox: **Datacenter → Pools**
+- Ensure the storage used by the template is accessible from the node
+
+**Token authentication fails (401)**
+
+- Double-check the Token ID format: `username@realm!tokenid` (e.g., `infrahaus@pve!dashboard`)
+- Confirm the secret UUID matches what Proxmox shows in **API Tokens**
+- Tokens cannot be retrieved after creation — delete and recreate if lost

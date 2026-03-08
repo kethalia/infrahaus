@@ -1,3 +1,10 @@
 {
-  "pages": ["index", "proxmox-setup", "docker-installation", "networking"]
+  "pages": [
+    "index",
+    "proxmox-setup",
+    "proxmox-api-token",
+    "node-configuration",
+    "docker-installation",
+    "networking"
+  ]
 }

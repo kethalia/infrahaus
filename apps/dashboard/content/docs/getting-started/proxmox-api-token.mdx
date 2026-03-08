@@ -1,0 +1,130 @@
+---
+title: Proxmox API Token Creation
+description: Create a scoped Proxmox API token for the Infrahaus dashboard to manage your nodes securely.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Overview
+
+The Infrahaus dashboard communicates with your Proxmox VE nodes via the [Proxmox REST API](https://pve.proxmox.com/pve-docs/api-viewer/). Instead of using your root password, you create a dedicated API token with only the permissions Infrahaus needs. This follows the principle of least privilege and makes it easy to revoke access without changing your root password.
+
+<Callout type="info">
+  API tokens are per-user, per-realm objects in Proxmox. You will create a
+  dedicated `infrahaus` user and token rather than using the root account.
+</Callout>
+
+## Prerequisites
+
+- Proxmox VE 7.x or 8.x installed and accessible at `https://<server-ip>:8006`
+- Root (or administrator) access to the Proxmox web UI
+
+## Step 1: Create a dedicated user
+
+1. Log in to the Proxmox web UI as `root@pam`
+2. Navigate to **Datacenter → Permissions → Users**
+3. Click **Add**
+4. Fill in the form:
+   - **User name**: `infrahaus`
+   - **Realm**: `pve` (Proxmox VE authentication server)
+   - **Expire**: leave blank (no expiry)
+   - **Enabled**: checked
+   - **Comment**: `Infrahaus dashboard service account`
+5. Click **Add**
+
+## Step 2: Create a resource pool (recommended)
+
+Using a pool lets Infrahaus manage only the containers it creates, without seeing unrelated VMs.
+
+1. Navigate to **Datacenter → Pools**
+2. Click **Create**
+3. Set **Pool ID** to `infrahaus`
+4. Click **OK**
+
+You can add existing containers/VMs to this pool later from their **Options** tab.
+
+## Step 3: Grant permissions
+
+Grant the `infrahaus` user administrator rights on the pool:
+
+1. Navigate to **Datacenter → Permissions**
+2. Click **Add → User Permission**
+3. Set:
+   - **Path**: `/pool/infrahaus`
+   - **User**: `infrahaus@pve`
+   - **Role**: `PVEAdmin`
+   - **Propagate**: checked
+4. Click **Add**
+
+Also grant access to create containers at the datacenter level:
+
+1. Click **Add → User Permission** again
+2. Set:
+   - **Path**: `/`
+   - **User**: `infrahaus@pve`
+   - **Role**: `PVEAuditor`
+   - **Propagate**: checked
+3. Click **Add**
+
+<Callout type="warn">
+  Do not grant `Administrator` at the `/` path — this would give Infrahaus
+  access to all VMs, storage, and cluster settings, which is more than it
+  needs.
+</Callout>
+
+## Step 4: Create the API token
+
+1. Navigate to **Datacenter → Permissions → API Tokens**
+2. Click **Add**
+3. Fill in the form:
+   - **User**: `infrahaus@pve`
+   - **Token ID**: `dashboard`
+   - **Privilege Separation**: leave **unchecked** (inherits user permissions)
+   - **Expire**: leave blank
+   - **Comment**: `Infrahaus dashboard token`
+4. Click **Add**
+
+Proxmox will show the token secret **once**. Copy it immediately:
+
+```
+Token ID:  infrahaus@pve!dashboard
+Secret:    xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+<Callout type="warn">
+  The secret is shown only once. If you lose it, delete the token and create a
+  new one.
+</Callout>
+
+## Step 5: Verify via curl (optional)
+
+Test the token before adding the node to the dashboard:
+
+```bash
+curl -sk \
+  -H "Authorization: PVEAPIToken=infrahaus@pve!dashboard=<your-secret>" \
+  https://<server-ip>:8006/api2/json/version
+```
+
+You should see a JSON response with the Proxmox version. A `401 Permission denied` response means the token is wrong; a `403` means the permissions are missing.
+
+## Step 6: Add the node in Infrahaus
+
+Now you have everything you need to add this Proxmox node to the dashboard. See [Node Configuration](/docs/getting-started/node-configuration) for the next step.
+
+## Required fields summary
+
+| Field | Value |
+|-------|-------|
+| Host | `https://<server-ip>:8006` |
+| Token ID | `infrahaus@pve!dashboard` |
+| Token Secret | The UUID shown at creation |
+| Pool | `infrahaus` (optional but recommended) |
+
+## Troubleshooting
+
+**Permission denied (403) on container creation**: Ensure the token user has `PVEAdmin` on `/pool/infrahaus` and the target storage/node is in the pool, or grant `PVEAdmin` at `/nodes/<nodename>` as well.
+
+**SSL certificate errors**: Proxmox uses a self-signed cert by default. The dashboard accepts self-signed certificates from local network addresses. If you have a custom CA, install the cert in Proxmox under **Datacenter → ACME** or the node's certificate settings.
+
+**Token expired**: Check the token expiry in **Datacenter → Permissions → API Tokens**. Re-create the token if it has expired.

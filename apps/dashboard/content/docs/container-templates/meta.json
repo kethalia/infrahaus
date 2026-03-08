@@ -3,6 +3,9 @@
   "pages": [
     "index",
     "setup",
+    "template-creation",
+    "deployment-walkthrough",
+    "forge-shield-reference",
     "configuration",
     "credentials",
     "migration",

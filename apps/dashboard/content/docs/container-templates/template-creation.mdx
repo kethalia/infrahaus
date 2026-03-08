@@ -1,0 +1,232 @@
+---
+title: Template Creation Guide
+description: Create custom LXC container templates for deployment through the Infrahaus dashboard.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Overview
+
+Container templates in Infrahaus define everything about an LXC container: what gets installed, how it is configured, and what services run inside it. Templates live in the `infra/lxc/templates/` directory of the repository and are discovered automatically by the dashboard.
+
+This guide covers creating a custom template from scratch using the forge-shield structure.
+
+<Callout type="info">
+  See the [Forge-Shield Template Reference](/docs/container-templates/forge-shield-reference)
+  for the full specification of all `template.conf` fields and provisioning script conventions.
+</Callout>
+
+## Prerequisites
+
+- A fork or clone of the [infrahaus repository](https://github.com/kethalia/infrahaus)
+- A Proxmox node connected to the dashboard (see [Node Configuration](/docs/getting-started/node-configuration))
+- Familiarity with Bash scripting
+
+## Template structure
+
+Each template lives in its own directory under `infra/lxc/templates/<name>/`:
+
+```
+infra/lxc/templates/<template-name>/
+├── template.conf                    # Metadata and resource defaults
+└── container-configs/
+    ├── scripts/
+    │   ├── 00-pre-checks.sh         # Preflight validation
+    │   ├── 01-install.sh            # Main installation
+    │   └── 99-verify.sh             # Post-install verification
+    ├── packages/
+    │   └── base.apt                 # apt packages to install
+    └── files/
+        └── opt/<app>/               # Files to push into the container
+```
+
+Scripts run in lexicographic order. Number them (00, 01, 02…) to control execution sequence.
+
+## Step 1: Create the directory
+
+```bash
+mkdir -p infra/lxc/templates/my-app/container-configs/{scripts,packages,files}
+```
+
+## Step 2: Write template.conf
+
+The `template.conf` file defines metadata and default resource allocations:
+
+```bash
+# infra/lxc/templates/my-app/template.conf
+#!/usr/bin/env bash
+
+# Template identification
+TEMPLATE_APP="My App"
+TEMPLATE_TAGS="my-app;debian;docker"
+TEMPLATE_DESCRIPTION="My application LXC container"
+
+# Resource defaults (users can override via var_* env vars)
+TEMPLATE_CPU="${TEMPLATE_CPU:-2}"
+TEMPLATE_RAM="${TEMPLATE_RAM:-2048}"
+TEMPLATE_DISK="${TEMPLATE_DISK:-10}"
+TEMPLATE_OS="${TEMPLATE_OS:-debian}"
+TEMPLATE_VERSION="${TEMPLATE_VERSION:-12}"
+
+# Container features
+TEMPLATE_UNPRIVILEGED="${TEMPLATE_UNPRIVILEGED:-1}"
+TEMPLATE_NESTING="${TEMPLATE_NESTING:-1}"
+TEMPLATE_KEYCTL="${TEMPLATE_KEYCTL:-0}"
+TEMPLATE_FUSE="${TEMPLATE_FUSE:-0}"
+```
+
+Set `TEMPLATE_UNPRIVILEGED=0` only if your app requires kernel modules (e.g., WireGuard). Prefer unprivileged containers for security.
+
+## Step 3: Create provisioning scripts
+
+All scripts must:
+- Use `#!/usr/bin/env bash`
+- Start with `set -euo pipefail`
+- Be idempotent (safe to run more than once)
+- Run as root inside the container
+
+### Pre-checks script (00-pre-checks.sh)
+
+Validate the environment before installing anything:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_info()  { echo "[INFO]  $*"; }
+log_error() { echo "[ERROR] $*" >&2; }
+
+log_info "Running pre-checks for my-app..."
+
+# Check minimum resources
+TOTAL_MEM=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+if (( TOTAL_MEM < 1500000 )); then
+  log_error "Insufficient memory: ${TOTAL_MEM}kB (need 1.5GB+)"
+  exit 1
+fi
+
+# Check internet connectivity
+if ! curl -fsS --max-time 10 https://example.com > /dev/null 2>&1; then
+  log_error "No internet connectivity"
+  exit 1
+fi
+
+log_info "Pre-checks passed."
+```
+
+### Installation script (01-install.sh)
+
+Install and configure your application:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_info() { echo "[INFO]  $*"; }
+
+# Guard: skip if already installed
+if systemctl is-active --quiet my-app 2>/dev/null; then
+  log_info "my-app already running, skipping install."
+  exit 0
+fi
+
+log_info "Installing my-app..."
+
+apt-get update -qq
+apt-get install -y --no-install-recommends curl ca-certificates
+
+# Download and install
+curl -fsSL https://example.com/install.sh | bash
+
+# Enable service
+systemctl enable --now my-app
+
+log_info "my-app installed successfully."
+```
+
+### Verification script (99-verify.sh)
+
+Confirm everything is working:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_info()  { echo "[INFO]  $*"; }
+log_error() { echo "[ERROR] $*" >&2; }
+
+PASS=0
+FAIL=0
+
+check() {
+  local desc=$1; shift
+  if "$@" > /dev/null 2>&1; then
+    log_info "PASS: $desc"
+    ((PASS++))
+  else
+    log_error "FAIL: $desc"
+    ((FAIL++))
+  fi
+}
+
+check "my-app binary exists"    command -v my-app
+check "service is running"      systemctl is-active my-app
+check "port 8080 is listening"  ss -tlnp | grep -q ':8080'
+
+echo ""
+echo "Results: ${PASS} passed, ${FAIL} failed"
+(( FAIL == 0 )) || exit 1
+```
+
+## Step 4: Add packages file
+
+List apt packages to install before the scripts run:
+
+```
+# infra/lxc/templates/my-app/container-configs/packages/base.apt
+curl
+ca-certificates
+gnupg
+```
+
+One package per line. Lines starting with `#` are comments.
+
+## Step 5: Add static files (optional)
+
+Place files in `container-configs/files/` mirroring their path inside the container:
+
+```
+container-configs/files/
+└── opt/
+    └── my-app/
+        ├── docker-compose.yaml
+        ├── docker-compose.yaml.path      # Contains: /opt/my-app/docker-compose.yaml
+        └── docker-compose.yaml.policy    # Contains: overwrite
+```
+
+The `.path` file tells the engine where to place the file inside the container. The `.policy` file controls what happens if the file already exists (`overwrite` or `skip`).
+
+## Step 6: Discover the template in the dashboard
+
+1. Navigate to **Templates** in the Infrahaus dashboard
+2. Click **Discover Templates**
+3. Your new template should appear in the list with the name from `TEMPLATE_APP`
+
+If the template does not appear:
+- Check that `template.conf` is in the correct directory
+- Verify all 11 required `TEMPLATE_*` fields are present
+- Review dashboard logs for discovery errors
+
+## Step 7: Deploy a test container
+
+See [Container Deployment Walkthrough](/docs/container-templates/deployment-walkthrough) for the full deployment flow.
+
+## Tips
+
+**Keep scripts idempotent**: The config-manager may re-run scripts on every boot. Guard expensive operations with existence checks.
+
+**Use numbered prefixes**: Scripts run in lexicographic order. Use `00-`, `01-`, `02-` prefixes to ensure correct sequencing.
+
+**Log generously**: Use `log_info` and `log_error` helpers so deployment logs are readable in the dashboard.
+
+**Test locally first**: SSH into a temporary container and run scripts manually before wiring into the template engine.

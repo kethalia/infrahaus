@@ -1,0 +1,265 @@
+---
+title: Forge-Shield Template Reference
+description: Complete reference for the forge-shield container template format — template.conf fields, provisioning scripts, file push conventions, and package lists.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Overview
+
+Forge-shield is the Infrahaus template engine for LXC containers. It discovers templates from `infra/lxc/templates/*/template.conf`, provisions containers via numbered Bash scripts, pushes static files, and installs apt packages. This reference documents every field and convention.
+
+## Template discovery
+
+The engine scans all subdirectories of `infra/lxc/templates/`. A directory is recognized as a template if it contains a `template.conf` file with all required `TEMPLATE_*` fields. Discovery runs when you click **Discover Templates** in the dashboard.
+
+## template.conf reference
+
+`template.conf` is a Bash source file (not executed directly — it is sourced by the engine). All variables must be present; missing variables cause discovery to fail.
+
+### Required fields
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `TEMPLATE_APP` | string | Human-readable template name shown in the dashboard UI |
+| `TEMPLATE_TAGS` | string | Semicolon-separated tags for filtering (e.g., `web3;docker;debian`) |
+| `TEMPLATE_CPU` | integer | Default vCPU count. Wrap in `${TEMPLATE_CPU:-N}` to allow override. |
+| `TEMPLATE_RAM` | integer | Default RAM in MB. Wrap in `${TEMPLATE_RAM:-N}`. |
+| `TEMPLATE_DISK` | integer | Default root disk in GB. Wrap in `${TEMPLATE_DISK:-N}`. |
+| `TEMPLATE_OS` | string | Base OS name for the Proxmox template (e.g., `debian`, `ubuntu`) |
+| `TEMPLATE_VERSION` | string | OS version (e.g., `12`, `24.04`) |
+| `TEMPLATE_UNPRIVILEGED` | 0 or 1 | `1` = unprivileged LXC (default, more secure). `0` = privileged (needed for some kernel operations). |
+| `TEMPLATE_NESTING` | 0 or 1 | Enable LXC nesting (required for Docker inside a container). |
+| `TEMPLATE_KEYCTL` | 0 or 1 | Enable `keyctl` syscall (required for some keyring operations). |
+| `TEMPLATE_FUSE` | 0 or 1 | Enable FUSE device access (required for FUSE filesystems like rclone mounts). |
+
+<Callout type="info">
+  A `TEMPLATE_DESCRIPTION` field is recommended but not required for discovery.
+  It is shown in the template detail view.
+</Callout>
+
+### Example template.conf
+
+```bash
+#!/usr/bin/env bash
+# My Application LXC Template
+
+TEMPLATE_APP="My Application"
+TEMPLATE_TAGS="my-app;debian;docker"
+TEMPLATE_DESCRIPTION="Full-stack application with Docker and nginx"
+
+TEMPLATE_CPU="${TEMPLATE_CPU:-4}"
+TEMPLATE_RAM="${TEMPLATE_RAM:-4096}"
+TEMPLATE_DISK="${TEMPLATE_DISK:-20}"
+TEMPLATE_OS="${TEMPLATE_OS:-debian}"
+TEMPLATE_VERSION="${TEMPLATE_VERSION:-12}"
+
+TEMPLATE_UNPRIVILEGED="${TEMPLATE_UNPRIVILEGED:-1}"
+TEMPLATE_NESTING="${TEMPLATE_NESTING:-1}"
+TEMPLATE_KEYCTL="${TEMPLATE_KEYCTL:-0}"
+TEMPLATE_FUSE="${TEMPLATE_FUSE:-0}"
+```
+
+### Choosing container type
+
+| Use case | Recommended settings |
+|----------|---------------------|
+| Docker inside container | `UNPRIVILEGED=1`, `NESTING=1` |
+| WireGuard / kernel modules | `UNPRIVILEGED=0` |
+| FUSE mounts (rclone, sshfs) | `UNPRIVILEGED=1`, `FUSE=1` |
+| General purpose | `UNPRIVILEGED=1`, all others `0` |
+
+## Directory structure
+
+```
+infra/lxc/templates/<name>/
+├── template.conf
+└── container-configs/
+    ├── scripts/          # Provisioning scripts (run in order)
+    ├── packages/         # Package lists
+    └── files/            # Static files to push into the container
+```
+
+## Provisioning scripts
+
+Scripts in `container-configs/scripts/` are executed inside the container in lexicographic order after package installation. They run as root.
+
+### Naming convention
+
+Use a two-digit numeric prefix:
+
+```
+00-pre-checks.sh     # Preflight validation (fail early)
+01-install.sh        # Main installation
+02-configure.sh      # Post-install configuration
+99-verify.sh         # Final verification
+```
+
+### Script requirements
+
+Every script must:
+
+- Start with `#!/usr/bin/env bash`
+- Set `set -euo pipefail` (fail on errors, undefined vars, pipe failures)
+- Be idempotent — scripts may run again on container reboot
+- Be executable: `chmod +x scripts/*.sh`
+
+### Log helpers
+
+Use consistent log helpers for readable deployment output in the dashboard:
+
+```bash
+log_info()  { echo "[INFO]  $(date -u +%H:%M:%S) $*"; }
+log_error() { echo "[ERROR] $(date -u +%H:%M:%S) $*" >&2; }
+log_warn()  { echo "[WARN]  $(date -u +%H:%M:%S) $*"; }
+```
+
+### Idempotency patterns
+
+```bash
+# Guard by binary existence
+if command -v myapp > /dev/null 2>&1; then
+  log_info "myapp already installed, skipping."
+  exit 0
+fi
+
+# Guard by service state
+if systemctl is-active --quiet myapp; then
+  log_info "myapp already running, skipping."
+  exit 0
+fi
+
+# Guard by file existence
+if [[ -f /etc/myapp/config.yaml ]]; then
+  log_info "Config already present, skipping write."
+else
+  cp /opt/myapp/config.default.yaml /etc/myapp/config.yaml
+fi
+```
+
+### Environment variables available in scripts
+
+| Variable | Description |
+|----------|-------------|
+| `USERNAME` | The primary non-root user created for this container |
+| `REPO_URL` | Git repository URL being used for configuration |
+| `REPO_BRANCH` | Branch being tracked |
+| `TEMPLATE_*` | All variables from `template.conf` are available |
+
+## Package lists
+
+Files in `container-configs/packages/` are read before scripts run. Packages are installed via `apt-get install -y`.
+
+### Format
+
+```
+# base.apt — one package per line
+curl
+ca-certificates
+gnupg
+iproute2
+```
+
+Rules:
+- One package per line
+- Lines starting with `#` are ignored (comments)
+- Empty lines are ignored
+- Package names must be valid Debian/Ubuntu apt package names
+
+The file must be named `base.apt`. Multiple package files are not currently supported — put all packages in one file.
+
+## File push
+
+Files in `container-configs/files/` are pushed into the container filesystem. The directory tree mirrors the container's root filesystem.
+
+### File metadata
+
+Each file that should be pushed needs two companion files:
+
+| File | Purpose | Example content |
+|------|---------|-----------------|
+| `<filename>.path` | Destination path inside the container | `/opt/myapp/docker-compose.yaml` |
+| `<filename>.policy` | What to do if destination exists | `overwrite` or `skip` |
+
+### Example structure
+
+```
+files/
+└── opt/
+    └── myapp/
+        ├── docker-compose.yaml
+        ├── docker-compose.yaml.path    → /opt/myapp/docker-compose.yaml
+        └── docker-compose.yaml.policy  → overwrite
+```
+
+### Policy values
+
+| Policy | Behavior |
+|--------|----------|
+| `overwrite` | Replace existing file with the template version |
+| `skip` | Leave existing file untouched if it already exists |
+
+Use `overwrite` for config files managed by the template. Use `skip` for files that users are expected to customize after deployment.
+
+## Verification script conventions
+
+The `99-verify.sh` script should:
+1. Check each critical binary, service, and port
+2. Print a summary with pass/fail counts
+3. Exit with code `1` if any check fails
+
+The dashboard shows deployment as failed if `99-verify.sh` exits non-zero.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+PASS=0; FAIL=0
+
+check() {
+  local desc=$1; shift
+  if "$@" > /dev/null 2>&1; then
+    echo "[PASS] $desc"; ((PASS++))
+  else
+    echo "[FAIL] $desc"; ((FAIL++))
+  fi
+}
+
+check "docker CLI"        command -v docker
+check "compose plugin"    docker compose version
+check "service running"   systemctl is-active myapp
+check "port 8080 open"    ss -tlnp | grep -q ':8080'
+
+echo "Results: $PASS passed, $FAIL failed"
+(( FAIL == 0 )) || exit 1
+```
+
+## Complete example template
+
+A minimal but complete template for a service called `my-service`:
+
+```
+infra/lxc/templates/my-service/
+├── template.conf
+└── container-configs/
+    ├── scripts/
+    │   ├── 00-pre-checks.sh
+    │   ├── 01-install.sh
+    │   └── 99-verify.sh
+    ├── packages/
+    │   └── base.apt
+    └── files/
+        └── opt/
+            └── my-service/
+                ├── docker-compose.yaml
+                ├── docker-compose.yaml.path
+                └── docker-compose.yaml.policy
+```
+
+For a real-world example, see the [Dokploy template](https://github.com/kethalia/infrahaus/tree/main/infra/lxc/templates/dokploy) or [WireGuard Proxy template](https://github.com/kethalia/infrahaus/tree/main/infra/lxc/templates/wireguard-proxy) in the repository.
+
+## See also
+
+- [Template Creation Guide](/docs/container-templates/template-creation) — step-by-step walkthrough for writing a new template
+- [Container Deployment Walkthrough](/docs/container-templates/deployment-walkthrough) — how to deploy a template through the dashboard
+- [Configuration](/docs/container-templates/configuration) — config-manager runtime options

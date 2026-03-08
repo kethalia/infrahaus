@@ -1,0 +1,173 @@
+---
+title: Container Deployment Walkthrough
+description: End-to-end guide for deploying an LXC container from a template using the Infrahaus dashboard.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Overview
+
+This walkthrough covers the complete flow of deploying an LXC container from a template: selecting a template, configuring resources, deploying to a Proxmox node, and verifying the running container.
+
+## Prerequisites
+
+- At least one Proxmox node connected (see [Node Configuration](/docs/getting-started/node-configuration))
+- At least one template discovered in the dashboard
+- Sufficient resources on the target node (check node CPU/memory on the Dashboard page)
+
+## Step 1: Navigate to Templates
+
+1. Log in to the Infrahaus dashboard
+2. Click **Templates** in the left sidebar
+
+The Templates page shows all discovered templates. Each card displays:
+- Template name and description
+- Default resource requirements (CPU, RAM, disk)
+- Tags (e.g., `web3`, `docker`, `development`)
+
+If no templates appear, click **Discover Templates** to scan the repository.
+
+## Step 2: Select a template
+
+Click on a template card to open its detail view. Review:
+- **Description**: What the template installs and configures
+- **Default resources**: CPU cores, RAM (MB), disk (GB)
+- **Container type**: Unprivileged or privileged
+- **Installed software**: Listed in the template's documentation
+
+For this walkthrough, we will use the **Web3 Dev Container** template.
+
+## Step 3: Start deployment
+
+Click **Deploy** on the template detail page to open the deployment wizard.
+
+### Wizard Step 1 — Basic settings
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| **Container name** | Display name in Proxmox | Template name |
+| **Node** | Which Proxmox node to deploy to | First connected node |
+| **VM ID** | Proxmox container ID (auto-assigned or manual) | Next available |
+
+### Wizard Step 2 — Resources
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| **CPU cores** | vCPU count | From `TEMPLATE_CPU` |
+| **Memory (MB)** | RAM allocation | From `TEMPLATE_RAM` |
+| **Disk (GB)** | Root disk size | From `TEMPLATE_DISK` |
+
+You can lower resources for development or increase them for production workloads.
+
+### Wizard Step 3 — Network
+
+| Field | Description |
+|-------|-------------|
+| **Bridge** | Proxmox network bridge (usually `vmbr0`) |
+| **IP address** | Static IP or DHCP |
+| **Gateway** | Default gateway for the container |
+
+<Callout type="info">
+  DHCP is the easiest option for home labs. Use a static IP if you need
+  predictable container addresses or are setting up a service that other
+  devices will connect to.
+</Callout>
+
+### Wizard Step 4 — Review and deploy
+
+Review your configuration and click **Deploy Container**.
+
+## Step 4: Monitor deployment progress
+
+After clicking Deploy, you are redirected to the deployment progress page. This shows real-time logs from:
+
+1. **Provisioning**: Proxmox creates the LXC container
+2. **Boot**: Container starts for the first time
+3. **Script execution**: Provisioning scripts run (00-pre-checks.sh → 99-verify.sh)
+4. **File push**: Static files are written to the container filesystem
+5. **Verification**: The verify script confirms everything is working
+
+<Callout type="info">
+  Deployment typically takes 3–10 minutes depending on the template complexity
+  and download speed for packages.
+</Callout>
+
+A green checkmark on each step indicates success. A red X stops the deployment and shows the error.
+
+## Step 5: Access the container
+
+Once deployment completes, navigate to the container detail page. You will see:
+
+- **Status**: Running / Stopped
+- **IP address**: Assigned address (or DHCP-assigned address)
+- **Services**: Running services detected inside the container
+- **CPU / Memory**: Real-time resource usage
+
+### SSH access
+
+```bash
+ssh root@<container-ip>
+```
+
+The root password is set during provisioning. Check the container's [Credentials](/docs/container-templates/credentials) documentation for the default credentials.
+
+### Web services
+
+Some templates expose web interfaces:
+- **Web3 Dev Container**: VS Code Server at `http://<container-ip>:8080`
+- **Dokploy**: Dashboard at `http://<container-ip>:3000`
+- **Coder**: Workspace at `http://<container-ip>:3333`
+
+## Step 6: Verify services
+
+From the container detail page, click the **Services** tab to see all running services and their status. Click **Logs** on any service to view recent output.
+
+You can also verify manually via SSH:
+
+```bash
+# Check systemd services
+systemctl status
+
+# Check listening ports
+ss -tlnp
+
+# View container logs
+journalctl -f
+```
+
+## Post-deployment tasks
+
+### Add to pool
+
+If you did not use pool isolation during deployment, you can add the container to the `infrahaus` pool manually:
+
+1. In Proxmox, click the container
+2. Go to **Options → Pool** → set to `infrahaus`
+
+### Snapshots
+
+The config-manager creates automatic snapshots before each configuration sync. To take a manual snapshot from the dashboard:
+
+1. Navigate to the container detail page
+2. Click **Snapshots → Take Snapshot**
+3. Enter a description and click **Create**
+
+### Update configuration
+
+The container syncs its configuration from the git repository on every boot. To push an update:
+
+1. Modify the template scripts or files in your fork of the repository
+2. Commit and push to the branch the container is tracking
+3. Reboot the container (or wait for the next sync cycle)
+
+## Troubleshooting
+
+**Deployment fails at pre-checks**: Check internet connectivity from the Proxmox host. The container needs internet access to download packages.
+
+**Deployment fails at script execution**: SSH into the container and run the failing script manually to see the error output.
+
+**Container created but services not running**: Check `journalctl -u config-manager` for config-manager logs. The scripts may have exited with an error during first boot.
+
+**Cannot reach web services**: Verify the container's IP address and check that the required ports are not blocked by the Proxmox host's firewall.
+
+**Deployment stuck at "Provisioning"**: The Proxmox API call may have timed out. Check the Proxmox web UI to see if the container was actually created.
