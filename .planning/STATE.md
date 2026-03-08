@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 08-02-PLAN.md — deploy.sh main entry point
-last_updated: "2026-03-08T03:46:00Z"
-last_activity: 2026-03-08 — Completed 08-02-PLAN.md (deploy.sh deployment pipeline orchestrator)
+stopped_at: Completed 08-08-PLAN.md — Engine README and integration verification (awaiting human-verify checkpoint)
+last_updated: "2026-03-08T03:56:00Z"
+last_activity: 2026-03-08 — Completed 08-08-PLAN.md (engine README with 300 lines, all 30 bash files pass syntax validation)
 progress:
   total_phases: 12
   completed_phases: 8
   total_plans: 59
-  completed_plans: 51
-  percent: 86
+  completed_plans: 52
+  percent: 88
 ---
 
 # Project State
@@ -366,6 +366,7 @@ Progress: [███████░░░] 71%
 - [Phase 08-06]: ZAP URL dynamic resolution from GitHub API releases (not hardcoded weekly tag) in 42_zap.sh
 - [Phase 08-lxc-container-template-engine]: 50_claude-skills.sh guard checks if commands/ has files (not just exists) — reliable already-configured signal when engine pushes files later
 - [Phase 08-lxc-container-template-engine]: 99_verify.sh: exits 1 only for missing critical tools; optional tools (myth, opencode, ZAP, oh-my-zsh) use separate OPTIONAL_FAIL counter
+- [Phase 08-08]: Engine README is 300 lines (5x plan minimum) covering CLI reference, template creation guide, script conventions, engine architecture, and resume/recovery; all 30 bash files across the engine pass bash -n validation
 
 ## Pending Work
 
@@ -376,9 +377,16 @@ Progress: [███████░░░] 71%
 - Phase 5: Web UI & Monitoring — 2/2 plans complete
 - Phase 6: CI/CD & Deployment (#89-90)
 - Phase 7: VM to Run OpenClaw (3 plans)
-- Phase 8: Proxmox LXC Container Template Engine (9 plans)
+- Phase 8: Proxmox LXC Container Template Engine (9 plans) — engine code complete, awaiting human verify
   - **08-01 COMPLETE** — 6 engine library modules (logging, config, state, container, files, hooks)
+  - **08-02 COMPLETE** — deploy.sh main entry point with full 11-phase pipeline
   - **08-03 COMPLETE** — forge-shield template.yaml + 00_base-system.sh + 01_create-user.sh
+  - **08-04 COMPLETE** — language runtime scripts (Node.js 22, Python/pipx, Go, Rust)
+  - **08-05 COMPLETE** — EVM and AI tool scripts (Foundry, solc-select, Claude Code, OpenCode, GSD)
+  - **08-06 COMPLETE** — security tool scripts (Semgrep, Trivy, Gitleaks, Slither, Aderyn, Echidna, ZAP)
+  - **08-07 COMPLETE** — files/ (Claude commands, security scripts, CLAUDE.md, tmux.conf), hooks, minimal template
+  - **08-08 COMPLETE** — engine README (300 lines), all bash files pass syntax validation
+  - **08-09 COMPLETE** — Claude skills, shell setup, verification scripts
 - **Known issue:** Zod v3→v4 type incompatibility with @hookform/resolvers in 6 form files (pre-existing, not blocking)
 
 ## Blockers/Concerns
@@ -395,7 +403,7 @@ Progress: [███████░░░] 71%
 
 ## Session Continuity
 
-Last session: 2026-03-08T03:34:05.199Z
-Stopped at: Completed 08-09-PLAN.md — Claude skills, shell setup, and verification scripts
+Last session: 2026-03-08T03:56:00Z
+Stopped at: Completed 08-08-PLAN.md — Engine README and integration verification (awaiting human-verify checkpoint)
 Resume file: None
-Next step: Continue Phase 8 — next plan
+Next step: Human review of complete LXC template engine, then real Proxmox deployment test

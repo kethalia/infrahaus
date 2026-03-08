@@ -247,16 +247,16 @@ Plans:
 
 **Goal:** Reusable, config-driven template system that deploys fully provisioned LXC containers on Proxmox via declarative YAML config and convention-based directory structure, shipping "forge-shield" as the first template — a full-stack + EVM dev environment with GSD/OpenCode and integrated security tooling
 **Depends on:** Phase 07
-**Plans:** 3/9 plans executed
+**Plans:** 9/9 plans executed (awaiting human-verify checkpoint for 08-08)
 
 Plans:
 
 - [x] 08-01-PLAN.md — Engine library modules (logging, config, state, container, files, hooks)
 - [x] 08-02-PLAN.md — Engine deploy.sh main entry point with full deployment pipeline
 - [x] 08-03-PLAN.md — forge-shield template.yaml + base system and user creation scripts
-- [ ] 08-04-PLAN.md — forge-shield language runtime scripts (Node, Python, Go, Rust)
-- [ ] 08-05-PLAN.md — forge-shield EVM tools (Foundry, solc-select) + AI tools (Claude Code, OpenCode, GSD)
-- [ ] 08-06-PLAN.md — forge-shield security tool scripts (web + Solidity + ZAP)
-- [ ] 08-07-PLAN.md — forge-shield files/ (commands, scripts, CLAUDE.md, tmux.conf) + hooks/ + minimal/ template
-- [ ] 08-08-PLAN.md — Engine README + integration verification checkpoint
-- [ ] 08-09-PLAN.md — forge-shield setup scripts (Claude skills, shell config, verification)
+- [x] 08-04-PLAN.md — forge-shield language runtime scripts (Node, Python, Go, Rust)
+- [x] 08-05-PLAN.md — forge-shield EVM tools (Foundry, solc-select) + AI tools (Claude Code, OpenCode, GSD)
+- [x] 08-06-PLAN.md — forge-shield security tool scripts (web + Solidity + ZAP)
+- [x] 08-07-PLAN.md — forge-shield files/ (commands, scripts, CLAUDE.md, tmux.conf) + hooks/ + minimal/ template
+- [x] 08-08-PLAN.md — Engine README + integration verification checkpoint
+- [x] 08-09-PLAN.md — forge-shield setup scripts (Claude skills, shell config, verification)
