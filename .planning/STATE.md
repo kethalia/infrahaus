@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 07-vm-to-run-openclaw/07-01-PLAN.md
-last_updated: "2026-03-08T02:00:11.965Z"
+stopped_at: Completed 07-02-PLAN.md (VM post-install scripts)
+last_updated: "2026-03-08T02:01:16.915Z"
 last_activity: 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 progress:
   total_phases: 12
   completed_phases: 7
   total_plans: 56
-  completed_plans: 42
+  completed_plans: 43
   percent: 71
 ---
 
@@ -352,6 +352,9 @@ Progress: [███████░░░] 71%
 - [Phase 05-web-ui-monitoring]: Globe dropdown shows ALL web-accessible services (not capped) — http://ip:port URLs, no reachability checks, returns null when no services or IP
 - [Phase 05-web-ui-monitoring/05-02]: ResourceCharts uses Recharts via shadcn ChartContainer — timeframe-keyed TanStack Query hook with staleTime=refetchInterval for auto-polling. CPU Proxmox ratio (0-1) multiplied by 100 for percentage display. isRunning from container.status (not liveMetrics) avoids stale data edge case.
 - [Phase 07-vm-to-run-openclaw]: VM stays running after create-vm.sh — no qm template call; bash -c subshell for community scripts; VMID detection via qm list hostname search; cloud-init minimal bootstrap with passwordless sudo for run-scripts.sh automation
+- [Phase 07-vm-to-run-openclaw]: Standalone color logging (not config-manager) for VM scripts — no framework available inside VM
+- [Phase 07-vm-to-run-openclaw]: VNC configured with -localhost no for remote access; password 'openclaw' set via vncpasswd -f stdin
+- [Phase 07-vm-to-run-openclaw]: Script 06 gates install on npm view openclaw — exits with TODO instructions if not on public npm registry
 
 ## Pending Work
 
@@ -379,7 +382,7 @@ Progress: [███████░░░] 71%
 
 ## Session Continuity
 
-Last session: 2026-03-08T02:00:11.961Z
-Stopped at: Completed 07-vm-to-run-openclaw/07-01-PLAN.md
+Last session: 2026-03-08T02:01:09.775Z
+Stopped at: Completed 07-02-PLAN.md (VM post-install scripts)
 Resume file: None
 Next step: Phase 5 (Web UI & Monitoring) or merge feat/ssh-key-containers into feat/04.5-auth-decoupling
