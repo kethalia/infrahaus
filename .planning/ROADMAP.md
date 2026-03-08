@@ -231,7 +231,7 @@ Issues: #89, #90
 
 **Goal:** Create a VM template in infra/ that provisions a Debian 13 desktop VM with XFCE, Chrome, Node.js, VNC, and OpenClaw using the ProxmoxVE community script as foundation
 **Depends on:** Phase 06
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
