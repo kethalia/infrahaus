@@ -82,7 +82,7 @@ export function AppSidebar({ address }: { address?: string }) {
                   <Box className="size-4" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">LXC Manager</span>
+                  <span className="font-semibold">Infrahaus</span>
                   <span className="text-xs">Dashboard</span>
                 </div>
               </Link>
