@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "index",
+    "getting-started",
+    "container-templates",
+    "ai",
+    "development",
+    "deployment",
+    "media",
+    "gaming",
+    "blockchain",
+    "networking"
+  ]
+}
