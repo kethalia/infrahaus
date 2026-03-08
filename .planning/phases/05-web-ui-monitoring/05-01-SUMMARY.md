@@ -116,6 +116,15 @@ None — no external service configuration required.
 - WebLinksDropdown is live on dashboard cards, showing web services with IP-based URLs
 - Blockers: none
 
+## Self-Check: PASSED
+
+- rrddata/route.ts: FOUND at `apps/dashboard/src/app/api/containers/[node]/[vmid]/rrddata/route.ts`
+- web-links-dropdown.tsx: FOUND at `apps/dashboard/src/components/containers/web-links-dropdown.tsx`
+- 05-01-SUMMARY.md: FOUND at `.planning/phases/05-web-ui-monitoring/05-01-SUMMARY.md`
+- Commit 856d5a9 (Task 1): FOUND
+- Commit ee19b73 (Task 2): FOUND
+- TypeScript: PASS (npx tsc --noEmit — no errors)
+
 ---
 *Phase: 05-web-ui-monitoring*
 *Completed: 2026-03-08*
