@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — LXC Template Manager Dashboard
 status: planning
-last_updated: "2026-03-08T18:18:42.042Z"
-last_activity: "2026-03-08 — Completed 10-02: all /docs/ links verified, tsc passes, Fumadocs MDX generation confirmed error-free"
+last_updated: "2026-03-08T18:36:26.611Z"
+last_activity: "2026-03-08 — Completed 12-01: apps/web deleted, pnpm lockfile cleaned, README rewritten, SETUP.md link fixed"
 progress:
   total_phases: 6
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 50
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 6
+  percent: 95
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 
 **Project:** Infrahaus (apps/dashboard as hub)
 **Milestone:** v2.0 — Dashboard as Hub
-**Phase:** 10 — Content Migration (apps/web → apps/dashboard) — COMPLETE ✅
-**Plan:** 10-02 COMPLETE
+**Phase:** 12 — apps/web Removal — COMPLETE ✅
+**Plan:** 12-01 COMPLETE
 **Status:** Ready to plan
-**Last activity:** 2026-03-08 — Completed 10-02: all /docs/ links verified, tsc passes, Fumadocs MDX generation confirmed error-free
+**Last activity:** 2026-03-08 — Completed 12-01: apps/web deleted, pnpm lockfile cleaned, README rewritten, SETUP.md link fixed
 
-Progress: [█████░░░░░] 50%
+Progress: [██████████] 95%
 
 ## Milestone v1.0 Summary (CLOSED ✅)
 
@@ -46,9 +46,15 @@ Make `apps/dashboard` the centrepiece of the entire repo:
 1. **Phase 09:** Fumadocs integrated into apps/dashboard (/docs route) ✅ COMPLETE
 2. **Phase 10:** All 39 MDX files migrated from apps/web → apps/dashboard ✅ COMPLETE
 3. **Phase 11:** New documentation (Proxmox setup, token creation, etc.)
-4. **Phase 12:** apps/web removed from monorepo
+4. **Phase 12:** apps/web removed from monorepo ✅ COMPLETE
 5. **Phase 13:** infra/ configs consolidated into dashboard templates
 6. **Phase 14:** Infrahaus branding unified throughout
+
+## Decisions from Phase 12 Plan 01
+
+- apps/web deletion confirmed safe — Phase 10 diff -rq showed zero differences with apps/dashboard/content/docs/ before deletion
+- Grep sweep confirmed zero apps/web references outside .planning/ history after deletion + README/SETUP.md fixes
+- Exit 137 (OOM kill) during next build remains pre-existing; tsc --noEmit is the authoritative build check
 
 ## Decisions from Phase 10 Plan 02
 
