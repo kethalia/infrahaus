@@ -26,8 +26,8 @@ COPY --from=deps /app/apps/dashboard/node_modules ./apps/dashboard/node_modules
 COPY . .
 
 # Explicitly generate Prisma client (postinstall may have run, but belt-and-suspenders)
-RUN pnpm --filter dashboard exec prisma generate
-RUN pnpm --filter dashboard build
+RUN pnpm --filter @infrahaus/dashboard exec prisma generate
+RUN pnpm --filter @infrahaus/dashboard build
 
 # ---
 FROM node:22-alpine AS runner
