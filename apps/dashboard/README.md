@@ -1,6 +1,6 @@
-# Dashboard
+# Infrahaus — Dashboard
 
-LXC Template Manager Dashboard for Proxmox VE.
+Self-hosted infrastructure management on Proxmox VE.
 
 ## Development
 
