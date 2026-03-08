@@ -171,7 +171,7 @@ Requirements: REQ-2.07
 | Phase | Description | Plans | Status |
 |-------|-------------|-------|--------|
 | 09 | Fumadocs integration in dashboard | 3/3 | Complete ✅ |
-| 10 | 2/2 | Complete   | 2026-03-08 |
+| 10 | 2/2 | Complete    | 2026-03-08 |
 | 11 | New documentation | 2 | Not started |
 | 12 | apps/web removal | 1 | Not started |
 | 13 | Infra template consolidation | 3 | Not started |

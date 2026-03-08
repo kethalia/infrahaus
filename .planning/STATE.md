@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Dashboard as Hub
-status: active
-last_updated: "2026-03-08T18:11:31Z"
-last_activity: "2026-03-08 — Completed 10-02: verified links, tsc, Fumadocs MDX generation all pass"
+milestone: v1.0
+milestone_name: — LXC Template Manager Dashboard
+status: planning
+last_updated: "2026-03-08T18:18:42.042Z"
+last_activity: "2026-03-08 — Completed 10-02: all /docs/ links verified, tsc passes, Fumadocs MDX generation confirmed error-free"
 progress:
   total_phases: 6
-  completed_phases: 3
+  completed_phases: 2
   total_plans: 5
   completed_plans: 5
   percent: 50
@@ -21,7 +21,7 @@ progress:
 **Milestone:** v2.0 — Dashboard as Hub
 **Phase:** 10 — Content Migration (apps/web → apps/dashboard) — COMPLETE ✅
 **Plan:** 10-02 COMPLETE
-**Status:** Phase 10 complete — ready for Phase 11
+**Status:** Ready to plan
 **Last activity:** 2026-03-08 — Completed 10-02: all /docs/ links verified, tsc passes, Fumadocs MDX generation confirmed error-free
 
 Progress: [█████░░░░░] 50%
