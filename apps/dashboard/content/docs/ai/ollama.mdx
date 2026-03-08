@@ -3,6 +3,13 @@ title: Ollama
 description: Self-hosted LLM inference engine with NVIDIA GPU acceleration.
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
+<Callout type="info">
+  **Dashboard Infra Catalog** — The Ollama standalone (CPU inference) service is listed in the
+  [Infra Catalog](/infra). No GPU required for CPU-mode inference.
+</Callout>
+
 ## Overview
 
 [Ollama](https://ollama.ai) is an LLM inference engine that runs large language models locally. In this stack it serves as the backend for Open WebUI, handling all model loading and inference on the GPU.
