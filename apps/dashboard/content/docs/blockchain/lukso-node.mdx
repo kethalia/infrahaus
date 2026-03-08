@@ -3,9 +3,17 @@ title: LUKSO Node Setup
 description: Full setup, configuration, monitoring, and maintenance guide for the LUKSO Docker node.
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 ## Overview
 
 This page covers the complete setup and operations for the LUKSO node defined in `infra/lukso-node/`. The node runs Geth (execution) and Lighthouse (consensus) with Prometheus and Grafana for monitoring.
+
+<Callout type="info">
+  **Dashboard Infra Catalog** — The LUKSO node stack (Geth, Lighthouse, Prometheus, Grafana)
+  is listed in the [Infra Catalog](/infra).
+  This service requires significant disk (100GB+) and is best run on a dedicated VM or host.
+</Callout>
 
 ## Repository structure
 
