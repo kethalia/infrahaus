@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 05-01-PLAN.md — RRD data backend and Globe web-links dropdown
-last_updated: "2026-03-08T00:30:36.681Z"
+stopped_at: Completed 05-02-PLAN.md — Resource history charts with timeframe toggle
+last_updated: "2026-03-08T01:00:00.000Z"
 last_activity: 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 progress:
   total_phases: 12
@@ -350,12 +350,15 @@ Progress: [███████░░░] 71%
 - **Server-session redirect (useRedirectOnAuth)** — polls /api/auth/me instead of wagmi isConnected to prevent redirect loop (isConnected fires before SIWE verify completes)
 - **Pool is optional on ProxmoxNode** — single-user setups without a pool still work. Pool flows: DB → node form → create action → job queue → worker → Proxmox API. Empty pool in create = undefined (not stored); empty in update = clears to null.
 - [Phase 05-web-ui-monitoring]: Globe dropdown shows ALL web-accessible services (not capped) — http://ip:port URLs, no reachability checks, returns null when no services or IP
+- [Phase 05-web-ui-monitoring/05-02]: ResourceCharts uses Recharts via shadcn ChartContainer — timeframe-keyed TanStack Query hook with staleTime=refetchInterval for auto-polling. CPU Proxmox ratio (0-1) multiplied by 100 for percentage display. isRunning from container.status (not liveMetrics) avoids stale data edge case.
 
 ## Pending Work
 
 - Phase 04.5: Complete ✓ — All 4 plans executed. Auth fully decoupled from Proxmox.
 - **Phase 04.6: Pool-Based Proxmox Access Control (1 plan) — COMPLETE ✓**
-- Phase 5: Web UI & Monitoring (#87-88)
+- **Phase 05-01 COMPLETE ✓** — RRD API route, Globe web-links dropdown
+- **Phase 05-02 COMPLETE ✓** — Resource history charts (CPU/Memory/Disk/Network I/O) with timeframe toggle
+- Phase 5: Web UI & Monitoring — 2/2 plans complete
 - Phase 6: CI/CD & Deployment (#89-90)
 - Phase 7: VM to Run OpenClaw (3 plans)
 - Phase 8: Proxmox LXC Container Template Engine (9 plans)

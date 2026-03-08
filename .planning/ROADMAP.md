@@ -200,14 +200,14 @@ Plans:
 ### Phase 05: Web UI & Monitoring
 
 **Goal:** Service discovery with web UI access links and resource usage monitoring
-**Status:** Not started
+**Status:** Complete
 **Depends on:** Phase 04.6
-**Plans:** 2 plans
+**Plans:** 2 plans (2/2 complete)
 
 Plans:
 
-- [ ] 05-01-PLAN.md — RRD data API backend + Globe web-links dropdown on dashboard cards
-- [ ] 05-02-PLAN.md — Resource history area charts (CPU, Memory, Disk, Network I/O) on Overview tab
+- [x] 05-01-PLAN.md — RRD data API backend + Globe web-links dropdown on dashboard cards
+- [x] 05-02-PLAN.md — Resource history area charts (CPU, Memory, Disk, Network I/O) on Overview tab
 
 Issues: #87, #88
 
