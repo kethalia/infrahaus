@@ -1,0 +1,41 @@
+name: minimal
+description: "Minimal LXC container template -- use as a starting point for new templates"
+version: "1.0.0"
+
+container:
+  ostemplate: "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
+  hostname: "minimal"
+  cores: 1
+  memory: 1024
+  swap: 512
+  disk: 8
+  storage: "local-lvm"
+  network:
+    bridge: "vmbr0"
+    ip: "dhcp"
+  unprivileged: true
+  features:
+    - nesting=1
+  tags:
+    - minimal
+
+user:
+  name: coder
+  uid: 1000
+  shell: /bin/bash
+  sudo: true
+
+packages:
+  apt:
+    - curl
+    - wget
+    - git
+    - vim
+    - sudo
+    - ca-certificates
+
+scripts_dir: scripts/
+files_dir: files/
+
+env:
+  LANG: "en_US.UTF-8"
