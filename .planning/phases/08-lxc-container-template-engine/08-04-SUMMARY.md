@@ -114,5 +114,17 @@ None - no external service configuration required.
 - Scripts follow the established USERNAME env var pattern
 
 ---
+## Self-Check: PASSED
+
+- templates/forge-shield/scripts/10_node.sh: FOUND, executable, syntax-ok, 37 lines
+- templates/forge-shield/scripts/11_python.sh: FOUND, executable, syntax-ok, 37 lines
+- templates/forge-shield/scripts/12_go.sh: FOUND, executable, syntax-ok, 45 lines
+- templates/forge-shield/scripts/13_rust.sh: FOUND, executable, syntax-ok, 34 lines
+- 08-04-SUMMARY.md: FOUND
+- Task 1 commit 739cb6c: FOUND in git log
+- Task 2 commit 094b963: FOUND in git log
+- Docs commit 5272cc8: FOUND in git log and pushed to GitHub
+
+---
 *Phase: 08-lxc-container-template-engine*
 *Completed: 2026-03-08*
