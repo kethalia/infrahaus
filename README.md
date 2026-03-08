@@ -40,7 +40,7 @@ cd infrahaus
 pnpm install
 
 # Start the dashboard in development mode
-pnpm --filter dashboard dev
+pnpm --filter @infrahaus/dashboard dev
 ```
 
 The dashboard will be available at `http://localhost:3002`. Documentation is served at `http://localhost:3002/docs`.
