@@ -175,5 +175,5 @@ Requirements: REQ-2.07
 | 11 | New documentation | 2 | Not started |
 | 12 | apps/web removal | Complete    | 2026-03-08 |
 | 13 | 3/3 | Complete   | 2026-03-08 |
-| 14 | 1/1 | Complete   | 2026-03-08 |
+| 14 | 1/1 | Complete    | 2026-03-08 |
 | **Total** | | **12** | **3/12** |
