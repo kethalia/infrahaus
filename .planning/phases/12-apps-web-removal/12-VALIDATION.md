@@ -2,7 +2,7 @@
 phase: 12
 slug: apps-web-removal
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-03-08
 ---
@@ -39,10 +39,11 @@ created: 2026-03-08
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
 | 12-01-01 | 01 | 1 | REQ-2.04 | shell | `test ! -d apps/web && echo "DELETED" \|\| echo "STILL EXISTS"` | ✅ | ⬜ pending |
-| 12-01-02 | 01 | 1 | REQ-2.04 | shell | `grep "apps/web" pnpm-lock.yaml \|\| echo "CLEAN"` | ✅ | ⬜ pending |
+| 12-01-02 | 01 | 1 | REQ-2.04 | shell | `grep "apps/web" pnpm-lock.yaml \|\| echo "CLEAN"` — also confirm `pnpm-workspace.yaml` and `turbo.json` contain no stale `web` references: `grep "web" pnpm-workspace.yaml turbo.json \|\| echo "CLEAN"` | ✅ | ⬜ pending |
 | 12-01-03 | 01 | 1 | REQ-2.04 | shell | `grep "apps/web" README.md \|\| echo "CLEAN"` | ✅ | ⬜ pending |
 | 12-01-04 | 01 | 1 | REQ-2.04 | shell | `grep "apps/web" infra/lxc/docs/SETUP.md \|\| echo "CLEAN"` | ✅ | ⬜ pending |
-| 12-01-05 | 01 | 1 | REQ-2.04 | shell | `pnpm --filter dashboard build 2>&1 \| tail -5` | ✅ | ⬜ pending |
+| 12-01-05 | 01 | 1 | REQ-2.04 | shell | `grep -r "apps/web" . --include="*.ts" --include="*.tsx" --include="*.mjs" --include="*.json" --include="*.yaml" --include="*.yml" --include="*.md" --exclude-dir=node_modules --exclude-dir=".next" --exclude-dir=".next.old" --exclude-dir=".planning" 2>/dev/null \|\| echo "CLEAN"` | ✅ | ⬜ pending |
+| 12-01-06 | 01 | 1 | REQ-2.04 | shell | `pnpm --filter dashboard build 2>&1 \| tail -5` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -65,11 +66,11 @@ Existing infrastructure covers all phase requirements. This phase is purely dele
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 5s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 5s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** 2026-03-08
