@@ -2,7 +2,8 @@
   "model_profile": "balanced",
   "workflow": {
     "research": true,
-    "plan_check": true
+    "plan_check": true,
+    "_auto_chain_active": false
   },
   "commit_docs": true
 }
