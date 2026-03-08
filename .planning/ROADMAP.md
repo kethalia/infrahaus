@@ -32,7 +32,7 @@ Summary:
 **Goal:** Add Fumadocs to `apps/dashboard`. Create `/docs` route with navigation, search, and theme matching the dashboard.
 **Depends on:** Phase 08 (complete)
 **Status:** Not started
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Key deliverables:
 - Fumadocs installed as dependency of apps/dashboard (fumadocs-core, fumadocs-ui, fumadocs-mdx)
@@ -170,7 +170,7 @@ Requirements: REQ-2.07
 
 | Phase | Description | Plans | Status |
 |-------|-------------|-------|--------|
-| 09 | Fumadocs integration in dashboard | 3 | Not started |
+| 09 | 1/3 | In Progress|  |
 | 10 | Content migration from apps/web | 2 | Not started |
 | 11 | New documentation | 2 | Not started |
 | 12 | apps/web removal | 1 | Not started |
