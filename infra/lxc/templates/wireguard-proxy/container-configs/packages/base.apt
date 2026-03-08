@@ -1,0 +1,5 @@
+curl
+ca-certificates
+gnupg
+iproute2
+wireguard-tools
