@@ -68,7 +68,7 @@ export default function LoginPage() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">LXC Manager</CardTitle>
+        <CardTitle className="text-2xl">Infrahaus</CardTitle>
         <CardDescription>
           Connect your Universal Profile to sign in
         </CardDescription>
