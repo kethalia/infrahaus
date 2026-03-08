@@ -25,7 +25,7 @@ const connectors = connectorsForWallets(
     },
   ],
   {
-    appName: "LXC Manager",
+    appName: "Infrahaus",
     projectId,
   },
 );
