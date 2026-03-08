@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — LXC Template Manager Dashboard
-status: executing
-last_updated: "2026-03-08T19:09:00.537Z"
-last_activity: "2026-03-08 — Completed 13-03: Fumadocs Callout cross-links added to 7 MDX docs pages"
+status: completed
+last_updated: "2026-03-08T19:45:00.000Z"
+last_activity: "2026-03-08 — Completed 14-01: Infrahaus branding unified across all dashboard surfaces"
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  completed_phases: 5
+  total_plans: 10
+  completed_plans: 10
   percent: 96
 ---
 
@@ -19,10 +19,10 @@ progress:
 
 **Project:** Infrahaus (apps/dashboard as hub)
 **Milestone:** v2.0 — Dashboard as Hub
-**Phase:** 13 — Infra Template Consolidation — COMPLETE ✅
-**Plan:** 13-03 COMPLETE (all 3 plans done)
-**Status:** Phase 13 complete — ready for Phase 14 (Infrahaus branding)
-**Last activity:** 2026-03-08 — Completed 13-03: Fumadocs Callout cross-links added to 7 MDX docs pages
+**Phase:** 14 — Branding Polish — In Progress
+**Plan:** 14-01 COMPLETE (1 of N plans done)
+**Status:** Plan 14-01 complete — all "LXC Manager" strings replaced, @infrahaus/dashboard package scoped, SVG favicon added
+**Last activity:** 2026-03-08 — Completed 14-01: Infrahaus branding unified across all dashboard surfaces
 
 Progress: [██████████] 96%
 
@@ -49,6 +49,12 @@ Make `apps/dashboard` the centrepiece of the entire repo:
 4. **Phase 12:** apps/web removed from monorepo ✅ COMPLETE
 5. **Phase 13:** infra/ configs consolidated into dashboard templates
 6. **Phase 14:** Infrahaus branding unified throughout
+
+## Decisions from Phase 14 Plan 01
+
+- Package renamed to @infrahaus/dashboard (scoped) — all --filter references updated explicitly across Dockerfile, docker-compose.yml, ci.yml, playwright.config.ts, README.md
+- SVG favicon created as icon.svg (not replacing favicon.ico) — Next.js App Router metadata file convention auto-serves SVG on modern browsers; ICO remains as legacy fallback
+- All pnpm filter references must use --filter @infrahaus/dashboard (not bare 'dashboard')
 
 ## Decisions from Phase 13 Plan 03
 

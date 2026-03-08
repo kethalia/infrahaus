@@ -150,7 +150,7 @@ Requirements: REQ-2.05, REQ-2.06
 **Goal:** Unify Infrahaus branding throughout. Final polish before v2.0 ships.
 **Depends on:** Phase 12, 13
 **Status:** Not started
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Key deliverables:
 - Dashboard title → "Infrahaus"
@@ -175,5 +175,5 @@ Requirements: REQ-2.07
 | 11 | New documentation | 2 | Not started |
 | 12 | apps/web removal | Complete    | 2026-03-08 |
 | 13 | 3/3 | Complete   | 2026-03-08 |
-| 14 | Branding + polish | 1 | Not started |
+| 14 | 1/1 | Complete   | 2026-03-08 |
 | **Total** | | **12** | **3/12** |
