@@ -56,7 +56,7 @@ Requirements: REQ-2.01, REQ-2.06
 **Goal:** Migrate all 29 MDX files from `apps/web/content/docs/` into `apps/dashboard`. Verify no broken links.
 **Depends on:** Phase 09
 **Status:** Not started
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Key deliverables:
 - All existing docs sections migrated:
@@ -171,7 +171,7 @@ Requirements: REQ-2.07
 | Phase | Description | Plans | Status |
 |-------|-------------|-------|--------|
 | 09 | Fumadocs integration in dashboard | 3/3 | Complete ✅ |
-| 10 | Content migration from apps/web | 2 | Not started |
+| 10 | 2/2 | Complete   | 2026-03-08 |
 | 11 | New documentation | 2 | Not started |
 | 12 | apps/web removal | 1 | Not started |
 | 13 | Infra template consolidation | 3 | Not started |

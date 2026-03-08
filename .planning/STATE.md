@@ -3,15 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Dashboard as Hub
 status: active
-stopped_at: "Completed 10-01-PLAN.md — 39 MDX/meta.json docs migrated from apps/web to apps/dashboard"
-last_updated: "2026-03-08T18:07:12Z"
-last_activity: "2026-03-08 — Completed 10-01: Migrate 39 MDX and meta.json docs files from apps/web to apps/dashboard"
+last_updated: "2026-03-08T18:11:31Z"
+last_activity: "2026-03-08 — Completed 10-02: verified links, tsc, Fumadocs MDX generation all pass"
 progress:
   total_phases: 6
-  completed_phases: 2
-  total_plans: 12
-  completed_plans: 4
-  percent: 33
+  completed_phases: 3
+  total_plans: 5
+  completed_plans: 5
+  percent: 50
 ---
 
 # Project State
@@ -20,12 +19,12 @@ progress:
 
 **Project:** Infrahaus (apps/dashboard as hub)
 **Milestone:** v2.0 — Dashboard as Hub
-**Phase:** 10 — Content Migration (apps/web → apps/dashboard) — Plan 01 COMPLETE
-**Plan:** 10-01 COMPLETE
-**Status:** In progress (Phase 10 plan 01 done)
-**Last activity:** 2026-03-08 — Completed 10-01: 39 MDX/meta.json docs migrated from apps/web to apps/dashboard
+**Phase:** 10 — Content Migration (apps/web → apps/dashboard) — COMPLETE ✅
+**Plan:** 10-02 COMPLETE
+**Status:** Phase 10 complete — ready for Phase 11
+**Last activity:** 2026-03-08 — Completed 10-02: all /docs/ links verified, tsc passes, Fumadocs MDX generation confirmed error-free
 
-Progress: [███░░░░░░░] 33%
+Progress: [█████░░░░░] 50%
 
 ## Milestone v1.0 Summary (CLOSED ✅)
 
@@ -45,11 +44,17 @@ See `.planning/milestones/v1.0-ROADMAP.md` for full archive.
 Make `apps/dashboard` the centrepiece of the entire repo:
 
 1. **Phase 09:** Fumadocs integrated into apps/dashboard (/docs route) ✅ COMPLETE
-2. **Phase 10:** All 29 MDX files migrated from apps/web → apps/dashboard ← IN PROGRESS (plan 01 done)
+2. **Phase 10:** All 39 MDX files migrated from apps/web → apps/dashboard ✅ COMPLETE
 3. **Phase 11:** New documentation (Proxmox setup, token creation, etc.)
 4. **Phase 12:** apps/web removed from monorepo
 5. **Phase 13:** infra/ configs consolidated into dashboard templates
 6. **Phase 14:** Infrahaus branding unified throughout
+
+## Decisions from Phase 10 Plan 02
+
+- Build OOM kill (exit 137) is pre-existing from Phase 09 — Fumadocs MDX generation completes successfully before OOM; not caused by Phase 10 migration
+- Lint failures in `.source/` auto-generated files are pre-existing from Phase 09 — Phase 10 adds only MDX/JSON content, no new lint errors
+- All 16 unique /docs/ link targets in migrated MDX resolve to existing files
 
 ## Decisions from Phase 10 Plan 01
 
