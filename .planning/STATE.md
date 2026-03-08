@@ -360,6 +360,9 @@ Progress: [███████░░░] 71%
 - [Phase 07-01]: cloud-init is intentionally minimal — all software installation deferred to run-scripts.sh (Plan 02)
 - [Phase 08-01]: Engine library modules use 6 bash files (logging, config, state, container, files, hooks); all output to stderr for machine-parseable stdout; cfg_get converts yq null to empty string; state uses key=value .deploy-state file; pre_deploy runs on host, post_deploy runs inside container
 - [Phase 08-03]: pipx in apt packages (PEP 668 compliance on Ubuntu 24.04); Claude Code excluded from npm (curl-installed in 30_claude-code.sh); no pip/cargo/go packages in template.yaml (dedicated scripts handle them)
+- [Phase 08-04]: Go pinned to 1.23.6 in 12_go.sh for reproducibility; Rust installed as non-root user via rustup; pipx enforced for Python CLI tools (PEP 668 on Ubuntu 24.04); npm global dir set to ~/.npm-global for user
+- [Phase 08-06]: Mythril soft-install: timeout 600s + || true pattern ensures z3 compilation failure does not abort 41_security-solidity.sh
+- [Phase 08-06]: ZAP URL dynamic resolution from GitHub API releases (not hardcoded weekly tag) in 42_zap.sh
 
 ## Pending Work
 
