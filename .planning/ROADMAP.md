@@ -202,7 +202,7 @@ Plans:
 **Goal:** Service discovery with web UI access links and resource usage monitoring
 **Status:** Complete
 **Depends on:** Phase 04.6
-**Plans:** 2 plans (2/2 complete)
+**Plans:** 2/2 plans complete
 
 Plans:
 

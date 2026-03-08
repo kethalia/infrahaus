@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 05-02-PLAN.md — Resource history charts with timeframe toggle
-last_updated: "2026-03-08T01:00:00.000Z"
+status: planning
+stopped_at: Completed 05-01-PLAN.md — RRD data backend and Globe web-links dropdown
+last_updated: "2026-03-08T00:42:30.253Z"
 last_activity: 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 progress:
   total_phases: 12
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 56
-  completed_plans: 40
+  completed_plans: 41
   percent: 71
 ---
 
@@ -21,7 +21,7 @@ progress:
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04.6-pool-based-access (7 of 11 phases)
 **Plan:** 1 of 1 in current phase
-**Status:** Phase complete
+**Status:** Ready to plan
 **Last activity:** 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 
 Progress: [███████░░░] 71%
