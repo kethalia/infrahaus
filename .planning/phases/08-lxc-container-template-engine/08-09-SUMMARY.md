@@ -102,6 +102,20 @@ None - no external service configuration required.
 - forge-shield template now has all provisioning scripts: base (00-01), languages (10-13 range), EVM dev (20-21), AI/prod (30-32), security (40-42), skills/shell (50-60), verification (99)
 - Plan 08-08 (integration verification + README) can proceed — all scripts exist for `bash -n` validation
 
+## Self-Check: PASSED
+
+All created files exist and all commits are present in the repository.
+
+| Check | Result |
+|-------|--------|
+| `templates/forge-shield/scripts/50_claude-skills.sh` | FOUND |
+| `templates/forge-shield/scripts/60_shell-setup.sh` | FOUND |
+| `templates/forge-shield/scripts/99_verify.sh` | FOUND |
+| `.planning/phases/08-lxc-container-template-engine/08-09-SUMMARY.md` | FOUND |
+| Commit `230e331` (Task 1) | FOUND |
+| Commit `f64b69c` (Task 2) | FOUND |
+| Commit `811c066` (Metadata) | FOUND |
+
 ---
 *Phase: 08-lxc-container-template-engine*
 *Completed: 2026-03-08*
