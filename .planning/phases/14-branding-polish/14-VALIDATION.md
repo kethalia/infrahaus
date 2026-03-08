@@ -2,7 +2,7 @@
 phase: 14
 slug: branding-polish
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-03-08
 ---
@@ -44,7 +44,15 @@ created: 2026-03-08
 | 14-01-04 | 01 | 1 | REQ-2.07 | grep | `grep -n '"name"' apps/dashboard/package.json` (expect @infrahaus/dashboard) | ✅ | ⬜ pending |
 | 14-01-05 | 01 | 1 | REQ-2.07 | grep | `grep -rn "LXC Manager" apps/dashboard/src/lib/web3/` (must be 0) | ✅ | ⬜ pending |
 | 14-01-06 | 01 | 1 | REQ-2.07 | manual | Favicon updated in apps/dashboard/src/app/ | ✅ | ⬜ pending |
-| 14-01-07 | 01 | 1 | REQ-2.07 | grep | `grep -rn "LXC Manager\|LXC Template Manager" README.md apps/dashboard/README.md` (must be 0) | ✅ | ⬜ pending |
+| 14-01-07 | 01 | 1 | REQ-2.07 | grep | `grep -n "filter dashboard" Dockerfile` (must be 0) | ✅ | ⬜ pending |
+| 14-01-08 | 01 | 1 | REQ-2.07 | grep | `grep -n "filter dashboard" docker-compose.yml` (must be 0) | ✅ | ⬜ pending |
+| 14-01-09 | 01 | 1 | REQ-2.07 | grep | `grep -n "filter dashboard" .github/workflows/ci.yml` (must be 0) | ✅ | ⬜ pending |
+| 14-01-10 | 01 | 1 | REQ-2.07 | grep | `grep -n "filter dashboard" apps/dashboard/playwright.config.ts` (must be 0) | ✅ | ⬜ pending |
+| 14-01-11 | 01 | 1 | REQ-2.07 | grep | `grep -n "filter dashboard" README.md` (must be 0) | ✅ | ⬜ pending |
+| 14-01-12 | 01 | 1 | REQ-2.07 | grep | `grep -n "LXC\|LXC Template Manager" apps/dashboard/README.md` (must be 0) | ✅ | ⬜ pending |
+| 14-01-13 | 01 | 1 | REQ-2.07 | manual | `ls apps/dashboard/src/app/icon.svg` exists | ✅ | ⬜ pending |
+| 14-01-14 | 01 | 1 | REQ-2.07 | grep | Full audit: `grep -rn "LXC Manager\|LXC Template Manager" apps/dashboard/src/ ...` (must be 0) | ✅ | ⬜ pending |
+| 14-01-15 | 01 | 1 | REQ-2.07 | run | `cd apps/dashboard && npx tsc --noEmit` exits 0 | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -90,11 +98,11 @@ cd apps/dashboard && npx tsc --noEmit
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or manual steps defined
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0: N/A — no test infrastructure needed
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 15s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or manual steps defined
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0: N/A — no test infrastructure needed
+- [x] No watch-mode flags
+- [x] Feedback latency < 15s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-03-08
