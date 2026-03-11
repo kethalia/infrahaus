@@ -237,10 +237,14 @@ export async function getWizardData(userId: string): Promise<WizardData> {
             ),
           ]);
 
-          // Filter storages that support container rootdir/images content
+          // Filter storages that support container rootdir/images content AND are not disabled.
+          // s.enabled is a pveBoolean (0/1 -> boolean via Zod transform). Storages without
+          // an enabled field at all (undefined) are always active and must pass through.
           const containerStorages = storageList.filter(
             (s) =>
-              s.content?.includes("rootdir") || s.content?.includes("images"),
+              (s.content?.includes("rootdir") ||
+                s.content?.includes("images")) &&
+              s.enabled !== false,
           );
 
           // Filter for bridge interfaces only

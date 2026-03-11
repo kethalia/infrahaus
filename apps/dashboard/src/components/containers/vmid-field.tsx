@@ -120,6 +120,7 @@ export function VmidField<T extends FieldValues>({
                 placeholder="Enter VMID (e.g. 100)"
                 {...field}
                 onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                onInput={(e) => field.onChange((e.target as HTMLInputElement).valueAsNumber || 0)}
               />
             </FormControl>
             {/* Inline status indicator */}
