@@ -200,44 +200,48 @@ Plans:
 ### Phase 05: Web UI & Monitoring
 
 **Goal:** Service discovery with web UI access links and resource usage monitoring
-**Status:** Not started
+**Status:** Complete
 **Depends on:** Phase 04.6
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 
-- [ ] 05-01-PLAN.md — RRD data API backend + Globe web-links dropdown on dashboard cards
-- [ ] 05-02-PLAN.md — Resource history area charts (CPU, Memory, Disk, Network I/O) on Overview tab
+- [x] 05-01-PLAN.md — RRD data API backend + Globe web-links dropdown on dashboard cards
+- [x] 05-02-PLAN.md — Resource history area charts (CPU, Memory, Disk, Network I/O) on Overview tab
 
 Issues: #87, #88
 
 ---
 
-### Phase 06: CI/CD & Deployment
+### Phase 06: CI/CD & Deployment ✓
 
 **Goal:** Docker deployment configuration and CI/CD pipeline with E2E testing
-**Status:** Not started
-**Plans:** 0 plans
+**Status:** Complete
+**Completed:** 2026-03-08
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD — Docker config, CI/CD pipeline
+- [x] 06-01-PLAN.md — Fix Dockerfile (apps/dashboard target, standalone output) + worker-runner stage
+- [x] 06-02-PLAN.md — Production docker-compose.yml (postgres, redis, migrate, app, worker) + .env.example
+- [x] 06-03-PLAN.md — Extend CI (vitest job + docker-build smoke job) + Playwright E2E smoke tests
 
 Issues: #89, #90
 
 ---
 
-### Phase 07: VM to Run OpenClaw
+### Phase 07: VM to Run OpenClaw ✓
 
 **Goal:** Create a VM template in infra/ that provisions a Debian 13 desktop VM with XFCE, Chrome, Node.js, VNC, and OpenClaw using the ProxmoxVE community script as foundation
 **Depends on:** Phase 06
-**Plans:** 3 plans
+**Status:** Complete
+**Plans:** 3/3 plans complete
 
 Plans:
 
-- [ ] 07-01-PLAN.md — VM template structure: template.conf, minimal cloud-init bootstrap, and create-vm.sh wrapper
-- [ ] 07-02-PLAN.md — Post-install scripts (canonical software source): desktop, user, Chrome, Node.js, VNC, OpenClaw, validation
-- [ ] 07-03-PLAN.md — Script runner (run-scripts.sh) and README documentation
+- [x] 07-01-PLAN.md — VM template structure: template.conf, minimal cloud-init bootstrap, and create-vm.sh wrapper
+- [x] 07-02-PLAN.md — Post-install scripts (canonical software source): desktop, user, Chrome, Node.js, VNC, OpenClaw, validation
+- [x] 07-03-PLAN.md — Script runner (run-scripts.sh) and README documentation
 
 ---
 
@@ -245,16 +249,16 @@ Plans:
 
 **Goal:** Reusable, config-driven template system that deploys fully provisioned LXC containers on Proxmox via declarative YAML config and convention-based directory structure, shipping "forge-shield" as the first template — a full-stack + EVM dev environment with GSD/OpenCode and integrated security tooling
 **Depends on:** Phase 07
-**Plans:** 9 plans
+**Plans:** 9/9 plans executed (awaiting human-verify checkpoint for 08-08)
 
 Plans:
 
-- [ ] 08-01-PLAN.md — Engine library modules (logging, config, state, container, files, hooks)
-- [ ] 08-02-PLAN.md — Engine deploy.sh main entry point with full deployment pipeline
-- [ ] 08-03-PLAN.md — forge-shield template.yaml + base system and user creation scripts
-- [ ] 08-04-PLAN.md — forge-shield language runtime scripts (Node, Python, Go, Rust)
-- [ ] 08-05-PLAN.md — forge-shield EVM tools (Foundry, solc-select) + AI tools (Claude Code, OpenCode, GSD)
-- [ ] 08-06-PLAN.md — forge-shield security tool scripts (web + Solidity + ZAP)
-- [ ] 08-07-PLAN.md — forge-shield files/ (commands, scripts, CLAUDE.md, tmux.conf) + hooks/ + minimal/ template
-- [ ] 08-08-PLAN.md — Engine README + integration verification checkpoint
-- [ ] 08-09-PLAN.md — forge-shield setup scripts (Claude skills, shell config, verification)
+- [x] 08-01-PLAN.md — Engine library modules (logging, config, state, container, files, hooks)
+- [x] 08-02-PLAN.md — Engine deploy.sh main entry point with full deployment pipeline
+- [x] 08-03-PLAN.md — forge-shield template.yaml + base system and user creation scripts
+- [x] 08-04-PLAN.md — forge-shield language runtime scripts (Node, Python, Go, Rust)
+- [x] 08-05-PLAN.md — forge-shield EVM tools (Foundry, solc-select) + AI tools (Claude Code, OpenCode, GSD)
+- [x] 08-06-PLAN.md — forge-shield security tool scripts (web + Solidity + ZAP)
+- [x] 08-07-PLAN.md — forge-shield files/ (commands, scripts, CLAUDE.md, tmux.conf) + hooks/ + minimal/ template
+- [x] 08-08-PLAN.md — Engine README + integration verification checkpoint
+- [x] 08-09-PLAN.md — forge-shield setup scripts (Claude skills, shell config, verification)

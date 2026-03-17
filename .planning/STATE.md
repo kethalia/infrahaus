@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: active
+stopped_at: Completed Phase 06 — CI/CD, Docker deployment, Playwright E2E
+last_updated: "2026-03-08T14:15:00Z"
+last_activity: 2026-03-08 — Completed Phase 06 (3 plans: Dockerfile fix, production compose, CI/Playwright)
+progress:
+  total_phases: 12
+  completed_phases: 9
+  total_plans: 62
+  completed_plans: 55
+  percent: 89
+---
+
 # Project State
 
 ## Current Position
@@ -5,10 +21,10 @@
 **Project:** LXC Template Manager Dashboard (apps/dashboard)
 **Phase:** 04.6-pool-based-access (7 of 11 phases)
 **Plan:** 1 of 1 in current phase
-**Status:** Phase complete
+**Status:** Ready to plan
 **Last activity:** 2026-02-25 — Completed 04.6-01-PLAN.md (Pool-based Proxmox access control)
 
-Progress: █████████████████░░░ 88% (44/50 plans)
+Progress: [███████░░░] 71%
 
 ## Completed Work
 
@@ -333,15 +349,44 @@ Progress: █████████████████░░░ 88% (44/5
 - **Fallback WalletConnect projectId** — "MISSING_PROJECT_ID" prevents module-load crash when env var is empty
 - **Server-session redirect (useRedirectOnAuth)** — polls /api/auth/me instead of wagmi isConnected to prevent redirect loop (isConnected fires before SIWE verify completes)
 - **Pool is optional on ProxmoxNode** — single-user setups without a pool still work. Pool flows: DB → node form → create action → job queue → worker → Proxmox API. Empty pool in create = undefined (not stored); empty in update = clears to null.
+- [Phase 05-web-ui-monitoring]: Globe dropdown shows ALL web-accessible services (not capped) — http://ip:port URLs, no reachability checks, returns null when no services or IP
+- [Phase 05-web-ui-monitoring/05-02]: ResourceCharts uses Recharts via shadcn ChartContainer — timeframe-keyed TanStack Query hook with staleTime=refetchInterval for auto-polling. CPU Proxmox ratio (0-1) multiplied by 100 for percentage display. isRunning from container.status (not liveMetrics) avoids stale data edge case.
+- [Phase 07-vm-to-run-openclaw]: VM stays running after create-vm.sh — no qm template call; bash -c subshell for community scripts; VMID detection via qm list hostname search; cloud-init minimal bootstrap with passwordless sudo for run-scripts.sh automation
+- [Phase 07-vm-to-run-openclaw]: Standalone color logging (not config-manager) for VM scripts — no framework available inside VM
+- [Phase 07-vm-to-run-openclaw]: VNC configured with -localhost no for remote access; password 'openclaw' set via vncpasswd -f stdin
+- [Phase 07-vm-to-run-openclaw]: Script 06 gates install on npm view openclaw — exits with TODO instructions if not on public npm registry
+- [Phase 07-vm-to-run-openclaw]: SSH fallback order: root first, then openclaw with NOPASSWD sudo; SCP_CMD strips -o BatchMode=yes via string substitution
+- [Phase 07-01]: VM stays running after creation — do NOT run qm template. A running VM is immediately usable.
+- [Phase 07-01]: cloud-init is intentionally minimal — all software installation deferred to run-scripts.sh (Plan 02)
+- [Phase 08-01]: Engine library modules use 6 bash files (logging, config, state, container, files, hooks); all output to stderr for machine-parseable stdout; cfg_get converts yq null to empty string; state uses key=value .deploy-state file; pre_deploy runs on host, post_deploy runs inside container
+- [Phase 08-02]: deploy.sh sources config.sh inside validate() (not at top level) to avoid TEMPLATE_DIR:? guard firing before args are parsed; yq auto-installs to /usr/local/bin (root) or ~/bin (non-root); container preserved on failure for debugging and --resume; user-level packages run AFTER scripts phase
+- [Phase 08-03]: pipx in apt packages (PEP 668 compliance on Ubuntu 24.04); Claude Code excluded from npm (curl-installed in 30_claude-code.sh); no pip/cargo/go packages in template.yaml (dedicated scripts handle them)
+- [Phase 08-04]: Go pinned to 1.23.6 in 12_go.sh for reproducibility; Rust installed as non-root user via rustup; pipx enforced for Python CLI tools (PEP 668 on Ubuntu 24.04); npm global dir set to ~/.npm-global for user
+- [Phase 08-06]: Mythril soft-install: timeout 600s + || true pattern ensures z3 compilation failure does not abort 41_security-solidity.sh
+- [Phase 08-06]: ZAP URL dynamic resolution from GitHub API releases (not hardcoded weekly tag) in 42_zap.sh
+- [Phase 08-lxc-container-template-engine]: 50_claude-skills.sh guard checks if commands/ has files (not just exists) — reliable already-configured signal when engine pushes files later
+- [Phase 08-lxc-container-template-engine]: 99_verify.sh: exits 1 only for missing critical tools; optional tools (myth, opencode, ZAP, oh-my-zsh) use separate OPTIONAL_FAIL counter
+- [Phase 08-08]: Engine README is 300 lines (5x plan minimum) covering CLI reference, template creation guide, script conventions, engine architecture, and resume/recovery; all 30 bash files across the engine pass bash -n validation
 
 ## Pending Work
 
 - Phase 04.5: Complete ✓ — All 4 plans executed. Auth fully decoupled from Proxmox.
 - **Phase 04.6: Pool-Based Proxmox Access Control (1 plan) — COMPLETE ✓**
-- Phase 5: Web UI & Monitoring (#87-88)
+- **Phase 05-01 COMPLETE ✓** — RRD API route, Globe web-links dropdown
+- **Phase 05-02 COMPLETE ✓** — Resource history charts (CPU/Memory/Disk/Network I/O) with timeframe toggle
+- Phase 5: Web UI & Monitoring — 2/2 plans complete
 - Phase 6: CI/CD & Deployment (#89-90)
 - Phase 7: VM to Run OpenClaw (3 plans)
-- Phase 8: Proxmox LXC Container Template Engine (9 plans)
+- Phase 8: Proxmox LXC Container Template Engine (9 plans) — engine code complete, awaiting human verify
+  - **08-01 COMPLETE** — 6 engine library modules (logging, config, state, container, files, hooks)
+  - **08-02 COMPLETE** — deploy.sh main entry point with full 11-phase pipeline
+  - **08-03 COMPLETE** — forge-shield template.yaml + 00_base-system.sh + 01_create-user.sh
+  - **08-04 COMPLETE** — language runtime scripts (Node.js 22, Python/pipx, Go, Rust)
+  - **08-05 COMPLETE** — EVM and AI tool scripts (Foundry, solc-select, Claude Code, OpenCode, GSD)
+  - **08-06 COMPLETE** — security tool scripts (Semgrep, Trivy, Gitleaks, Slither, Aderyn, Echidna, ZAP)
+  - **08-07 COMPLETE** — files/ (Claude commands, security scripts, CLAUDE.md, tmux.conf), hooks, minimal template
+  - **08-08 COMPLETE** — engine README (300 lines), all bash files pass syntax validation
+  - **08-09 COMPLETE** — Claude skills, shell setup, verification scripts
 - **Known issue:** Zod v3→v4 type incompatibility with @hookform/resolvers in 6 form files (pre-existing, not blocking)
 
 ## Blockers/Concerns
@@ -358,7 +403,7 @@ Progress: █████████████████░░░ 88% (44/5
 
 ## Session Continuity
 
-Last session: 2026-02-25T15:30:00Z
-Stopped at: Completed 04.6-01-PLAN.md — phase 04.6 complete
+Last session: 2026-03-08T03:56:00Z
+Stopped at: Completed 08-08-PLAN.md — Engine README and integration verification (awaiting human-verify checkpoint)
 Resume file: None
-Next step: Phase 5 (Web UI & Monitoring) or merge feat/ssh-key-containers into feat/04.5-auth-decoupling
+Next step: Human review of complete LXC template engine, then real Proxmox deployment test

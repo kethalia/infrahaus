@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "dev:worker": "tsx --env-file .env --watch src/workers/container-creation.ts",
-    "dev:all": "concurrently --names next,worker --prefix-colors blue,green \"pnpm dev\" \"pnpm dev:worker\""
+    "dev:all": "concurrently --names next,worker --prefix-colors blue,green \"pnpm dev\" \"pnpm dev:worker\"",
+    "test:e2e": "playwright test"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -45,6 +46,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.71.1",
+    "recharts": "2.15.4",
     "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "ssh2": "1.17.0",
@@ -55,6 +57,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^25.2.0",
     "@types/pg": "^8.11.10",

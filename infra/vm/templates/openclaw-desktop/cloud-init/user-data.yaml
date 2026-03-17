@@ -1,0 +1,33 @@
+#cloud-config
+# MINIMAL BOOTSTRAP ONLY — all software (XFCE, Chrome, Node.js, VNC, OpenClaw) is installed
+# by post-install scripts in scripts/. Run them via: ./run-scripts.sh <VM_IP>
+hostname: openclaw-desktop
+manage_etc_hosts: true
+
+users:
+  - name: openclaw
+    groups: sudo,audio,video,render
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+
+package_update: true
+
+packages:
+  # Bootstrap prerequisites only — NOT desktop software
+  - qemu-guest-agent
+  - openssh-server
+  - curl
+  - wget
+  - ca-certificates
+  - gnupg
+  - git
+  - sudo
+
+runcmd:
+  - echo "openclaw:openclaw" | chpasswd
+  - chage -d 0 openclaw
+  - systemctl enable --now qemu-guest-agent
+  - systemctl enable --now ssh
+
+final_message: "Bootstrap complete after $UPTIME seconds. Run ./run-scripts.sh <VM_IP> to install desktop software."

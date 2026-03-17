@@ -28,6 +28,7 @@ import {
   RESOURCE_WARNING_THRESHOLD,
   RESOURCE_CRITICAL_THRESHOLD,
 } from "@/lib/constants/display";
+import { ResourceCharts } from "./resource-charts";
 
 // ============================================================================
 // Types
@@ -88,7 +89,9 @@ export function OverviewTab({ container, liveMetrics }: OverviewTabProps) {
     : {};
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="space-y-6">
+      {/* Existing Configuration + Resource Usage grid */}
+      <div className="grid gap-6 lg:grid-cols-2">
       {/* Configuration Card */}
       <Card>
         <CardHeader>
@@ -349,6 +352,14 @@ export function OverviewTab({ container, liveMetrics }: OverviewTabProps) {
           )}
         </CardContent>
       </Card>
+      </div>
+
+      {/* Resource History Charts — full width below the grid */}
+      <ResourceCharts
+        nodeName={container.node.name}
+        vmid={container.vmid}
+        isRunning={container.status === "running"}
+      />
     </div>
   );
 }

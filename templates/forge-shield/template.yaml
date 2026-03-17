@@ -1,0 +1,117 @@
+name: forge-shield
+description: "Full-stack + EVM dev environment with GSD and security tooling"
+version: "1.0.0"
+
+container:
+  # Ubuntu 24.04 LTS standard template
+  ostemplate: "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
+  hostname: "forge-shield"
+  cores: 4
+  memory: 8192
+  swap: 4096
+  # Disk size in GB
+  disk: 50
+  storage: "local-lvm"
+  network:
+    bridge: "vmbr0"
+    ip: "dhcp"
+    gateway: ""
+  dns:
+    nameserver: ""
+    searchdomain: ""
+  # Unprivileged container for security
+  unprivileged: true
+  features:
+    # nesting: required for Docker-in-LXC and some systemd services
+    # keyctl: required for systemd services and key management
+    - nesting=1
+    - keyctl=1
+  start_on_create: true
+  tags:
+    - dev
+    - security
+
+user:
+  name: coder
+  uid: 1000
+  shell: /bin/zsh
+  sudo: true
+  ssh_keys: []
+
+packages:
+  apt:
+    # Core build tools
+    - build-essential
+    - curl
+    - wget
+    - git
+    - unzip
+    - zip
+    - jq
+    # Security and auth
+    - sudo
+    - ca-certificates
+    - gnupg
+    # Repo management tools (needed before adding external apt sources)
+    - software-properties-common
+    - apt-transport-https
+    - lsb-release
+    # Python ecosystem (pipx handles PEP 668 restrictions on Ubuntu 24.04)
+    - python3
+    - python3-pip
+    - python3-venv
+    - python3-dev
+    # pipx: required for pip-installed CLI tools on Ubuntu 24.04 (PEP 668)
+    # Use pipx install <tool> instead of pip3 install for: semgrep, slither, mythril, solc-select
+    - pipx
+    # Security scanning tools (apt-installable)
+    - nmap
+    - nikto
+    # Network utilities
+    - net-tools
+    - dnsutils
+    - iputils-ping
+    # Text editors
+    - vim
+    - nano
+    # Shell and terminal utilities
+    - zsh
+    - tmux
+    - fzf
+    - ripgrep
+    - fd-find
+    - bat
+    # SSH client for git/remote access
+    - openssh-client
+    # Locale support
+    - locales
+    # Java runtime: required for OWASP ZAP web scanner
+    - default-jre
+  npm:
+    # pnpm: general JS package manager (installed globally, handles itself)
+    # NOTE: Claude Code is installed via curl script in 30_claude-code.sh (not npm)
+    # NOTE: solhint is installed via npm in 41_security-solidity.sh (template-specific)
+    # NOTE: all other tools (semgrep, slither, aderyn, opencode) have dedicated install scripts
+    - pnpm@latest
+
+scripts_dir: scripts/
+files_dir: files/
+
+hooks:
+  pre_deploy: hooks/pre-deploy.sh
+  post_deploy: hooks/post-deploy.sh
+
+env:
+  LANG: "en_US.UTF-8"
+  LC_ALL: "en_US.UTF-8"
+  # npm prefix for user-level global installs (avoids sudo for npm -g)
+  NPM_CONFIG_PREFIX: "/home/USER/.npm-global"
+  # PATH_APPEND: additional directories added to PATH in shell profile
+  # USER placeholder is replaced by the engine with the actual username
+  PATH_APPEND:
+    - "/home/USER/.npm-global/bin"
+    - "/home/USER/.local/bin"
+    - "/home/USER/.cargo/bin"
+    - "/home/USER/.foundry/bin"
+    - "/home/USER/go/bin"
+    - "/usr/local/go/bin"
