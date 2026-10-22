@@ -24,7 +24,7 @@
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "eslint": "^9.39.2",
-    "eslint-config-next": "^16.4.1",
+    "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^10.1.8",
     "tailwindcss": "^4.1.8",
     "typescript": "^5.8.3"
