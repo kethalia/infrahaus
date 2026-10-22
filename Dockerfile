@@ -1,4 +1,4 @@
-FROM node:22-alpine AS base
+FROM node:22.23.4-alpine AS base
 
 RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 
@@ -25,7 +25,7 @@ RUN mkdir -p apps/web/public && \
     pnpm --filter web build
 
 # ---
-FROM node:22-alpine AS runner
+FROM node:22.23.4-alpine AS runner
 
 WORKDIR /app
 
